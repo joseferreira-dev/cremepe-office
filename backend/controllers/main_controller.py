@@ -1,0 +1,1 @@
+# Controlador principal (caso necessário)

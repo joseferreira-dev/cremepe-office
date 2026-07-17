@@ -1,0 +1,296 @@
+/* ============================================================
+   CREMEPE Office - Customizações sobre o Bootstrap
+   ============================================================ */
+
+/* Global */
+body {
+    font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+    color: #212529;
+    background-color: #f8f9fa;
+}
+
+#app {
+    background-color: #ffffff;
+}
+
+/* Sidebar */
+#sidebar {
+    background-color: #007A51 !important;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+#sidebar .nav-btn {
+    border-radius: 0.5rem;
+    transition: background 0.15s, color 0.15s;
+    padding: 0.6rem 1rem;
+    font-weight: 500;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+}
+
+#sidebar .nav-btn i {
+    font-size: 1.1rem;
+    width: 1.5rem;
+    text-align: center;
+}
+
+#sidebar .nav-btn:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+#sidebar .nav-btn.active {
+    background-color: rgba(255, 255, 255, 0.20);
+    border-left: 4px solid #8ccfb7;
+}
+
+#logo {
+    font-size: 1.4rem;
+    letter-spacing: 0.5px;
+}
+
+/* Títulos de módulo */
+.module-title {
+    font-size: 1.6rem;
+    font-weight: 300;
+    color: #007A51;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid #8ccfb7;
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Sub-sidebar de funcionalidades */
+.module-sidebar {
+    background-color: #f8fafc;
+    border-right: 1px solid #e5e9ef;
+    border-radius: 0.75rem;
+    padding: 1rem 0;
+}
+
+.module-sidebar h3 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #007A51;
+    padding: 0 1rem 0.6rem;
+    border-bottom: 1px solid #dce1e7;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.feature-list {
+    list-style: none;
+    padding: 0.5rem 0;
+    margin: 0;
+}
+
+.feature-list li {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 0.375rem;
+    margin: 0.125rem 0.5rem;
+    font-weight: 500;
+    transition: background 0.15s;
+}
+
+.feature-list li:hover {
+    background-color: #eaf3f0;
+}
+
+.feature-list li.active {
+    background-color: #d9ebe6;
+    color: #007A51;
+    border-left: 4px solid #007A51;
+}
+
+/* Estatísticas */
+.stat-card {
+    background-color: #f8fafc;
+    border: 1px solid #e5e9ef;
+    border-radius: 0.75rem;
+    padding: 1.25rem 0.75rem;
+    text-align: center;
+    transition: box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #007A51;
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6c757d;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+}
+
+.stat-detail {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+/* Cards de acesso rápido */
+.card {
+    border: 1px solid #e5e9ef;
+    border-radius: 0.75rem;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+    border-color: #007A51;
+    box-shadow: 0 4px 16px rgba(0, 122, 81, 0.12);
+}
+
+.card-title {
+    color: #007A51;
+    font-weight: 600;
+}
+
+.card-text {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.card-icon {
+    font-size: 2rem;
+    color: #007A51;
+}
+
+/* Log */
+.log-area {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.8rem;
+    height: 120px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    color: #212529;
+}
+
+/* Ajustes para list-group da home */
+.list-group-item {
+    border-color: #f0f2f5;
+    padding: 0.75rem 1rem;
+}
+
+.list-group-item strong {
+    min-width: 120px;
+}
+
+/* Botões */
+.btn-success {
+    background-color: #007A51;
+    border-color: #007A51;
+}
+
+.btn-success:hover {
+    background-color: #006442;
+    border-color: #006442;
+}
+
+.btn-outline-success {
+    color: #007A51;
+    border-color: #007A51;
+}
+
+.btn-outline-success:hover {
+    background-color: #007A51;
+    color: #fff;
+}
+
+.text-success {
+    color: #007A51 !important;
+}
+
+.border-success {
+    border-color: #007A51 !important;
+}
+
+/* Ajustes responsive */
+@media (max-width: 768px) {
+    #sidebar {
+        width: 60px !important;
+        padding: 0.5rem !important;
+    }
+
+    #logo {
+        font-size: 0.8rem;
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .nav-btn {
+        font-size: 0 !important;
+        padding: 0.6rem !important;
+        justify-content: center !important;
+    }
+
+    .nav-btn i {
+        font-size: 1.4rem !important;
+        margin: 0 !important;
+    }
+
+    .nav-btn .me-2 {
+        display: none;
+    }
+
+    #version {
+        font-size: 0.6rem !important;
+    }
+
+    .module-sidebar {
+        width: 100% !important;
+        border-right: none !important;
+        border-bottom: 1px solid #e5e9ef;
+        border-radius: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .module-sidebar h3 {
+        display: none;
+    }
+
+    .feature-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        padding: 0.25rem;
+    }
+
+    .feature-list li {
+        margin: 0;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+        border-left: none !important;
+        background-color: #f1f3f5;
+    }
+
+    .feature-list li.active {
+        background-color: #007A51;
+        color: #fff !important;
+    }
+
+    .d-flex.gap-3 {
+        flex-direction: column;
+        height: auto !important;
+    }
+
+    #feature-content {
+        overflow-y: visible;
+    }
+}

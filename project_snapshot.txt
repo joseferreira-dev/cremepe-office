@@ -1,0 +1,3440 @@
+# Snapshot do projeto: cremepe-office
+# Gerado em: C:\Projetos\cremepe-office
+
+## ESTRUTURA DE DIRETÓRIOS
+
+├── backend/
+│   ├── config/
+│   │   ├── __init__.py
+│   │   └── settings.py
+│   ├── controllers/
+│   │   ├── __init__.py
+│   │   ├── excel_controller.py
+│   │   ├── file_controller.py
+│   │   ├── main_controller.py
+│   │   ├── pdf_controller.py
+│   │   └── word_controller.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── excel_processor.py
+│   │   ├── file_manager.py
+│   │   ├── pdf_processor.py
+│   │   └── word_processor.py
+│   ├── routes/
+│   │   ├── __init__.py
+│   │   ├── excel_routes.py
+│   │   ├── file_routes.py
+│   │   ├── pdf_routes.py
+│   │   └── word_routes.py
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── excel_utils.py
+│   │   ├── exceptions.py
+│   │   ├── file_utils.py
+│   │   ├── pdf_utils.py
+│   │   └── word_utils.py
+│   └── app.py
+├── frontend/
+│   ├── assets/
+
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   ├── modules/
+│   │   │   ├── file/
+│   │   │   │   ├── collect.js
+│   │   │   │   ├── duplicates.js
+│   │   │   │   ├── index.js
+│   │   │   │   ├── rename.js
+│   │   │   │   └── utils.js
+│   │   │   ├── excel.js
+│   │   │   ├── home.js
+│   │   │   ├── pdf.js
+│   │   │   ├── settings.js
+│   │   │   └── word.js
+│   │   ├── api.js
+│   │   └── app.js
+│   ├── index.html
+│   ├── main.js
+│   └── preload.js
+├── scripts/
+│   ├── start-backend.bat
+│   ├── start-backend.sh
+│   └── start-electron.bat
+├── package.json
+├── README.md
+└── requirements.txt
+
+## CONTEÚDO DOS ARQUIVOS
+
+
+### package.json
+
+```
+{
+    "name": "cremepe-office-electron",
+    "version": "0.1.0",
+    "description": "CREMEPE Office",
+    "main": "frontend/main.js",
+    "scripts": {
+        "start": "electron .",
+        "start-backend": "python backend/app.py",
+        "dev": "concurrently \"npm run start-backend\" \"npm run start\""
+    },
+    "dependencies": {
+        "electron": "^43.1.1"
+    },
+    "devDependencies": {
+        "concurrently": "^10.0.3"
+    }
+}
+```
+
+
+### README.md
+
+```
+# CREMEPE Office
+
+Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e planilhas.
+
+## Tecnologias
+- Frontend: Electron (HTML/CSS/JS)
+- Backend: Python + Flask (API REST)
+
+## Como executar
+1. Instale Python e Node.js.
+2. Crie e ative um ambiente virtual Python.
+3. Instale as dependências: `pip install -r requirements.txt` e `npm install`.
+4. Execute `npm run dev` para iniciar backend e frontend simultaneamente.
+
+## Funcionalidades
+- Coletar e renomear arquivos em lote
+- Mesclar e dividir PDFs
+- Converter documentos Word para PDF
+- Mesclar e manipular planilhas Excel
+```
+
+
+### requirements.txt
+
+```
+Flask==3.1.3
+flask-cors==6.0.5
+PyPDF2==3.0.1
+python-docx==1.2.0
+openpyxl==3.1.5
+reportlab==5.0.0
+```
+
+
+### backend\app.py
+
+```
+import os
+from flask import Flask
+from flask_cors import CORS
+
+from routes.file_routes import file_bp
+from routes.pdf_routes import pdf_bp
+from routes.word_routes import word_bp
+from routes.excel_routes import excel_bp
+
+app = Flask(__name__)
+CORS(app)
+
+# Registra blueprints
+app.register_blueprint(file_bp, url_prefix='/api/files')
+app.register_blueprint(pdf_bp, url_prefix='/api/pdf')
+app.register_blueprint(word_bp, url_prefix='/api/word')
+app.register_blueprint(excel_bp, url_prefix='/api/excel')
+
+@app.route('/api/health', methods=['GET'])
+def health():
+    return {"status": "ok"}, 200
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
+```
+
+
+### backend\config\settings.py
+
+```
+APP_NAME = "CREMEPE Office"
+VERSION = "0.1.0"
+
+DEFAULT_OUTPUT_DIR = "./output"
+
+# Limites (exemplo)
+PDF_MAX_SIZE_MB = 10
+PDF_MAX_PAGES = 100
+
+ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".bmp", ".gif"]
+```
+
+
+### backend\config\__init__.py
+
+```
+# Pacote config
+```
+
+
+### backend\controllers\excel_controller.py
+
+```
+from models.excel_processor import merge_excel_files, read_excel_sheet, write_excel_file
+
+class ExcelController:
+    def merge(self, file_paths, output_path):
+        return merge_excel_files(file_paths, output_path)
+
+    def read_sheet(self, file_path, sheet_name=0):
+        return read_excel_sheet(file_path, sheet_name)
+
+    def write_data(self, file_path, data, sheet_name='Sheet1'):
+        return write_excel_file(file_path, data, sheet_name)
+```
+
+
+### backend\controllers\file_controller.py
+
+```
+from pathlib import Path
+import re
+import unicodedata
+import hashlib
+from collections import defaultdict
+
+from models.file_manager import collect_files, rename_files_in_batch
+from datetime import datetime, timedelta
+
+class FileController:
+    def collect_files(self, src_dirs, dst_dir, recursive=True, overwrite=False,
+                      delete_empty_dirs=False, copy=False, preserve_structure=False,
+                      extensions=None, include_hidden=False, days_back=None,
+                      on_conflict='skip'):
+        min_mtime = None
+        if days_back is not None:
+            min_mtime = datetime.now() - timedelta(days=days_back)
+        return collect_files(
+            src_dirs=src_dirs,
+            dst_dir=dst_dir,
+            recursive=recursive,
+            overwrite=overwrite,
+            delete_empty_dirs=delete_empty_dirs,
+            copy=copy,
+            preserve_structure=preserve_structure,
+            extensions=extensions,
+            include_hidden=include_hidden,
+            min_mtime=min_mtime,
+            on_conflict=on_conflict,
+            progress_callback=None
+        )
+
+    def preview_files(self, src_dirs, recursive=True, extensions=None,
+                      include_hidden=False, days_back=None):
+        from pathlib import Path
+        all_files = []
+        for src_dir in src_dirs:
+            src_path = Path(src_dir)
+            if not src_path.exists():
+                raise FileNotFoundError(f"Diretório não encontrado: {src_dir}")
+            if recursive:
+                files = list(src_path.rglob("*"))
+            else:
+                files = list(src_path.glob("*"))
+            for f in files:
+                if f.is_file():
+                    all_files.append((src_path, f))
+
+        min_mtime = None
+        if days_back is not None:
+            min_mtime = datetime.now() - timedelta(days=days_back)
+
+        result = []
+        for src_root, file_path in all_files:
+            if extensions:
+                if not any(file_path.suffix.lower() == ext.lower() for ext in extensions):
+                    continue
+            if not include_hidden and file_path.name.startswith('.'):
+                continue
+            if min_mtime:
+                if datetime.fromtimestamp(file_path.stat().st_mtime) < min_mtime:
+                    continue
+            result.append({
+                'path': str(file_path),
+                'relative': str(file_path.relative_to(src_root)) if src_root != file_path.parent else file_path.name,
+                'size': file_path.stat().st_size,
+                'modified': datetime.fromtimestamp(file_path.stat().st_mtime).isoformat()
+            })
+        return result
+
+    def rename_files(self, file_paths, prefix='', suffix='', start_number=1,
+                     use_original_name=False, extensions=None,
+                     regex_pattern=None, regex_replacement='',
+                     case_conversion='none', remove_accents=False,
+                     replace_spaces_with=None):
+        return rename_files_in_batch(
+            file_paths,
+            prefix=prefix,
+            suffix=suffix,
+            start_number=start_number,
+            use_original_name=use_original_name,
+            extensions=extensions,
+            regex_pattern=regex_pattern,
+            regex_replacement=regex_replacement,
+            case_conversion=case_conversion,
+            remove_accents=remove_accents,
+            replace_spaces_with=replace_spaces_with,
+            progress_callback=None
+        )
+
+    def preview_rename(self, file_paths, prefix='', suffix='', start_number=1,
+                       use_original_name=False, extensions=None,
+                       regex_pattern=None, regex_replacement='',
+                       case_conversion='none', remove_accents=False,
+                       replace_spaces_with=None):
+        """
+        Retorna uma lista com os nomes originais e os novos nomes (sem renomear).
+        """
+        # Reutiliza a lógica de renomeação, mas sem renomear de fato.
+        # Vamos simular o novo nome para cada arquivo.
+        result = []
+        counter = start_number
+        for file_path in file_paths:
+            path = Path(file_path)
+            if not path.exists() or not path.is_file():
+                continue
+
+            # Aplica os mesmos filtros e transformações (código duplicado da função rename)
+            stem = path.stem
+            ext = path.suffix
+
+            if extensions:
+                if not any(path.suffix.lower() == ext.lower() for ext in extensions):
+                    continue
+
+            if regex_pattern:
+                try:
+                    stem = re.sub(regex_pattern, regex_replacement, stem)
+                except re.error:
+                    raise ValueError(f"Regex inválido: {regex_pattern}")
+
+            if remove_accents:
+                stem = ''.join(
+                    c for c in unicodedata.normalize('NFKD', stem)
+                    if not unicodedata.combining(c)
+                )
+
+            if replace_spaces_with is not None:
+                stem = stem.replace(' ', replace_spaces_with)
+
+            if case_conversion == 'lower':
+                stem = stem.lower()
+            elif case_conversion == 'upper':
+                stem = stem.upper()
+            elif case_conversion == 'title':
+                stem = stem.title()
+
+            if use_original_name:
+                new_name = f"{prefix}{stem}{suffix}{ext}"
+            else:
+                new_name = f"{prefix}{counter:04d}{suffix}{ext}"
+                counter += 1
+
+            # Verifica se já existe (se sim, adiciona sufixo)
+            new_path = path.parent / new_name
+            if new_path.exists():
+                base = new_path.stem
+                i = 1
+                while new_path.exists():
+                    new_name = f"{base}_{i}{ext}"
+                    new_path = path.parent / new_name
+                    i += 1
+
+            result.append({
+                'original': str(path.name),
+                'new': new_name,
+                'path': str(path)
+            })
+
+        return result
+    
+    def find_duplicates(self, dir_path, recursive=True, match_by='hash', include_hidden=False):
+        """
+        Escaneia um diretório e retorna grupos de arquivos duplicados.
+        match_by: 'hash' (MD5) ou 'name' (nome exato)
+        Retorna lista de grupos, cada grupo é uma lista de caminhos.
+        """
+        from pathlib import Path
+        src_path = Path(dir_path)
+        if not src_path.exists():
+            raise FileNotFoundError(f"Diretório não encontrado: {dir_path}")
+
+        files = []
+        if recursive:
+            files = list(src_path.rglob("*"))
+        else:
+            files = list(src_path.glob("*"))
+        files = [f for f in files if f.is_file() and (include_hidden or not f.name.startswith('.'))]
+
+        groups = defaultdict(list)
+        if match_by == 'hash':
+            for f in files:
+                with open(f, 'rb') as file:
+                    file_hash = hashlib.md5(file.read()).hexdigest()
+                groups[file_hash].append(str(f))
+        else:  # name
+            for f in files:
+                groups[f.name].append(str(f))
+
+        # Filtra apenas grupos com mais de um arquivo
+        duplicate_groups = [group for group in groups.values() if len(group) > 1]
+        return duplicate_groups
+    
+    def remove_duplicates(self, groups, action='delete', destination=None):
+        """
+        groups: lista de grupos (listas de caminhos)
+        action: 'delete' (exclui todos exceto o primeiro), 'move' (move para destination)
+        Retorna número de arquivos removidos/movidos.
+        """
+        import os
+        import shutil
+        count = 0
+        for group in groups:
+            # Preserva o primeiro como original
+            original = group[0]
+            for dup in group[1:]:
+                if action == 'delete':
+                    os.remove(dup)
+                elif action == 'move' and destination:
+                    dest_path = Path(destination) / Path(dup).name
+                    shutil.move(dup, dest_path)
+                count += 1
+        return count
+```
+
+
+### backend\controllers\main_controller.py
+
+```
+# Controlador principal (caso necessário)
+```
+
+
+### backend\controllers\pdf_controller.py
+
+```
+from models.pdf_processor import merge_pdfs, split_pdf
+
+class PDFController:
+    def merge(self, pdf_paths, output_path):
+        return merge_pdfs(pdf_paths, output_path)
+
+    def split(self, pdf_path, output_dir, pages_per_file=1):
+        return split_pdf(pdf_path, output_dir, pages_per_file)
+```
+
+
+### backend\controllers\word_controller.py
+
+```
+from models.word_processor import convert_docx_to_pdf, extract_text_from_docx
+
+class WordController:
+    def convert_to_pdf(self, docx_path, output_path=None):
+        return convert_docx_to_pdf(docx_path, output_path)
+
+    def extract_text(self, docx_path):
+        return extract_text_from_docx(docx_path)
+```
+
+
+### backend\controllers\__init__.py
+
+```
+# Pacote controllers
+```
+
+
+### backend\models\excel_processor.py
+
+```
+import os
+from pathlib import Path
+from openpyxl import load_workbook, Workbook
+from openpyxl.utils import get_column_letter
+
+def merge_excel_files(file_paths, output_path):
+    """
+    Mescla vários arquivos Excel em uma única planilha, copiando todas as linhas de cada arquivo.
+    Assume que todos têm a mesma estrutura (cabeçalho na primeira linha).
+    """
+    if not file_paths:
+        raise ValueError("Lista de arquivos vazia")
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Cria um novo workbook
+    wb_out = Workbook()
+    ws_out = wb_out.active
+    ws_out.title = "Merged"
+
+    first_file = True
+    for file_path in file_paths:
+        file_path = Path(file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
+        wb = load_workbook(file_path, data_only=True)
+        # Assume que queremos a primeira planilha
+        ws = wb.worksheets[0]
+        # Copia linhas
+        for row in ws.iter_rows(values_only=True):
+            # Se for o primeiro arquivo, copia cabeçalho também
+            # Senão, pula cabeçalho (assumindo que é a primeira linha)
+            if not first_file and row == ws[1]:  # simplificação: verifica se é igual ao cabeçalho
+                continue
+            ws_out.append(row)
+        first_file = False
+
+    wb_out.save(str(output_path))
+    return str(output_path)
+
+def read_excel_sheet(file_path, sheet_name=0):
+    """
+    Lê uma planilha Excel e retorna os dados como lista de dicionários.
+    """
+    file_path = Path(file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
+    wb = load_workbook(file_path, data_only=True)
+    if isinstance(sheet_name, int):
+        ws = wb.worksheets[sheet_name]
+    else:
+        ws = wb[sheet_name]
+    # Obtém cabeçalhos da primeira linha
+    headers = [cell.value for cell in ws[1]]
+    data = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not any(row):  # linha vazia
+            continue
+        data.append(dict(zip(headers, row)))
+    return data
+
+def write_excel_file(file_path, data, sheet_name='Sheet1'):
+    """
+    Escreve uma lista de dicionários em um arquivo Excel.
+    """
+    file_path = Path(file_path)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = sheet_name
+
+    if not data:
+        # Se não houver dados, cria arquivo vazio
+        wb.save(str(file_path))
+        return str(file_path)
+
+    headers = list(data[0].keys())
+    ws.append(headers)
+    for row in data:
+        ws.append([row.get(h, '') for h in headers])
+
+    wb.save(str(file_path))
+    return str(file_path)
+```
+
+
+### backend\models\file_manager.py
+
+```
+import os
+import shutil
+import re
+import unicodedata
+from pathlib import Path
+from typing import List, Callable, Optional, Union
+from datetime import datetime, timedelta
+
+# ===================== COLETA =====================
+def collect_files(
+    src_dirs: List[str],
+    dst_dir: str,
+    recursive: bool = True,
+    overwrite: bool = False,
+    delete_empty_dirs: bool = False,
+    copy: bool = False,
+    preserve_structure: bool = False,
+    extensions: List[str] = None,
+    include_hidden: bool = False,
+    min_mtime: Union[datetime, None] = None,
+    on_conflict: str = 'skip',  # 'skip', 'overwrite', 'rename'
+    progress_callback: Optional[Callable[[int, int], None]] = None
+) -> int:
+    """
+    Coleta arquivos de uma ou mais pastas origem para um destino.
+    Retorna o número de arquivos processados.
+    """
+    dst_path = Path(dst_dir)
+    dst_path.mkdir(parents=True, exist_ok=True)
+
+    # Coleta todos os arquivos das origens
+    all_files = []
+    for src_dir in src_dirs:
+        src_path = Path(src_dir)
+        if not src_path.exists():
+            raise FileNotFoundError(f"Diretório origem não encontrado: {src_dir}")
+        if recursive:
+            files = list(src_path.rglob("*"))
+        else:
+            files = list(src_path.glob("*"))
+        for f in files:
+            if f.is_file():
+                all_files.append((src_path, f))
+    
+    # Aplica filtros
+    filtered = []
+    for src_root, file_path in all_files:
+        # Extensão
+        if extensions:
+            if not any(file_path.suffix.lower() == ext.lower() for ext in extensions):
+                continue
+        # Oculto
+        if not include_hidden and file_path.name.startswith('.'):
+            continue
+        # Data de modificação
+        if min_mtime:
+            if datetime.fromtimestamp(file_path.stat().st_mtime) < min_mtime:
+                continue
+        filtered.append((src_root, file_path))
+
+    total = len(filtered)
+    processed = 0
+
+    for idx, (src_root, file_path) in enumerate(filtered):
+        # Determina destino
+        if preserve_structure:
+            rel_path = file_path.relative_to(src_root)
+            dest_file = dst_path / rel_path
+        else:
+            dest_file = dst_path / file_path.name
+
+        dest_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Conflito
+        if dest_file.exists():
+            if on_conflict == 'skip':
+                if progress_callback:
+                    progress_callback(idx + 1, total)
+                continue
+            elif on_conflict == 'rename':
+                base = dest_file.stem
+                ext = dest_file.suffix
+                counter = 1
+                while dest_file.exists():
+                    new_name = f"{base}_{counter}{ext}"
+                    dest_file = dest_file.parent / new_name
+                    counter += 1
+            # 'overwrite' sobrescreve
+
+        # Copia ou move
+        if copy:
+            shutil.copy2(str(file_path), str(dest_file))
+        else:
+            shutil.move(str(file_path), str(dest_file))
+        processed += 1
+
+        if progress_callback:
+            progress_callback(idx + 1, total)
+
+    # Exclui pastas vazias (se mover e delete_empty_dirs=True)
+    if not copy and delete_empty_dirs:
+        for src_dir in src_dirs:
+            for root, dirs, files in os.walk(src_dir, topdown=False):
+                try:
+                    if not os.listdir(root):
+                        os.rmdir(root)
+                except OSError:
+                    pass
+
+    return processed
+
+# ===================== RENOMEAR =====================
+def rename_files_in_batch(
+    file_paths: List[str],
+    prefix: str = "",
+    suffix: str = "",
+    start_number: int = 1,
+    use_original_name: bool = False,
+    extensions: List[str] = None,                     # novo: filtrar por extensão
+    regex_pattern: str = None,                        # novo: padrão regex para substituir
+    regex_replacement: str = "",                      # novo: substituição
+    case_conversion: str = 'none',                    # 'none', 'lower', 'upper', 'title'
+    remove_accents: bool = False,                     # novo: remover acentos
+    replace_spaces_with: str = None,                  # novo: substituir espaços por outro caractere
+    progress_callback: Optional[Callable[[int, int], None]] = None
+) -> int:
+    """
+    Renomeia uma lista de arquivos aplicando transformações.
+    Retorna o número de arquivos renomeados.
+    """
+    renamed_count = 0
+    total = len(file_paths)
+    counter = start_number
+
+    for idx, file_path in enumerate(file_paths):
+        path = Path(file_path)
+        if not path.exists() or not path.is_file():
+            continue
+
+        # Filtro por extensão
+        if extensions:
+            if not any(path.suffix.lower() == ext.lower() for ext in extensions):
+                if progress_callback:
+                    progress_callback(idx + 1, total)
+                continue
+
+        # Nome base (sem extensão) e extensão
+        stem = path.stem
+        ext = path.suffix
+
+        # 1) Aplica substituição regex (se fornecida)
+        if regex_pattern:
+            try:
+                stem = re.sub(regex_pattern, regex_replacement, stem)
+            except re.error:
+                raise ValueError(f"Regex inválido: {regex_pattern}")
+
+        # 2) Remove acentos
+        if remove_accents:
+            stem = ''.join(
+                c for c in unicodedata.normalize('NFKD', stem)
+                if not unicodedata.combining(c)
+            )
+
+        # 3) Substitui espaços
+        if replace_spaces_with is not None:
+            stem = stem.replace(' ', replace_spaces_with)
+
+        # 4) Converte caixa
+        if case_conversion == 'lower':
+            stem = stem.lower()
+        elif case_conversion == 'upper':
+            stem = stem.upper()
+        elif case_conversion == 'title':
+            stem = stem.title()
+
+        # 5) Monta nome final com prefixo/sufixo e numeração
+        if use_original_name:
+            new_name = f"{prefix}{stem}{suffix}{ext}"
+        else:
+            new_name = f"{prefix}{counter:04d}{suffix}{ext}"
+            counter += 1
+
+        new_path = path.parent / new_name
+
+        # Se conflito, renomeia com sufixo numérico
+        if new_path.exists():
+            base = new_path.stem
+            i = 1
+            while new_path.exists():
+                new_name = f"{base}_{i}{ext}"
+                new_path = path.parent / new_name
+                i += 1
+
+        path.rename(new_path)
+        renamed_count += 1
+        if progress_callback:
+            progress_callback(idx + 1, total)
+
+    return renamed_count
+```
+
+
+### backend\models\pdf_processor.py
+
+```
+import os
+from pathlib import Path
+from PyPDF2 import PdfReader, PdfWriter
+
+def merge_pdfs(pdf_paths, output_path):
+    """
+    Mescla uma lista de PDFs em um único arquivo.
+    Retorna o caminho do arquivo gerado.
+    """
+    if not pdf_paths:
+        raise ValueError("Lista de PDFs vazia")
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    writer = PdfWriter()
+    for path in pdf_paths:
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+        reader = PdfReader(str(path))
+        for page in reader.pages:
+            writer.add_page(page)
+    
+    with open(output_path, 'wb') as f:
+        writer.write(f)
+    return str(output_path)
+
+def split_pdf(pdf_path, output_dir, pages_per_file=1):
+    """
+    Divide um PDF em múltiplos arquivos, cada um com `pages_per_file` páginas.
+    Retorna lista de caminhos gerados.
+    """
+    pdf_path = Path(pdf_path)
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    output_files = []
+
+    for start in range(0, total_pages, pages_per_file):
+        writer = PdfWriter()
+        end = min(start + pages_per_file, total_pages)
+        for i in range(start, end):
+            writer.add_page(reader.pages[i])
+        out_name = f"{pdf_path.stem}_part_{start//pages_per_file + 1}.pdf"
+        out_path = output_dir / out_name
+        with open(out_path, 'wb') as f:
+            writer.write(f)
+        output_files.append(str(out_path))
+    
+    return output_files
+```
+
+
+### backend\models\word_processor.py
+
+```
+import os
+from pathlib import Path
+from docx import Document
+import subprocess
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import mm
+
+def convert_docx_to_pdf(docx_path, output_path=None):
+    """
+    Converte um arquivo .docx para PDF.
+    Se output_path não for fornecido, salva no mesmo diretório com extensão .pdf.
+    """
+    docx_path = Path(docx_path)
+    if not docx_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {docx_path}")
+    
+    if output_path is None:
+        output_path = docx_path.with_suffix('.pdf')
+    else:
+        output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    doc = Document(docx_path)
+    # Extrai texto de todos os parágrafos
+    text = "\n".join([p.text for p in doc.paragraphs])
+
+    c = canvas.Canvas(str(output_path), pagesize=A4)
+    width, height = A4
+    # Configura fonte
+    c.setFont("Helvetica", 12)
+    # Escreve o texto linha a linha
+    y = height - 20
+    for line in text.split('\n'):
+        if y < 20:
+            c.showPage()
+            y = height - 20
+        c.drawString(20, y, line[:100])  # Limita para não estourar
+        y -= 15
+    c.save()
+    return str(output_path)
+
+def extract_text_from_docx(docx_path):
+    """
+    Extrai e retorna todo o texto de um arquivo .docx.
+    """
+    docx_path = Path(docx_path)
+    if not docx_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {docx_path}")
+    doc = Document(docx_path)
+    return "\n".join([p.text for p in doc.paragraphs])
+```
+
+
+### backend\models\__init__.py
+
+```
+# Pacote models
+```
+
+
+### backend\routes\excel_routes.py
+
+```
+from flask import Blueprint, request, jsonify
+from controllers.excel_controller import ExcelController
+
+excel_bp = Blueprint('excel', __name__)
+controller = ExcelController()
+
+@excel_bp.route('/merge', methods=['POST'])
+def merge():
+    data = request.json
+    if not data.get('file_paths') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: file_paths, output_path"}), 400
+    try:
+        result = controller.merge(data['file_paths'], data['output_path'])
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@excel_bp.route('/read', methods=['POST'])
+def read():
+    data = request.json
+    if not data.get('file_path'):
+        return jsonify({"error": "Campo obrigatório: file_path"}), 400
+    try:
+        sheet = data.get('sheet_name', 0)
+        result = controller.read_sheet(data['file_path'], sheet)
+        return jsonify({"success": True, "data": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@excel_bp.route('/write', methods=['POST'])
+def write():
+    data = request.json
+    if not data.get('file_path') or not data.get('data'):
+        return jsonify({"error": "Campos obrigatórios: file_path, data"}), 400
+    try:
+        sheet = data.get('sheet_name', 'Sheet1')
+        result = controller.write_data(data['file_path'], data['data'], sheet)
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
+
+
+### backend\routes\file_routes.py
+
+```
+from flask import Blueprint, request, jsonify
+from controllers.file_controller import FileController
+from datetime import datetime, timedelta
+import os
+
+file_bp = Blueprint('file', __name__)
+controller = FileController()
+
+@file_bp.route('/preview', methods=['POST'])
+def preview_files():
+    data = request.json
+    if not data.get('src_dirs'):
+        return jsonify({"error": "Campo 'src_dirs' (lista) obrigatório"}), 400
+    try:
+        extensions = data.get('extensions')
+        if extensions and isinstance(extensions, str):
+            extensions = [e.strip() for e in extensions.split(',') if e.strip()]
+        days_back = data.get('days_back')
+        if days_back:
+            days_back = int(days_back)
+        result = controller.preview_files(
+            src_dirs=data['src_dirs'],
+            recursive=data.get('recursive', True),
+            extensions=extensions,
+            include_hidden=data.get('include_hidden', False),
+            days_back=days_back
+        )
+        return jsonify({"success": True, "files": result, "count": len(result)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/collect', methods=['POST'])
+def collect_files():
+    data = request.json
+    if not data.get('src_dirs') or not data.get('dst_dir'):
+        return jsonify({"error": "Campos obrigatórios: src_dirs (lista), dst_dir"}), 400
+    try:
+        extensions = data.get('extensions')
+        if extensions and isinstance(extensions, str):
+            extensions = [e.strip() for e in extensions.split(',') if e.strip()]
+        days_back = data.get('days_back')
+        if days_back:
+            days_back = int(days_back)
+        result = controller.collect_files(
+            src_dirs=data['src_dirs'],
+            dst_dir=data['dst_dir'],
+            recursive=data.get('recursive', True),
+            overwrite=data.get('overwrite', False),
+            delete_empty_dirs=data.get('delete_empty_dirs', False),
+            copy=data.get('copy', False),
+            preserve_structure=data.get('preserve_structure', False),
+            extensions=extensions,
+            include_hidden=data.get('include_hidden', False),
+            days_back=days_back,
+            on_conflict=data.get('on_conflict', 'skip')
+        )
+        return jsonify({"success": True, "processed_count": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/list', methods=['POST'])
+def list_files():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    dir_path = data['dir']
+    import os
+    try:
+        files = [f for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))]
+        return jsonify({"success": True, "files": files}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/rename-preview', methods=['POST'])
+def rename_preview():
+    data = request.json
+    if not data.get('file_paths'):
+        return jsonify({"error": "Campo 'file_paths' obrigatório"}), 400
+
+    try:
+        extensions = data.get('extensions')
+        if extensions and isinstance(extensions, str):
+            extensions = [e.strip() for e in extensions.split(',') if e.strip()]
+
+        result = controller.preview_rename(
+            file_paths=data['file_paths'],
+            prefix=data.get('prefix', ''),
+            suffix=data.get('suffix', ''),
+            start_number=data.get('start_number', 1),
+            use_original_name=data.get('use_original_name', False),
+            extensions=extensions,
+            regex_pattern=data.get('regex_pattern'),
+            regex_replacement=data.get('regex_replacement', ''),
+            case_conversion=data.get('case_conversion', 'none'),
+            remove_accents=data.get('remove_accents', False),
+            replace_spaces_with=data.get('replace_spaces_with')
+        )
+        return jsonify({"success": True, "preview": result, "count": len(result)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/rename', methods=['POST'])
+def rename_files():
+    data = request.json
+    if not data.get('file_paths'):
+        return jsonify({"error": "Campo 'file_paths' obrigatório"}), 400
+
+    try:
+        extensions = data.get('extensions')
+        if extensions and isinstance(extensions, str):
+            extensions = [e.strip() for e in extensions.split(',') if e.strip()]
+
+        result = controller.rename_files(
+            file_paths=data['file_paths'],
+            prefix=data.get('prefix', ''),
+            suffix=data.get('suffix', ''),
+            start_number=data.get('start_number', 1),
+            use_original_name=data.get('use_original_name', False),
+            extensions=extensions,
+            regex_pattern=data.get('regex_pattern'),
+            regex_replacement=data.get('regex_replacement', ''),
+            case_conversion=data.get('case_conversion', 'none'),
+            remove_accents=data.get('remove_accents', False),
+            replace_spaces_with=data.get('replace_spaces_with')
+        )
+        return jsonify({"success": True, "renamed_count": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@file_bp.route('/duplicates', methods=['POST'])
+def find_duplicates():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        recursive = data.get('recursive', True)
+        match_by = data.get('match_by', 'hash')
+        include_hidden = data.get('include_hidden', False)
+        groups = controller.find_duplicates(data['dir'], recursive, match_by, include_hidden)
+        # Transforma para JSON
+        result = [{'files': group, 'count': len(group)} for group in groups]
+        return jsonify({"success": True, "groups": result, "total_groups": len(groups)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/duplicates/remove', methods=['POST'])
+def remove_duplicates():
+    data = request.json
+    if not data.get('groups'):
+        return jsonify({"error": "Campo 'groups' obrigatório"}), 400
+    try:
+        action = data.get('action', 'delete')
+        destination = data.get('destination')
+        count = controller.remove_duplicates(data['groups'], action, destination)
+        return jsonify({"success": True, "removed_count": count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
+
+
+### backend\routes\pdf_routes.py
+
+```
+from flask import Blueprint, request, jsonify
+from controllers.pdf_controller import PDFController
+
+pdf_bp = Blueprint('pdf', __name__)
+controller = PDFController()
+
+@pdf_bp.route('/merge', methods=['POST'])
+def merge():
+    data = request.json
+    if not data.get('pdf_paths') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: pdf_paths, output_path"}), 400
+    try:
+        result = controller.merge(data['pdf_paths'], data['output_path'])
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/split', methods=['POST'])
+def split():
+    data = request.json
+    if not data.get('pdf_path') or not data.get('output_dir'):
+        return jsonify({"error": "Campos obrigatórios: pdf_path, output_dir"}), 400
+    try:
+        pages_per = data.get('pages_per_file', 1)
+        result = controller.split(data['pdf_path'], data['output_dir'], pages_per)
+        return jsonify({"success": True, "output_files": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
+
+
+### backend\routes\word_routes.py
+
+```
+from flask import Blueprint, request, jsonify
+from controllers.word_controller import WordController
+
+word_bp = Blueprint('word', __name__)
+controller = WordController()
+
+@word_bp.route('/convert-to-pdf', methods=['POST'])
+def convert_to_pdf():
+    data = request.json
+    if not data.get('docx_path'):
+        return jsonify({"error": "Campo obrigatório: docx_path"}), 400
+    try:
+        output = data.get('output_path')
+        result = controller.convert_to_pdf(data['docx_path'], output)
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/extract-text', methods=['POST'])
+def extract_text():
+    data = request.json
+    if not data.get('docx_path'):
+        return jsonify({"error": "Campo obrigatório: docx_path"}), 400
+    try:
+        result = controller.extract_text(data['docx_path'])
+        return jsonify({"success": True, "text": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+```
+
+
+### backend\routes\__init__.py
+
+```
+# Pacote routes
+```
+
+
+### backend\utils\excel_utils.py
+
+```
+# Funções auxiliares para Excel (ex: validação, formatação)
+```
+
+
+### backend\utils\exceptions.py
+
+```
+class CREMEPEException(Exception):
+    """Base exception para o projeto."""
+    pass
+
+class FileOperationError(CREMEPEException):
+    pass
+
+class PDFOperationError(CREMEPEException):
+    pass
+```
+
+
+### backend\utils\file_utils.py
+
+```
+import os
+from pathlib import Path
+
+def ensure_dir(path):
+    Path(path).mkdir(parents=True, exist_ok=True)
+
+def list_files_in_dir(directory, recursive=False):
+    directory = Path(directory)
+    if not directory.exists():
+        return []
+    if recursive:
+        return [str(p) for p in directory.rglob('*') if p.is_file()]
+    else:
+        return [str(p) for p in directory.glob('*') if p.is_file()]
+```
+
+
+### backend\utils\pdf_utils.py
+
+```
+# Funções auxiliares para PDF (ex: contagem de páginas, validação)
+def get_pdf_page_count(pdf_path):
+    from PyPDF2 import PdfReader
+    reader = PdfReader(pdf_path)
+    return len(reader.pages)
+```
+
+
+### backend\utils\word_utils.py
+
+```
+# Funções auxiliares para Word
+```
+
+
+### backend\utils\__init__.py
+
+```
+# Pacote utils
+```
+
+
+### frontend\index.html
+
+```
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CREMEPE Office</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <!-- Custom CSS (cores e sidebar) -->
+    <link rel="stylesheet" href="css/styles.css" />
+</head>
+
+<body>
+    <div id="app" class="d-flex vh-100">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="d-flex flex-column flex-shrink-0 p-3 text-white"
+            style="width: 240px; background-color: #007A51;">
+            <div id="logo" class="text-center fw-bold fs-4 pb-3 mb-3 border-bottom" style="border-color: #009964;">
+                CREMEPE Office
+            </div>
+            <nav class="nav nav-pills flex-column mb-auto gap-1">
+                <button class="nav-btn nav-link text-white active" data-page="home">
+                    <i class="bi bi-house-door me-2"></i> Home
+                </button>
+                <button class="nav-btn nav-link text-white" data-page="files">
+                    <i class="bi bi-folder2-open me-2"></i> Arquivos e Pastas
+                </button>
+                <button class="nav-btn nav-link text-white" data-page="pdf">
+                    <i class="bi bi-file-earmark-pdf me-2"></i> PDF
+                </button>
+                <button class="nav-btn nav-link text-white" data-page="word">
+                    <i class="bi bi-file-earmark-word me-2"></i> Documentos
+                </button>
+                <button class="nav-btn nav-link text-white" data-page="excel">
+                    <i class="bi bi-file-earmark-excel me-2"></i> Planilhas
+                </button>
+            </nav>
+            <hr style="border-color: #009964;" />
+            <div class="mt-auto">
+                <button class="nav-btn nav-link text-white" data-page="settings">
+                    <i class="bi bi-gear me-2"></i> Configurações
+                </button>
+                <div id="version" class="text-center text-white-50 small mt-2">v0.1.0</div>
+            </div>
+        </aside>
+
+        <!-- Conteúdo principal -->
+        <main id="content" class="flex-grow-1 p-4 overflow-auto bg-white">
+            <div id="page-container"></div>
+        </main>
+    </div>
+
+    <!-- Bootstrap JS (opcional) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Scripts do app -->
+    <script src="js/api.js"></script>
+    <script src="js/modules/file/utils.js"></script>
+    <script src="js/modules/file/collect.js"></script>
+    <script src="js/modules/file/rename.js"></script>
+    <script src="js/modules/file/duplicates.js"></script>
+    <script src="js/modules/file/index.js"></script>
+    <script src="js/modules/home.js"></script>
+    <script src="js/modules/pdf.js"></script>
+    <script src="js/modules/word.js"></script>
+    <script src="js/modules/excel.js"></script>
+    <script src="js/modules/settings.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>
+```
+
+
+### frontend\main.js
+
+```
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('path');
+const { spawn } = require('child_process');
+const fs = require('fs');
+
+let mainWindow;
+let backendProcess = null;
+
+function createWindow() {
+    mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 750,
+        minWidth: 1000,
+        minHeight: 600,
+        webPreferences: {
+            preload: path.join(__dirname, 'preload.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            enableRemoteModule: false,
+        },
+        icon: path.join(__dirname, 'assets', 'icon.png'), // opcional
+    });
+
+    mainWindow.loadFile(path.join(__dirname, 'index.html'));
+
+    // DevTools (opcional, remova em produção)
+    // mainWindow.webContents.openDevTools();
+
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+        // Encerrar backend ao fechar a janela
+        if (backendProcess) {
+            backendProcess.kill();
+            backendProcess = null;
+        }
+        app.quit();
+    });
+}
+
+ipcMain.handle('dialog:open', async (event, options) => {
+    const result = await dialog.showOpenDialog(mainWindow, options);
+    return result;
+});
+
+ipcMain.handle('dialog:save', async (event, options) => {
+    const result = await dialog.showSaveDialog(mainWindow, options);
+    return result;
+});
+
+app.whenReady().then(() => {
+    // Iniciar o servidor Flask como subprocesso
+    startBackend();
+    createWindow();
+});
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+app.on('activate', () => {
+    if (mainWindow === null) {
+        createWindow();
+    }
+});
+
+// Função para iniciar o backend (Flask)
+function startBackend() {
+    const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+    const backendScript = path.join(__dirname, '..', 'backend', 'app.py');
+
+    // Verifica se o script existe
+    if (!fs.existsSync(backendScript)) {
+        console.error('Backend script not found:', backendScript);
+        return;
+    }
+
+    backendProcess = spawn(pythonPath, [backendScript], {
+        env: { ...process.env, PORT: 5000 },
+        stdio: 'pipe',
+    });
+
+    backendProcess.stdout.on('data', (data) => {
+        console.log(`[Backend] ${data}`);
+    });
+
+    backendProcess.stderr.on('data', (data) => {
+        console.error(`[Backend Error] ${data}`);
+    });
+
+    backendProcess.on('close', (code) => {
+        console.log(`Backend process exited with code ${code}`);
+        backendProcess = null;
+    });
+
+    // Aguardar um pouco para o servidor iniciar
+    // (em produção, seria melhor usar um mecanismo de health check)
+    setTimeout(() => {
+        console.log('Backend iniciado (aguardando conexão)');
+    }, 2000);
+}
+
+// Expor função para o renderer obter o caminho base (opcional)
+ipcMain.handle('get-base-path', () => {
+    return app.getAppPath();
+});
+```
+
+
+### frontend\preload.js
+
+```
+const { contextBridge, ipcRenderer } = require('electron');
+
+// Expor APIs seguras para o renderer
+contextBridge.exposeInMainWorld('electronAPI', {
+    // Enviar mensagem para o main (exemplo)
+    send: (channel, data) => {
+        // canais permitidos
+        const validChannels = ['toMain'];
+        if (validChannels.includes(channel)) {
+            ipcRenderer.send(channel, data);
+        }
+    },
+    // Receber mensagens do main
+    receive: (channel, func) => {
+        const validChannels = ['fromMain'];
+        if (validChannels.includes(channel)) {
+            ipcRenderer.on(channel, (event, ...args) => func(...args));
+        }
+    },
+    // Outras funções úteis, como abrir diálogo de arquivo (via main)
+    showOpenDialog: (options) => ipcRenderer.invoke('dialog:open', options),
+    showSaveDialog: (options) => ipcRenderer.invoke('dialog:save', options),
+});
+
+// Pode-se adicionar também uma função para obter o caminho base
+contextBridge.exposeInMainWorld('getBasePath', () => {
+    return ipcRenderer.invoke('get-base-path');
+});
+```
+
+
+### frontend\css\styles.css
+
+```
+/* ============================================================
+   CREMEPE Office - Customizações sobre o Bootstrap
+   ============================================================ */
+
+/* Global */
+body {
+    font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+    color: #212529;
+    background-color: #f8f9fa;
+}
+
+#app {
+    background-color: #ffffff;
+}
+
+/* Sidebar */
+#sidebar {
+    background-color: #007A51 !important;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+#sidebar .nav-btn {
+    border-radius: 0.5rem;
+    transition: background 0.15s, color 0.15s;
+    padding: 0.6rem 1rem;
+    font-weight: 500;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+}
+
+#sidebar .nav-btn i {
+    font-size: 1.1rem;
+    width: 1.5rem;
+    text-align: center;
+}
+
+#sidebar .nav-btn:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+#sidebar .nav-btn.active {
+    background-color: rgba(255, 255, 255, 0.20);
+    border-left: 4px solid #8ccfb7;
+}
+
+#logo {
+    font-size: 1.4rem;
+    letter-spacing: 0.5px;
+}
+
+/* Títulos de módulo */
+.module-title {
+    font-size: 1.6rem;
+    font-weight: 300;
+    color: #007A51;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid #8ccfb7;
+    margin-bottom: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Sub-sidebar de funcionalidades */
+.module-sidebar {
+    background-color: #f8fafc;
+    border-right: 1px solid #e5e9ef;
+    border-radius: 0.75rem;
+    padding: 1rem 0;
+}
+
+.module-sidebar h3 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #007A51;
+    padding: 0 1rem 0.6rem;
+    border-bottom: 1px solid #dce1e7;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.feature-list {
+    list-style: none;
+    padding: 0.5rem 0;
+    margin: 0;
+}
+
+.feature-list li {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-radius: 0.375rem;
+    margin: 0.125rem 0.5rem;
+    font-weight: 500;
+    transition: background 0.15s;
+}
+
+.feature-list li:hover {
+    background-color: #eaf3f0;
+}
+
+.feature-list li.active {
+    background-color: #d9ebe6;
+    color: #007A51;
+    border-left: 4px solid #007A51;
+}
+
+/* Estatísticas */
+.stat-card {
+    background-color: #f8fafc;
+    border: 1px solid #e5e9ef;
+    border-radius: 0.75rem;
+    padding: 1.25rem 0.75rem;
+    text-align: center;
+    transition: box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #007A51;
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6c757d;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-top: 0.25rem;
+}
+
+.stat-detail {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
+
+/* Cards de acesso rápido */
+.card {
+    border: 1px solid #e5e9ef;
+    border-radius: 0.75rem;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.card:hover {
+    border-color: #007A51;
+    box-shadow: 0 4px 16px rgba(0, 122, 81, 0.12);
+}
+
+.card-title {
+    color: #007A51;
+    font-weight: 600;
+}
+
+.card-text {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.card-icon {
+    font-size: 2rem;
+    color: #007A51;
+}
+
+/* Log */
+.log-area {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.8rem;
+    height: 120px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    color: #212529;
+}
+
+/* Ajustes para list-group da home */
+.list-group-item {
+    border-color: #f0f2f5;
+    padding: 0.75rem 1rem;
+}
+
+.list-group-item strong {
+    min-width: 120px;
+}
+
+/* Botões */
+.btn-success {
+    background-color: #007A51;
+    border-color: #007A51;
+}
+
+.btn-success:hover {
+    background-color: #006442;
+    border-color: #006442;
+}
+
+.btn-outline-success {
+    color: #007A51;
+    border-color: #007A51;
+}
+
+.btn-outline-success:hover {
+    background-color: #007A51;
+    color: #fff;
+}
+
+.text-success {
+    color: #007A51 !important;
+}
+
+.border-success {
+    border-color: #007A51 !important;
+}
+
+/* Ajustes responsive */
+@media (max-width: 768px) {
+    #sidebar {
+        width: 60px !important;
+        padding: 0.5rem !important;
+    }
+
+    #logo {
+        font-size: 0.8rem;
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .nav-btn {
+        font-size: 0 !important;
+        padding: 0.6rem !important;
+        justify-content: center !important;
+    }
+
+    .nav-btn i {
+        font-size: 1.4rem !important;
+        margin: 0 !important;
+    }
+
+    .nav-btn .me-2 {
+        display: none;
+    }
+
+    #version {
+        font-size: 0.6rem !important;
+    }
+
+    .module-sidebar {
+        width: 100% !important;
+        border-right: none !important;
+        border-bottom: 1px solid #e5e9ef;
+        border-radius: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .module-sidebar h3 {
+        display: none;
+    }
+
+    .feature-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        padding: 0.25rem;
+    }
+
+    .feature-list li {
+        margin: 0;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+        border-left: none !important;
+        background-color: #f1f3f5;
+    }
+
+    .feature-list li.active {
+        background-color: #007A51;
+        color: #fff !important;
+    }
+
+    .d-flex.gap-3 {
+        flex-direction: column;
+        height: auto !important;
+    }
+
+    #feature-content {
+        overflow-y: visible;
+    }
+}
+```
+
+
+### frontend\js\api.js
+
+```
+const API_BASE = 'http://localhost:5000/api';
+
+async function apiRequest(endpoint, method = 'GET', body = null) {
+    const url = `${API_BASE}${endpoint}`;
+    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body) options.body = JSON.stringify(body);
+    try {
+        const response = await fetch(url, options);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro na requisição');
+        return data;
+    } catch (error) { console.error('API Error:', error); throw error; }
+}
+
+window.API = {
+    file: {
+        collect: (params) => apiRequest('/files/collect', 'POST', params),
+        rename: (params) => apiRequest('/files/rename', 'POST', params),
+        list: (params) => apiRequest('/files/list', 'POST', params),
+        preview: (params) => apiRequest('/files/preview', 'POST', params),
+        renamePreview: (params) => apiRequest('/files/rename-preview', 'POST', params),
+        findDuplicates: (params) => apiRequest('/files/duplicates', 'POST', params),
+        removeDuplicates: (params) => apiRequest('/files/duplicates/remove', 'POST', params),
+    },
+    pdf: {
+        merge: (params) => apiRequest('/pdf/merge', 'POST', params),
+        split: (params) => apiRequest('/pdf/split', 'POST', params),
+    },
+    word: {
+        convertToPdf: (params) => apiRequest('/word/convert-to-pdf', 'POST', params),
+        extractText: (params) => apiRequest('/word/extract-text', 'POST', params),
+    },
+    excel: {
+        merge: (params) => apiRequest('/excel/merge', 'POST', params),
+        read: (params) => apiRequest('/excel/read', 'POST', params),
+        write: (params) => apiRequest('/excel/write', 'POST', params),
+    },
+    health: () => apiRequest('/health'),
+};
+```
+
+
+### frontend\js\app.js
+
+```
+console.log('App iniciado');
+
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM carregado');
+
+    const pages = {
+        home: HomePage,
+        files: FileModule,
+        pdf: PDFModule,
+        word: WordModule,
+        excel: ExcelModule,
+        settings: SettingsPage,
+    };
+
+    const container = document.getElementById('page-container');
+    let currentModuleInstance = null;
+
+    window.navigateTo = (page, feature = null) => {
+        console.log(`Navegando para: ${page}, feature: ${feature}`);
+
+        // Atualizar botões
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
+        if (btn) btn.classList.add('active');
+
+        // Limpar container
+        container.innerHTML = '';
+
+        if (pages[page]) {
+            const PageClass = pages[page];
+            currentModuleInstance = new PageClass(container);
+            currentModuleInstance.render();
+            if (feature && typeof currentModuleInstance.selectFeature === 'function') {
+                currentModuleInstance.selectFeature(feature);
+            }
+        } else {
+            container.innerHTML = `<div class="page active"><h2>Página em desenvolvimento</h2></div>`;
+        }
+    };
+
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const page = btn.dataset.page;
+            window.navigateTo(page);
+        });
+    });
+
+    window.navigateTo('home');
+
+    if (window.API && window.API.health) {
+        window.API.health()
+            .then(() => console.log('Backend OK'))
+            .catch(err => console.warn('Backend indisponível:', err.message));
+    }
+});
+```
+
+
+### frontend\js\modules\excel.js
+
+```
+class ExcelModule {
+    constructor(container) {
+        this.container = container;
+        this.currentFeature = 'merge';
+        this.features = [
+            { id: 'merge', label: 'Mesclar Planilhas', render: this.renderMerge.bind(this) },
+            { id: 'read', label: 'Ler Planilha', render: this.renderRead.bind(this) },
+            { id: 'write', label: 'Escrever Dados', render: this.renderWrite.bind(this) },
+        ];
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h2 class="module-title"><i class="bi bi-file-earmark-excel me-2"></i>Planilhas</h2>
+                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
+                    <div class="module-sidebar flex-shrink-0" style="width: 200px;">
+                        <h3>Funcionalidades</h3>
+                        <ul class="feature-list">
+                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
+                </div>
+            </div>
+        `;
+        this.container.querySelectorAll('.feature-list li').forEach(item => {
+            item.addEventListener('click', () => {
+                const feature = item.dataset.feature;
+                this.selectFeature(feature);
+            });
+        });
+        this.renderCurrentFeature();
+    }
+
+    selectFeature(featureId) {
+        this.currentFeature = featureId;
+        this.container.querySelectorAll('.feature-list li').forEach(li => {
+            li.classList.toggle('active', li.dataset.feature === featureId);
+        });
+        this.renderCurrentFeature();
+    }
+
+    renderCurrentFeature() {
+        const feature = this.features.find(f => f.id === this.currentFeature);
+        if (feature) feature.render();
+    }
+
+    renderMerge() {
+        const content = document.getElementById('feature-content');
+        content.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-arrow-left-right me-2"></i>Mesclar Planilhas</h4>
+                <p class="text-muted">Combine várias planilhas Excel em uma única.</p>
+            </div>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label">Arquivos</label>
+                        <div class="input-group">
+                            <input type="text" id="excel-merge-files" class="form-control" placeholder="Caminhos separados por vírgula">
+                            <button class="btn btn-outline-secondary" id="btn-add-excel">Adicionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Salvar como</label>
+                        <div class="input-group">
+                            <input type="text" id="excel-merge-output" class="form-control" placeholder="Caminho de saída">
+                            <button class="btn btn-outline-secondary" id="btn-excel-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success" id="btn-merge-excel">Mesclar</button>
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="excel-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        document.getElementById('btn-add-excel').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }] })
+                    .then(result => {
+                        if (!result.canceled) {
+                            const current = document.getElementById('excel-merge-files').value;
+                            const newPaths = result.filePaths.join(', ');
+                            document.getElementById('excel-merge-files').value = current ? current + ', ' + newPaths : newPaths;
+                        }
+                    });
+            }
+        });
+
+        document.getElementById('btn-excel-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({ filters: [{ name: 'Excel', extensions: ['xlsx'] }] })
+                    .then(result => {
+                        if (!result.canceled && result.filePath) {
+                            document.getElementById('excel-merge-output').value = result.filePath;
+                        }
+                    });
+            }
+        });
+
+        document.getElementById('btn-merge-excel').addEventListener('click', async () => {
+            const files = document.getElementById('excel-merge-files').value.split(',').map(s => s.trim()).filter(Boolean);
+            const output = document.getElementById('excel-merge-output').value.trim();
+            if (!files.length || !output) {
+                this.log('Preencha os arquivos e o caminho de saída.', 'excel-log');
+                return;
+            }
+            try {
+                const result = await window.API.excel.merge({ file_paths: files, output_path: output });
+                this.log(`Planilhas mescladas: ${result.output_path}`, 'excel-log');
+            } catch (err) {
+                this.log(`Erro: ${err.message}`, 'excel-log');
+            }
+        });
+    }
+
+    renderRead() {
+        const content = document.getElementById('feature-content');
+        content.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-eye me-2"></i>Ler Planilha</h4>
+                <p class="text-muted">Visualize o conteúdo de uma planilha Excel.</p>
+            </div>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label">Arquivo</label>
+                        <div class="input-group">
+                            <input type="text" id="excel-read-file" class="form-control" placeholder="Caminho do arquivo">
+                            <button class="btn btn-outline-secondary" id="btn-read-select">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Nome da planilha (ou índice)</label>
+                        <input type="text" id="excel-sheet-name" class="form-control" value="0" style="width:200px;">
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success" id="btn-read-excel">Ler</button>
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="read-log">Log de operações vazio</div>
+            </div>
+            <div class="mt-2">
+                <label class="fw-bold text-success">Dados</label>
+                <div id="excel-data" class="p-2 border rounded" style="max-height:300px; overflow:auto;"></div>
+            </div>
+        `;
+
+        document.getElementById('btn-read-select').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }] })
+                    .then(result => {
+                        if (!result.canceled) document.getElementById('excel-read-file').value = result.filePaths[0];
+                    });
+            }
+        });
+
+        document.getElementById('btn-read-excel').addEventListener('click', async () => {
+            const file = document.getElementById('excel-read-file').value.trim();
+            const sheet = document.getElementById('excel-sheet-name').value.trim();
+            if (!file) {
+                this.log('Selecione um arquivo.', 'read-log');
+                return;
+            }
+            try {
+                const result = await window.API.excel.read({ file_path: file, sheet_name: isNaN(sheet) ? sheet : parseInt(sheet) });
+                const dataDiv = document.getElementById('excel-data');
+                if (result.data && result.data.length) {
+                    dataDiv.innerHTML = `<pre class="mb-0">${JSON.stringify(result.data, null, 2)}</pre>`;
+                } else {
+                    dataDiv.innerHTML = '<p class="text-muted">Nenhum dado encontrado.</p>';
+                }
+                this.log(`Lidos ${result.data.length} registros.`, 'read-log');
+            } catch (err) {
+                this.log(`Erro: ${err.message}`, 'read-log');
+            }
+        });
+    }
+
+    renderWrite() {
+        const content = document.getElementById('feature-content');
+        content.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-pencil me-2"></i>Escrever Dados</h4>
+                <p class="text-muted">Crie uma planilha Excel a partir de dados JSON.</p>
+            </div>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label">Arquivo de saída</label>
+                        <div class="input-group">
+                            <input type="text" id="excel-write-file" class="form-control" placeholder="Caminho de saída">
+                            <button class="btn btn-outline-secondary" id="btn-write-select">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Nome da planilha</label>
+                        <input type="text" id="excel-write-sheet" class="form-control" value="Sheet1" style="width:200px;">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Dados (JSON)</label>
+                        <textarea id="excel-write-data" class="form-control" rows="4" placeholder='[{"col1":"valor1","col2":"valor2"}]'></textarea>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success" id="btn-write-excel">Escrever</button>
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="write-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        document.getElementById('btn-write-select').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({ filters: [{ name: 'Excel', extensions: ['xlsx'] }] })
+                    .then(result => {
+                        if (!result.canceled && result.filePath) {
+                            document.getElementById('excel-write-file').value = result.filePath;
+                        }
+                    });
+            }
+        });
+
+        document.getElementById('btn-write-excel').addEventListener('click', async () => {
+            const file = document.getElementById('excel-write-file').value.trim();
+            const sheet = document.getElementById('excel-write-sheet').value.trim();
+            const dataStr = document.getElementById('excel-write-data').value.trim();
+            if (!file || !dataStr) {
+                this.log('Preencha o arquivo e os dados.', 'write-log');
+                return;
+            }
+            try {
+                const data = JSON.parse(dataStr);
+                if (!Array.isArray(data) || data.length === 0) throw new Error('Dados devem ser um array não vazio.');
+                const result = await window.API.excel.write({ file_path: file, sheet_name: sheet, data });
+                this.log(`Dados escritos em ${result.output_path}`, 'write-log');
+            } catch (err) {
+                this.log(`Erro: ${err.message}`, 'write-log');
+            }
+        });
+    }
+
+    log(message, logId) {
+        const logArea = document.getElementById(logId);
+        if (logArea) {
+            const p = document.createElement('p');
+            p.textContent = message;
+            logArea.appendChild(p);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+    }
+}
+window.ExcelModule = ExcelModule;
+```
+
+
+### frontend\js\modules\home.js
+
+```
+class HomePage {
+    constructor(container) {
+        this.container = container;
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h1 class="module-title">Painel Inicial</h1>
+
+                <!-- Estatísticas -->
+                <div class="row g-3 mb-4">
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number">1.284</div>
+                            <div class="stat-label">Arquivos Processados</div>
+                            <div class="stat-detail">Esta semana</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number">12</div>
+                            <div class="stat-label">Operações Hoje</div>
+                            <div class="stat-detail">Última: 14:32</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number">3</div>
+                            <div class="stat-label">Erros Registrados</div>
+                            <div class="stat-detail">Taxa: 0,2%</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-number">2,4 GB</div>
+                            <div class="stat-label">Espaço Economizado</div>
+                            <div class="stat-detail">Desde jan/2026</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h2 class="h5 text-success fw-normal mt-3">Acesso Rápido</h2>
+                <div class="row g-3">
+                    ${this.createCard('bi-folder2-open', 'Coletar Arquivos', 'Reúna arquivos de múltiplas pastas em um destino.', 'files', 'collect')}
+                    ${this.createCard('bi-pencil-square', 'Renomear em Lote', 'Renomeie centenas de arquivos de uma só vez.', 'files', 'rename')}
+                    ${this.createCard('bi-file-earmark-pdf', 'Mesclar PDFs', 'Combine vários PDFs em um único documento.', 'pdf', 'merge')}
+                    ${this.createCard('bi-arrow-left-right', 'Converter Docs', 'Converta entre formatos Word, PDF e mais.', 'word', 'convert')}
+                </div>
+
+                <h2 class="h5 text-success fw-normal mt-4">Atividade Recente</h2>
+                <div class="card p-0 border">
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong><i class="bi bi-folder2-open me-2 text-success"></i>Coletar Arquivos</strong>
+                            <span class="flex-grow-1 mx-2">Coletados 247 arquivos → C:\Destino</span>
+                            <small class="text-muted">14:32</small>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong><i class="bi bi-pencil-square me-2 text-success"></i>Renomear em Lote</strong>
+                            <span class="flex-grow-1 mx-2">3 arquivos renomeados com prefixo CREME_</span>
+                            <small class="text-muted">11:18</small>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong><i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Mesclar PDF</strong>
+                            <span class="flex-grow-1 mx-2">Falha ao abrir contrato_v2.pdf</span>
+                            <small class="text-muted">09:45</small>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <strong><i class="bi bi-arrow-left-right me-2 text-success"></i>Converter Documento</strong>
+                            <span class="flex-grow-1 mx-2">relatorio_anual.docx → relatorio_anual.pdf</span>
+                            <small class="text-muted">Ontem</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Eventos dos cards
+        this.container.querySelectorAll('.card .btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const card = e.target.closest('.card');
+                const page = card.dataset.page;
+                const feature = card.dataset.feature;
+                window.navigateTo(page, feature);
+            });
+        });
+    }
+
+    createCard(iconClass, title, desc, page, feature) {
+        return `
+            <div class="col-6 col-md-3">
+                <div class="card h-100" data-page="${page}" data-feature="${feature}">
+                    <div class="card-body d-flex flex-column">
+                        <div class="card-icon mb-2"><i class="bi ${iconClass}"></i></div>
+                        <h5 class="card-title">${title}</h5>
+                        <p class="card-text">${desc}</p>
+                        <button class="btn btn-success mt-auto align-self-start">Abrir</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+window.HomePage = HomePage;
+```
+
+
+### frontend\js\modules\pdf.js
+
+```
+class PDFModule {
+    constructor(container) {
+        this.container = container;
+        this.currentFeature = 'merge';
+        this.features = [
+            { id: 'merge', label: 'Mesclar PDFs', render: this.renderMerge.bind(this) },
+            { id: 'split', label: 'Dividir PDF', render: this.renderSplit.bind(this) },
+        ];
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h2 class="module-title"><i class="bi bi-file-earmark-pdf me-2"></i>Gerenciamento de PDFs</h2>
+                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
+                    <div class="module-sidebar flex-shrink-0" style="width: 200px;">
+                        <h3>Funcionalidades</h3>
+                        <ul class="feature-list">
+                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
+                </div>
+            </div>
+        `;
+        this.container.querySelectorAll('.feature-list li').forEach(item => {
+            item.addEventListener('click', () => {
+                const feature = item.dataset.feature;
+                this.selectFeature(feature);
+            });
+        });
+        this.renderCurrentFeature();
+    }
+
+    selectFeature(featureId) {
+        this.currentFeature = featureId;
+        this.container.querySelectorAll('.feature-list li').forEach(li => {
+            li.classList.toggle('active', li.dataset.feature === featureId);
+        });
+        this.renderCurrentFeature();
+    }
+
+    renderCurrentFeature() {
+        const feature = this.features.find(f => f.id === this.currentFeature);
+        if (feature) feature.render();
+    }
+
+    renderMerge() {
+        const content = document.getElementById('feature-content');
+        content.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-arrow-left-right me-2"></i>Mesclar PDFs</h4>
+                <p class="text-muted">Combine vários PDFs em um único documento.</p>
+            </div>
+            <div class="card mb-3">
+                <div class="card-body text-center text-muted py-5">
+                    <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #007A51;"></i>
+                    <p class="mt-2">Funcionalidade em desenvolvimento</p>
+                </div>
+            </div>
+        `;
+    }
+
+    renderSplit() {
+        const content = document.getElementById('feature-content');
+        content.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-scissors me-2"></i>Dividir PDF</h4>
+                <p class="text-muted">Divida um PDF em vários arquivos.</p>
+            </div>
+            <div class="card mb-3">
+                <div class="card-body text-center text-muted py-5">
+                    <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #007A51;"></i>
+                    <p class="mt-2">Funcionalidade em desenvolvimento</p>
+                </div>
+            </div>
+        `;
+    }
+}
+window.PDFModule = PDFModule;
+```
+
+
+### frontend\js\modules\settings.js
+
+```
+class SettingsPage {
+    constructor(container) {
+        this.container = container;
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h1 class="module-title"><i class="bi bi-gear me-2"></i>Configurações</h1>
+                <p class="text-muted">Preferências do CREMEPE Office</p>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success"><i class="bi bi-palette me-2"></i>Aparência</h5>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="theme" value="system" checked>
+                                <label class="form-check-label">Sistema</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="theme" value="light">
+                                <label class="form-check-label">Claro</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="theme" value="dark">
+                                <label class="form-check-label">Escuro</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success"><i class="bi bi-globe me-2"></i>Idioma</h5>
+                        <select id="language-select" class="form-select" style="width:auto;">
+                            <option value="pt-BR">Português (Brasil)</option>
+                            <option value="en">English</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success"><i class="bi bi-toggle-on me-2"></i>Comportamento</h5>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="save-log">
+                            <label class="form-check-label">Salvar log automaticamente após operação</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="confirm-action">
+                            <label class="form-check-label">Confirmar antes de executar operações</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-muted small mb-3">
+                    <i class="bi bi-info-circle me-1"></i> CREMEPE Office v0.1.0 — Atualizado em 17/07/2026
+                </div>
+
+                <div class="d-flex gap-2 justify-content-end">
+                    <button class="btn btn-secondary" id="settings-cancel">Cancelar</button>
+                    <button class="btn btn-success" id="settings-save">Salvar</button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('settings-cancel').addEventListener('click', () => window.navigateTo('home'));
+        document.getElementById('settings-save').addEventListener('click', () => {
+            alert('Configurações salvas!');
+            window.navigateTo('home');
+        });
+    }
+}
+window.SettingsPage = SettingsPage;
+```
+
+
+### frontend\js\modules\word.js
+
+```
+class WordModule {
+    constructor(container) {
+        this.container = container;
+        this.currentFeature = 'convert';
+        this.features = [
+            { id: 'convert', label: 'Converter para PDF', render: this.renderConvert.bind(this) },
+            { id: 'extract', label: 'Extrair Texto', render: this.renderExtract.bind(this) },
+        ];
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h2 class="module-title"><i class="bi bi-file-earmark-word me-2"></i>Documentos</h2>
+                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
+                    <div class="module-sidebar flex-shrink-0" style="width: 200px;">
+                        <h3>Funcionalidades</h3>
+                        <ul class="feature-list">
+                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
+                </div>
+            </div>
+        `;
+        this.container.querySelectorAll('.feature-list li').forEach(item => {
+            item.addEventListener('click', () => {
+                const feature = item.dataset.feature;
+                this.selectFeature(feature);
+            });
+        });
+        this.renderCurrentFeature();
+    }
+
+    selectFeature(featureId) {
+        this.currentFeature = featureId;
+        this.container.querySelectorAll('.feature-list li').forEach(li => {
+            li.classList.toggle('active', li.dataset.feature === featureId);
+        });
+        this.renderCurrentFeature();
+    }
+
+    renderCurrentFeature() {
+        const feature = this.features.find(f => f.id === this.currentFeature);
+        if (feature) feature.render();
+    }
+
+    renderConvert() {
+        const content = document.getElementById('feature-content');
+        content.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-arrow-left-right me-2"></i>Converter DOCX para PDF</h4>
+                <p class="text-muted">Converta documentos Word para o formato PDF.</p>
+            </div>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label">Arquivo DOCX</label>
+                        <div class="input-group">
+                            <input type="text" id="docx-input" class="form-control" placeholder="Selecione o arquivo .docx">
+                            <button class="btn btn-outline-secondary" id="btn-docx-select">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Salvar PDF como (opcional)</label>
+                        <div class="input-group">
+                            <input type="text" id="docx-output" class="form-control" placeholder="Caminho de saída">
+                            <button class="btn btn-outline-secondary" id="btn-docx-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success" id="btn-convert-docx">Converter</button>
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="word-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        document.getElementById('btn-docx-select').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Word', extensions: ['docx'] }] })
+                    .then(result => {
+                        if (!result.canceled) document.getElementById('docx-input').value = result.filePaths[0];
+                    });
+            }
+        });
+
+        document.getElementById('btn-docx-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({ filters: [{ name: 'PDF', extensions: ['pdf'] }] })
+                    .then(result => {
+                        if (!result.canceled && result.filePath) {
+                            document.getElementById('docx-output').value = result.filePath;
+                        }
+                    });
+            }
+        });
+
+        document.getElementById('btn-convert-docx').addEventListener('click', async () => {
+            const docxPath = document.getElementById('docx-input').value.trim();
+            const outputPath = document.getElementById('docx-output').value.trim() || undefined;
+            if (!docxPath) {
+                this.log('Selecione um arquivo DOCX.', 'word-log');
+                return;
+            }
+            try {
+                const result = await window.API.word.convertToPdf({ docx_path: docxPath, output_path: outputPath });
+                this.log(`Convertido para PDF: ${result.output_path}`, 'word-log');
+            } catch (err) {
+                this.log(`Erro: ${err.message}`, 'word-log');
+            }
+        });
+    }
+
+    renderExtract() {
+        const content = document.getElementById('feature-content');
+        content.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-file-text me-2"></i>Extrair Texto de DOCX</h4>
+                <p class="text-muted">Extraia todo o texto de um documento Word.</p>
+            </div>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label">Arquivo DOCX</label>
+                        <div class="input-group">
+                            <input type="text" id="extract-input" class="form-control" placeholder="Selecione o arquivo .docx">
+                            <button class="btn btn-outline-secondary" id="btn-extract-select">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success" id="btn-extract-text">Extrair</button>
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="extract-log">Log de operações vazio</div>
+            </div>
+            <div class="mt-2">
+                <label class="fw-bold text-success">Texto Extraído</label>
+                <textarea id="extracted-text" class="form-control" rows="8" readonly></textarea>
+            </div>
+        `;
+
+        document.getElementById('btn-extract-select').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Word', extensions: ['docx'] }] })
+                    .then(result => {
+                        if (!result.canceled) document.getElementById('extract-input').value = result.filePaths[0];
+                    });
+            }
+        });
+
+        document.getElementById('btn-extract-text').addEventListener('click', async () => {
+            const docxPath = document.getElementById('extract-input').value.trim();
+            if (!docxPath) {
+                this.log('Selecione um arquivo DOCX.', 'extract-log');
+                return;
+            }
+            try {
+                const result = await window.API.word.extractText({ docx_path: docxPath });
+                document.getElementById('extracted-text').value = result.text;
+                this.log('Texto extraído com sucesso.', 'extract-log');
+            } catch (err) {
+                this.log(`Erro: ${err.message}`, 'extract-log');
+            }
+        });
+    }
+
+    log(message, logId) {
+        const logArea = document.getElementById(logId);
+        if (logArea) {
+            const p = document.createElement('p');
+            p.textContent = message;
+            logArea.appendChild(p);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+    }
+}
+window.WordModule = WordModule;
+```
+
+
+### frontend\js\modules\file\collect.js
+
+```
+class CollectFeature {
+    constructor(module) {
+        this.module = module;
+        this.srcDirs = [''];
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Coletar Arquivos</h4>
+                <p class="text-muted">Reúna arquivos de múltiplas pastas em um destino.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Diretórios de Origem</h5>
+                    <div id="src-dirs-container">
+                        <!-- Campos dinâmicos -->
+                    </div>
+                    <button class="btn btn-outline-success btn-sm mt-2" id="add-src-dir">
+                        <i class="bi bi-plus-circle"></i> Adicionar Origem
+                    </button>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Destino</h5>
+                    <div class="input-group">
+                        <input type="text" id="dst-dir" class="form-control" placeholder="Selecione a pasta de destino...">
+                        <button class="btn btn-outline-secondary" id="btn-dst">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="row g-2">
+                        <div class="col-md-4">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="recursive" checked> <label class="form-check-label">Recursivo (incluir subpastas)</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="copy-files"> <label class="form-check-label">Copiar (manter arquivos originais)</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="preserve-structure"> <label class="form-check-label">Preservar estrutura de pastas original</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="include-hidden"> <label class="form-check-label">Incluir arquivos ocultos</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" id="delete-empty"> <label class="form-check-label">Excluir pastas vazias (após mover)</label></div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="mb-2">
+                                <label class="form-label">Extensões (separadas por vírgula, ex: .pdf,.docx)</label>
+                                <input type="text" id="extensions" class="form-control" placeholder="Deixe vazio para todas">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Coletar arquivos modificados nos últimos (dias)</label>
+                                <input type="number" id="days-back" class="form-control" value="" placeholder="Ex: 7" min="1">
+                            </div>
+                            <div>
+                                <label class="form-label">Em caso de conflito (nomes iguais)</label>
+                                <select id="on-conflict" class="form-select">
+                                    <option value="skip">Pular</option>
+                                    <option value="overwrite">Sobrescrever</option>
+                                    <option value="rename">Renomear automaticamente</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-outline-success" id="btn-preview"><i class="bi bi-eye"></i> Pré-visualizar</button>
+                <button class="btn btn-success" id="btn-collect"><i class="bi bi-play-fill"></i> Coletar Arquivos</button>
+            </div>
+
+            <div id="preview-area" style="display:none;">
+                <label class="fw-bold text-success">Pré-visualização (<span id="preview-count">0</span> arquivos)</label>
+                <div id="preview-list" class="border rounded p-2" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+            </div>
+
+            <div class="progress mt-2"><div class="progress-bar" id="collect-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="collect-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.renderSrcDirs(container);
+        this.attachEvents(container);
+    }
+
+    renderSrcDirs(container) {
+        const containerDiv = container.querySelector('#src-dirs-container');
+        containerDiv.innerHTML = this.srcDirs.map((val, idx) => `
+            <div class="input-group mb-1">
+                <input type="text" class="form-control src-dir-input" data-idx="${idx}" value="${val}" placeholder="Selecione a pasta de origem...">
+                <button class="btn btn-outline-secondary btn-src-select" data-idx="${idx}">Selecionar</button>
+                ${this.srcDirs.length > 1 ? `<button class="btn btn-outline-danger btn-src-remove" data-idx="${idx}"><i class="bi bi-x"></i></button>` : ''}
+            </div>
+        `).join('');
+    }
+
+    attachEvents(container) {
+        container.querySelector('#add-src-dir').addEventListener('click', () => {
+            this.srcDirs.push('');
+            this.renderSrcDirs(container);
+        });
+
+        container.querySelector('#btn-dst').addEventListener('click', () => FileUtils.selectDirectory('dst-dir'));
+
+        container.querySelector('#btn-preview').addEventListener('click', () => this.previewFiles());
+        container.querySelector('#btn-collect').addEventListener('click', () => this.executeCollect());
+
+        // Delegation para os campos de origem
+        container.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-src-select')) {
+                const idx = e.target.dataset.idx;
+                this.selectDirectoryForSrc(idx, container);
+            }
+            if (e.target.classList.contains('btn-src-remove')) {
+                const idx = parseInt(e.target.dataset.idx);
+                this.srcDirs.splice(idx, 1);
+                this.renderSrcDirs(container);
+            }
+        });
+        container.addEventListener('input', (e) => {
+            if (e.target.classList.contains('src-dir-input')) {
+                const idx = parseInt(e.target.dataset.idx);
+                this.srcDirs[idx] = e.target.value;
+            }
+        });
+    }
+
+    selectDirectoryForSrc(idx, container) {
+        if (window.electronAPI && window.electronAPI.showOpenDialog) {
+            window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
+                .then(result => {
+                    if (!result.canceled && result.filePaths.length > 0) {
+                        this.srcDirs[idx] = result.filePaths[0];
+                        this.renderSrcDirs(container);
+                    }
+                });
+        } else {
+            alert('Selecione a pasta manualmente.');
+        }
+    }
+
+    async previewFiles() {
+        const srcDirs = this.srcDirs.filter(s => s.trim() !== '');
+        if (!srcDirs.length) {
+            FileUtils.log('Adicione pelo menos uma origem.', 'collect-log');
+            return;
+        }
+        const recursive = document.getElementById('recursive').checked;
+        const extensions = document.getElementById('extensions').value.trim();
+        const includeHidden = document.getElementById('include-hidden').checked;
+        const daysBack = document.getElementById('days-back').value.trim();
+
+        const btn = document.getElementById('btn-preview');
+        btn.disabled = true;
+        FileUtils.log('Carregando pré-visualização...', 'collect-log');
+
+        try {
+            const params = {
+                src_dirs: srcDirs,
+                recursive,
+                include_hidden: includeHidden,
+            };
+            if (extensions) params.extensions = extensions;
+            if (daysBack) params.days_back = parseInt(daysBack);
+
+            const result = await window.API.file.preview(params);
+            this.module.previewData = result.files;
+            const previewArea = document.getElementById('preview-area');
+            previewArea.style.display = 'block';
+            document.getElementById('preview-count').textContent = result.count;
+            const listDiv = document.getElementById('preview-list');
+            if (result.count === 0) {
+                listDiv.innerHTML = '<p class="text-muted">Nenhum arquivo corresponde aos filtros.</p>';
+            } else {
+                listDiv.innerHTML = result.files.map(f => `
+                    <div><i class="bi bi-file-earmark me-1"></i> ${f.relative} (${(f.size / 1024).toFixed(1)} KB)</div>
+                `).join('');
+            }
+            FileUtils.log(`Pré-visualização: ${result.count} arquivos encontrados.`, 'collect-log');
+        } catch (err) {
+            FileUtils.log(`Erro na pré-visualização: ${err.message}`, 'collect-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async executeCollect() {
+        const srcDirs = this.srcDirs.filter(s => s.trim() !== '');
+        const dst = document.getElementById('dst-dir').value.trim();
+        if (!srcDirs.length || !dst) {
+            FileUtils.log('Erro: Adicione pelo menos uma origem e um destino.', 'collect-log');
+            return;
+        }
+
+        for (let s of srcDirs) {
+            if (s === dst) {
+                FileUtils.log('Erro: Uma origem não pode ser igual ao destino.', 'collect-log');
+                return;
+            }
+        }
+
+        const recursive = document.getElementById('recursive').checked;
+        const copy = document.getElementById('copy-files').checked;
+        const preserveStructure = document.getElementById('preserve-structure').checked;
+        const includeHidden = document.getElementById('include-hidden').checked;
+        const deleteEmpty = document.getElementById('delete-empty').checked;
+        const extensions = document.getElementById('extensions').value.trim();
+        const daysBack = document.getElementById('days-back').value.trim();
+        const onConflict = document.getElementById('on-conflict').value;
+
+        const btn = document.getElementById('btn-collect');
+        btn.disabled = true;
+        FileUtils.log('Iniciando coleta...', 'collect-log');
+
+        try {
+            const params = {
+                src_dirs: srcDirs,
+                dst_dir: dst,
+                recursive,
+                copy,
+                preserve_structure: preserveStructure,
+                include_hidden: includeHidden,
+                delete_empty_dirs: deleteEmpty,
+                on_conflict: onConflict,
+            };
+            if (extensions) params.extensions = extensions;
+            if (daysBack) params.days_back = parseInt(daysBack);
+
+            const result = await window.API.file.collect(params);
+            FileUtils.log(`Concluído! ${result.processed_count} arquivos coletados.`, 'collect-log');
+            document.getElementById('collect-progress').style.width = '100%';
+            document.getElementById('preview-area').style.display = 'none';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'collect-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\file\duplicates.js
+
+```
+class DuplicatesFeature {
+    constructor(module) {
+        this.module = module;
+        this.groups = [];
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Localizar Duplicatas</h4>
+                <p class="text-muted">Encontre e remova arquivos duplicados em uma pasta.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Diretório</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta</label>
+                        <div class="input-group">
+                            <input type="text" id="duplicates-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-duplicates-dir">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Comparar por</label>
+                        <select id="duplicates-match" class="form-select">
+                            <option value="hash">Hash MD5 (conteúdo)</option>
+                            <option value="name">Nome do arquivo</option>
+                        </select>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="duplicates-recursive" checked>
+                        <label class="form-check-label">Incluir subpastas</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="duplicates-hidden">
+                        <label class="form-check-label">Incluir arquivos ocultos</label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-find-duplicates">Procurar Duplicatas</button>
+
+            <div id="duplicates-result" style="display:none;" class="mt-3">
+                <label class="fw-bold text-success">Resultado (<span id="duplicates-count">0</span> grupos)</label>
+                <div id="duplicates-list" class="border rounded p-2" style="max-height:300px; overflow:auto; font-size:0.9rem;"></div>
+                <div class="mt-2">
+                    <label class="form-label">Ação para duplicatas (manter o primeiro)</label>
+                    <select id="duplicates-action" class="form-select">
+                        <option value="delete">Excluir</option>
+                        <option value="move">Mover para pasta</option>
+                    </select>
+                    <div id="duplicates-destination-row" style="display:none;" class="mt-2">
+                        <label class="form-label">Pasta de destino</label>
+                        <div class="input-group">
+                            <input type="text" id="duplicates-destination" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-duplicates-dest">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-danger mt-2" id="btn-remove-duplicates">Aplicar Ação</button>
+            </div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="duplicates-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-duplicates-dir').addEventListener('click', () => FileUtils.selectDirectory('duplicates-dir'));
+        container.querySelector('#btn-duplicates-dest').addEventListener('click', () => FileUtils.selectDirectory('duplicates-destination'));
+        container.querySelector('#duplicates-action').addEventListener('change', (e) => {
+            container.querySelector('#duplicates-destination-row').style.display = (e.target.value === 'move') ? 'block' : 'none';
+        });
+        container.querySelector('#btn-find-duplicates').addEventListener('click', () => this.findDuplicates());
+        container.querySelector('#btn-remove-duplicates').addEventListener('click', () => this.removeDuplicates());
+    }
+
+    async findDuplicates() {
+        const dir = document.getElementById('duplicates-dir').value.trim();
+        if (!dir) {
+            FileUtils.log('Selecione uma pasta.', 'duplicates-log');
+            return;
+        }
+        const recursive = document.getElementById('duplicates-recursive').checked;
+        const matchBy = document.getElementById('duplicates-match').value;
+        const includeHidden = document.getElementById('duplicates-hidden').checked;
+
+        FileUtils.log('Procurando duplicatas...', 'duplicates-log');
+        try {
+            const result = await window.API.file.findDuplicates({
+                dir,
+                recursive,
+                match_by: matchBy,
+                include_hidden: includeHidden
+            });
+            this.groups = result.groups;
+            const resultDiv = document.getElementById('duplicates-result');
+            resultDiv.style.display = 'block';
+            document.getElementById('duplicates-count').textContent = result.total_groups;
+            const listDiv = document.getElementById('duplicates-list');
+            if (result.total_groups === 0) {
+                listDiv.innerHTML = '<p class="text-muted">Nenhuma duplicata encontrada.</p>';
+            } else {
+                listDiv.innerHTML = result.groups.map((g, idx) => `
+                    <div class="mb-2">
+                        <strong>Grupo ${idx + 1} (${g.count} arquivos)</strong>
+                        <ul class="list-unstyled ms-3">
+                            ${g.files.map(f => `<li><i class="bi bi-file-earmark"></i> ${f}</li>`).join('')}
+                        </ul>
+                    </div>
+                `).join('');
+            }
+            FileUtils.log(`Encontrados ${result.total_groups} grupos de duplicatas.`, 'duplicates-log');
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'duplicates-log');
+        }
+    }
+
+    async removeDuplicates() {
+        if (!this.groups || this.groups.length === 0) {
+            FileUtils.log('Nenhum grupo para processar.', 'duplicates-log');
+            return;
+        }
+        const action = document.getElementById('duplicates-action').value;
+        let destination = null;
+        if (action === 'move') {
+            destination = document.getElementById('duplicates-destination').value.trim();
+            if (!destination) {
+                FileUtils.log('Selecione a pasta de destino.', 'duplicates-log');
+                return;
+            }
+        }
+        if (!confirm(`Tem certeza que deseja ${action === 'delete' ? 'excluir' : 'mover'} os arquivos duplicados?`)) return;
+
+        const btn = document.getElementById('btn-remove-duplicates');
+        btn.disabled = true;
+        FileUtils.log(`Aplicando ação (${action})...`, 'duplicates-log');
+        try {
+            const result = await window.API.file.removeDuplicates({
+                groups: this.groups.map(g => g.files),
+                action,
+                destination
+            });
+            FileUtils.log(`Concluído! ${result.removed_count} arquivos ${action === 'delete' ? 'excluídos' : 'movidos'}.`, 'duplicates-log');
+            document.getElementById('duplicates-result').style.display = 'none';
+            this.groups = [];
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'duplicates-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\file\index.js
+
+```
+class FileModule {
+    constructor(container) {
+        this.container = container;
+        this.currentFeature = 'collect';
+        this.previewData = null;
+
+        // Instâncias das features
+        this.collectFeature = new CollectFeature(this);
+        this.renameFeature = new RenameFeature(this);
+        this.duplicatesFeature = new DuplicatesFeature(this);
+
+        this.features = [
+            { id: 'collect', label: 'Coletar Arquivos', render: (container) => this.collectFeature.render(container) },
+            { id: 'rename', label: 'Renomear em Lote', render: (container) => this.renameFeature.render(container) },
+            { id: 'duplicates', label: 'Localizar Duplicatas', render: (container) => this.duplicatesFeature.render(container) },
+        ];
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h2 class="module-title">Arquivos e Pastas</h2>
+                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
+                    <div class="module-sidebar flex-shrink-0" style="width: 200px;">
+                        <h3>Funcionalidades</h3>
+                        <ul class="feature-list">
+                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
+                </div>
+            </div>
+        `;
+
+        this.container.querySelectorAll('.feature-list li').forEach(item => {
+            item.addEventListener('click', () => {
+                const feature = item.dataset.feature;
+                this.selectFeature(feature);
+            });
+        });
+
+        this.renderCurrentFeature();
+    }
+
+    selectFeature(featureId) {
+        this.currentFeature = featureId;
+        this.container.querySelectorAll('.feature-list li').forEach(li => {
+            li.classList.toggle('active', li.dataset.feature === featureId);
+        });
+        this.renderCurrentFeature();
+    }
+
+    renderCurrentFeature() {
+        const feature = this.features.find(f => f.id === this.currentFeature);
+        if (feature) {
+            const content = document.getElementById('feature-content');
+            content.innerHTML = '';
+            feature.render(content);
+        }
+    }
+}
+
+window.FileModule = FileModule;
+```
+
+
+### frontend\js\modules\file\rename.js
+
+```
+class RenameFeature {
+    constructor(module) {
+        this.module = module;
+        this.renameFilePaths = [];
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Renomear em Lote</h4>
+                <p class="text-muted">Renomeie vários arquivos de uma só vez com um padrão personalizado.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Diretório</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta</label>
+                        <div class="input-group">
+                            <input type="text" id="rename-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-rename-dir">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Filtrar por extensão (ex: .pdf,.docx)</label>
+                        <input type="text" id="rename-extensions" class="form-control" placeholder="Deixe vazio para todos">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Padrão de Renomeação</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Prefixo</label>
+                        <input type="text" id="prefix" class="form-control" placeholder="ex: CREME_">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Sufixo</label>
+                        <input type="text" id="suffix" class="form-control" placeholder="ex: _2026">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="use-sequential">
+                        <label class="form-check-label">Adicionar numeração sequencial (001, 002...)</label>
+                    </div>
+                    <div class="mt-2" id="start-number-row" style="display:none;">
+                        <label class="form-label">Número inicial</label>
+                        <input type="number" id="start-number" class="form-control" value="1" min="1" style="width:100px;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Substituição (Regex)</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Presets</label>
+                        <select id="regex-preset" class="form-select">
+                            <option value="none">Nenhum</option>
+                            <option value="remove_spaces">Remover espaços (substituir por _)</option>
+                            <option value="remove_accents">Remover acentos</option>
+                            <option value="lowercase">Minúsculas</option>
+                            <option value="uppercase">Maiúsculas</option>
+                            <option value="titlecase">Título</option>
+                            <option value="custom">Personalizado</option>
+                        </select>
+                    </div>
+                    <div id="custom-regex-area" style="display:none;">
+                        <div class="mb-2">
+                            <label class="form-label">Buscar (regex)</label>
+                            <input type="text" id="regex-search" class="form-control" placeholder="ex: \s+">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Substituir por</label>
+                            <input type="text" id="regex-replace" class="form-control" placeholder="ex: _">
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="remove-accents">
+                        <label class="form-check-label">Remover acentos (adicional)</label>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Substituir espaços por</label>
+                        <input type="text" id="replace-spaces" class="form-control" placeholder="ex: _ (deixe vazio para manter)">
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-outline-success" id="btn-rename-preview"><i class="bi bi-eye"></i> Pré-visualizar</button>
+                <button class="btn btn-success" id="btn-rename"><i class="bi bi-play-fill"></i> Renomear Arquivos</button>
+            </div>
+
+            <div id="rename-preview-area" style="display:none;">
+                <label class="fw-bold text-success">Pré-visualização (<span id="rename-preview-count">0</span> arquivos)</label>
+                <div id="rename-preview-list" class="border rounded p-2" style="max-height:250px; overflow:auto; font-size:0.9rem;">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead><tr><th>Nome atual</th><th>Novo nome</th></tr></thead>
+                        <tbody id="rename-preview-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="progress mt-2"><div class="progress-bar" id="rename-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="rename-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-rename-dir').addEventListener('click', () => FileUtils.selectDirectory('rename-dir'));
+        container.querySelector('#use-sequential').addEventListener('change', (e) => {
+            container.querySelector('#start-number-row').style.display = e.target.checked ? 'block' : 'none';
+        });
+        container.querySelector('#regex-preset').addEventListener('change', (e) => {
+            const val = e.target.value;
+            container.querySelector('#custom-regex-area').style.display = (val === 'custom') ? 'block' : 'none';
+            // Aplica preset
+            if (val === 'remove_spaces') {
+                document.getElementById('regex-search').value = '\\s+';
+                document.getElementById('regex-replace').value = '_';
+                document.getElementById('replace-spaces').value = '';
+                document.getElementById('remove-accents').checked = false;
+            } else if (val === 'remove_accents') {
+                document.getElementById('regex-search').value = '';
+                document.getElementById('regex-replace').value = '';
+                document.getElementById('remove-accents').checked = true;
+                document.getElementById('replace-spaces').value = '';
+            } else if (val === 'lowercase' || val === 'uppercase' || val === 'titlecase' || val === 'none') {
+                document.getElementById('regex-search').value = '';
+                document.getElementById('regex-replace').value = '';
+                document.getElementById('remove-accents').checked = false;
+                document.getElementById('replace-spaces').value = '';
+            }
+        });
+
+        container.querySelector('#btn-rename-preview').addEventListener('click', () => this.previewRename());
+        container.querySelector('#btn-rename').addEventListener('click', () => this.executeRename());
+        container.querySelector('#rename-dir').addEventListener('change', () => this.loadRenameFiles());
+    }
+
+    loadRenameFiles() {
+        const dir = document.getElementById('rename-dir').value.trim();
+        if (!dir) return;
+        if (window.API && window.API.file && window.API.file.list) {
+            window.API.file.list({ dir })
+                .then(result => {
+                    this.renameFilePaths = result.files.map(f => `${dir}/${f}`);
+                    FileUtils.log(`Arquivos encontrados: ${this.renameFilePaths.length}`, 'rename-log');
+                })
+                .catch(err => FileUtils.log(`Erro ao listar: ${err.message}`, 'rename-log'));
+        }
+    }
+
+    async previewRename() {
+        const dir = document.getElementById('rename-dir').value.trim();
+        if (!dir) {
+            FileUtils.log('Selecione uma pasta.', 'rename-log');
+            return;
+        }
+        if (!this.renameFilePaths) {
+            try {
+                const result = await window.API.file.list({ dir });
+                this.renameFilePaths = result.files.map(f => `${dir}/${f}`);
+            } catch (err) {
+                FileUtils.log(`Erro ao listar: ${err.message}`, 'rename-log');
+                return;
+            }
+        }
+        if (!this.renameFilePaths.length) {
+            FileUtils.log('Nenhum arquivo encontrado.', 'rename-log');
+            return;
+        }
+
+        const prefix = document.getElementById('prefix').value;
+        const suffix = document.getElementById('suffix').value;
+        const useSeq = document.getElementById('use-sequential').checked;
+        const startNum = parseInt(document.getElementById('start-number').value) || 1;
+        const extensions = document.getElementById('rename-extensions').value.trim();
+        const regexSearch = document.getElementById('regex-search').value;
+        const regexReplace = document.getElementById('regex-replace').value;
+        const preset = document.getElementById('regex-preset').value;
+        const removeAccents = document.getElementById('remove-accents').checked;
+        const replaceSpaces = document.getElementById('replace-spaces').value.trim() || null;
+
+        let caseConversion = 'none';
+        if (preset === 'lowercase') caseConversion = 'lower';
+        else if (preset === 'uppercase') caseConversion = 'upper';
+        else if (preset === 'titlecase') caseConversion = 'title';
+
+        let finalRegex = (preset === 'custom') ? regexSearch : (preset === 'remove_spaces' ? '\\s+' : null);
+        let finalReplace = (preset === 'custom') ? regexReplace : (preset === 'remove_spaces' ? '_' : '');
+
+        const params = {
+            file_paths: this.renameFilePaths,
+            prefix,
+            suffix,
+            start_number: startNum,
+            use_original_name: !useSeq,
+            extensions: extensions ? extensions.split(',').map(e => e.trim()) : undefined,
+            regex_pattern: finalRegex,
+            regex_replacement: finalReplace,
+            case_conversion: caseConversion,
+            remove_accents: removeAccents,
+            replace_spaces_with: replaceSpaces,
+        };
+
+        const btn = document.getElementById('btn-rename-preview');
+        btn.disabled = true;
+        FileUtils.log('Carregando pré-visualização...', 'rename-log');
+        try {
+            const result = await window.API.file.renamePreview(params);
+            const previewArea = document.getElementById('rename-preview-area');
+            previewArea.style.display = 'block';
+            document.getElementById('rename-preview-count').textContent = result.count;
+            const tbody = document.getElementById('rename-preview-tbody');
+            if (result.count === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum arquivo corresponde aos critérios.</td></tr>';
+            } else {
+                tbody.innerHTML = result.preview.map(p => `
+                    <tr>
+                        <td>${p.original}</td>
+                        <td><strong>${p.new}</strong></td>
+                    </tr>
+                `).join('');
+            }
+            FileUtils.log(`Pré-visualização: ${result.count} arquivos.`, 'rename-log');
+        } catch (err) {
+            FileUtils.log(`Erro na pré-visualização: ${err.message}`, 'rename-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async executeRename() {
+        const dir = document.getElementById('rename-dir').value.trim();
+        if (!dir) {
+            FileUtils.log('Selecione uma pasta.', 'rename-log');
+            return;
+        }
+        if (!this.renameFilePaths || !this.renameFilePaths.length) {
+            FileUtils.log('Carregue os arquivos primeiro (selecione a pasta).', 'rename-log');
+            return;
+        }
+
+        const prefix = document.getElementById('prefix').value;
+        const suffix = document.getElementById('suffix').value;
+        const useSeq = document.getElementById('use-sequential').checked;
+        const startNum = parseInt(document.getElementById('start-number').value) || 1;
+        const extensions = document.getElementById('rename-extensions').value.trim();
+        const regexSearch = document.getElementById('regex-search').value;
+        const regexReplace = document.getElementById('regex-replace').value;
+        const preset = document.getElementById('regex-preset').value;
+        const removeAccents = document.getElementById('remove-accents').checked;
+        const replaceSpaces = document.getElementById('replace-spaces').value.trim() || null;
+
+        let caseConversion = 'none';
+        if (preset === 'lowercase') caseConversion = 'lower';
+        else if (preset === 'uppercase') caseConversion = 'upper';
+        else if (preset === 'titlecase') caseConversion = 'title';
+
+        let finalRegex = (preset === 'custom') ? regexSearch : (preset === 'remove_spaces' ? '\\s+' : null);
+        let finalReplace = (preset === 'custom') ? regexReplace : (preset === 'remove_spaces' ? '_' : '');
+
+        const params = {
+            file_paths: this.renameFilePaths,
+            prefix,
+            suffix,
+            start_number: startNum,
+            use_original_name: !useSeq,
+            extensions: extensions ? extensions.split(',').map(e => e.trim()) : undefined,
+            regex_pattern: finalRegex,
+            regex_replacement: finalReplace,
+            case_conversion: caseConversion,
+            remove_accents: removeAccents,
+            replace_spaces_with: replaceSpaces,
+        };
+
+        const btn = document.getElementById('btn-rename');
+        btn.disabled = true;
+        FileUtils.log(`Renomeando arquivos...`, 'rename-log');
+        try {
+            const result = await window.API.file.rename(params);
+            FileUtils.log(`Concluído! ${result.renamed_count} arquivos renomeados.`, 'rename-log');
+            document.getElementById('rename-progress').style.width = '100%';
+            document.getElementById('rename-preview-area').style.display = 'none';
+            this.loadRenameFiles();
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'rename-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\file\utils.js
+
+```
+const FileUtils = {
+    selectDirectory: function (inputId) {
+        if (window.electronAPI && window.electronAPI.showOpenDialog) {
+            window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
+                .then(result => {
+                    if (!result.canceled && result.filePaths.length > 0) {
+                        document.getElementById(inputId).value = result.filePaths[0];
+                    }
+                });
+        } else {
+            alert('Selecione a pasta manualmente.');
+        }
+    },
+
+    log: function (message, logId) {
+        const logArea = document.getElementById(logId);
+        if (logArea) {
+            const p = document.createElement('p');
+            p.textContent = message;
+            logArea.appendChild(p);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+    }
+};
+```
+
+
+### scripts\start-backend.bat
+
+```
+@echo off
+cd /d "%~dp0\.."
+call venv\Scripts\activate
+python backend/app.py
+```
+
+
+### scripts\start-backend.sh
+
+```
+#!/bin/bash
+cd "$(dirname "$0")/.."
+source venv/bin/activate
+python backend/app.py
+```
+
+
+### scripts\start-electron.bat
+
+```
+@echo off
+cd /d "%~dp0\.."
+npm start
+```
+
