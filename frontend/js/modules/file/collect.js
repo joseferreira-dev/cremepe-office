@@ -106,9 +106,10 @@ class CollectFeature {
             this.renderSrcDirs(container);
         });
 
-        // Selecionar destino
+        // Selecionar destino – com prevenção de propagação
         container.querySelector('#btn-dst').addEventListener('click', (e) => {
             e.stopPropagation();
+            e.preventDefault();
             FileUtils.selectDirectory('dst-dir');
         });
 
@@ -118,23 +119,25 @@ class CollectFeature {
         // Coletar
         container.querySelector('#btn-collect').addEventListener('click', () => this.executeCollect());
 
-        // Delegação para os botões de seleção e remoção das origens
+        // Delegação para botões dinâmicos de origem
         container.addEventListener('click', (e) => {
             const target = e.target;
             if (target.classList.contains('btn-src-select')) {
                 e.stopPropagation();
+                e.preventDefault();
                 const idx = target.dataset.idx;
                 this.selectDirectoryForSrc(idx, container);
             }
             if (target.classList.contains('btn-src-remove')) {
                 e.stopPropagation();
+                e.preventDefault();
                 const idx = parseInt(target.dataset.idx);
                 this.srcDirs.splice(idx, 1);
                 this.renderSrcDirs(container);
             }
         });
 
-        // Atualizar valor dos inputs de origem
+        // Atualizar array quando o usuário digitar manualmente
         container.addEventListener('input', (e) => {
             if (e.target.classList.contains('src-dir-input')) {
                 const idx = parseInt(e.target.dataset.idx);

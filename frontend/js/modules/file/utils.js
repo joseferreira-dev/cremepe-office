@@ -1,15 +1,29 @@
 const FileUtils = {
+    _dialogOpen: false, // impede múltiplas aberturas simultâneas
+
     selectDirectory: function (inputId) {
+        if (this._dialogOpen) {
+            console.warn('Diálogo já em andamento.');
+            return;
+        }
+
         if (window.electronAPI && window.electronAPI.showOpenDialog) {
+            this._dialogOpen = true;
             window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
                 .then(result => {
+                    this._dialogOpen = false;
                     if (!result.canceled && result.filePaths.length > 0) {
-                        document.getElementById(inputId).value = result.filePaths[0];
-                        // Dispara evento 'change' para que outros listeners sejam notificados
                         const input = document.getElementById(inputId);
-                        const event = new Event('change', { bubbles: true });
-                        input.dispatchEvent(event);
+                        if (input) {
+                            input.value = result.filePaths[0];
+                            // Dispara evento 'change' para sincronizar
+                            const event = new Event('change', { bubbles: true });
+                            input.dispatchEvent(event);
+                        }
                     }
+                })
+                .catch(() => {
+                    this._dialogOpen = false;
                 });
         } else {
             alert('Selecione a pasta manualmente.');
