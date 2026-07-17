@@ -14,7 +14,7 @@ class ExcelModule {
             <div class="page active">
                 <h2 class="module-title"><i class="bi bi-file-earmark-excel me-2"></i>Planilhas</h2>
                 <div class="d-flex gap-3" style="height: calc(100% - 60px);">
-                    <div class="module-sidebar flex-shrink-0" style="width: 200px;">
+                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
                         <h3>Funcionalidades</h3>
                         <ul class="feature-list">
                             ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}

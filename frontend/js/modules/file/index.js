@@ -7,11 +7,13 @@ class FileModule {
         this.collectFeature = new CollectFeature(this);
         this.renameFeature = new RenameFeature(this);
         this.duplicatesFeature = new DuplicatesFeature(this);
+        this.organizeFeature = new OrganizeFeature(this);
 
         this.features = [
             { id: 'collect', label: 'Coletar Arquivos', render: (container) => this.collectFeature.render(container) },
             { id: 'rename', label: 'Renomear em Lote', render: (container) => this.renameFeature.render(container) },
             { id: 'duplicates', label: 'Localizar Duplicatas', render: (container) => this.duplicatesFeature.render(container) },
+            { id: 'organize', label: 'Organizar por Extensão', render: (container) => this.organizeFeature.render(container) },
         ];
     }
 
@@ -20,7 +22,7 @@ class FileModule {
             <div class="page active">
                 <h2 class="module-title">Arquivos e Pastas</h2>
                 <div class="d-flex gap-3" style="height: calc(100% - 60px);">
-                    <div class="module-sidebar flex-shrink-0" style="width: 200px;">
+                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
                         <h3>Funcionalidades</h3>
                         <ul class="feature-list">
                             ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}

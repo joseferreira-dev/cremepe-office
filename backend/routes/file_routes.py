@@ -64,7 +64,6 @@ def list_files():
     if not data.get('dir'):
         return jsonify({"error": "Campo 'dir' obrigatório"}), 400
     dir_path = data['dir']
-    import os
     try:
         files = [f for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))]
         return jsonify({"success": True, "files": files}), 200
@@ -76,12 +75,10 @@ def rename_preview():
     data = request.json
     if not data.get('file_paths'):
         return jsonify({"error": "Campo 'file_paths' obrigatório"}), 400
-
     try:
         extensions = data.get('extensions')
         if extensions and isinstance(extensions, str):
             extensions = [e.strip() for e in extensions.split(',') if e.strip()]
-
         result = controller.preview_rename(
             file_paths=data['file_paths'],
             prefix=data.get('prefix', ''),
@@ -104,12 +101,10 @@ def rename_files():
     data = request.json
     if not data.get('file_paths'):
         return jsonify({"error": "Campo 'file_paths' obrigatório"}), 400
-
     try:
         extensions = data.get('extensions')
         if extensions and isinstance(extensions, str):
             extensions = [e.strip() for e in extensions.split(',') if e.strip()]
-
         result = controller.rename_files(
             file_paths=data['file_paths'],
             prefix=data.get('prefix', ''),
@@ -137,7 +132,6 @@ def find_duplicates():
         match_by = data.get('match_by', 'hash')
         include_hidden = data.get('include_hidden', False)
         groups = controller.find_duplicates(data['dir'], recursive, match_by, include_hidden)
-        # Transforma para JSON
         result = [{'files': group, 'count': len(group)} for group in groups]
         return jsonify({"success": True, "groups": result, "total_groups": len(groups)}), 200
     except Exception as e:
@@ -153,5 +147,40 @@ def remove_duplicates():
         destination = data.get('destination')
         count = controller.remove_duplicates(data['groups'], action, destination)
         return jsonify({"success": True, "removed_count": count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@file_bp.route('/organize/preview', methods=['POST'])
+def preview_organize():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        recursive = data.get('recursive', True)
+        move_others = data.get('move_others', False)
+        result = controller.preview_organize(
+            dir_path=data['dir'],
+            recursive=recursive,
+            move_others=move_others
+        )
+        return jsonify({"success": True, "preview": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/organize', methods=['POST'])
+def organize_files():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        result = controller.organize_by_extension(
+            dir_path=data['dir'],
+            recursive=data.get('recursive', True),
+            copy=data.get('copy', False),
+            on_conflict=data.get('on_conflict', 'skip'),
+            move_others=data.get('move_others', False),
+            delete_empty_folders=data.get('delete_empty_folders', False)
+        )
+        return jsonify({"success": True, "processed_count": result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -96,8 +96,6 @@ class FileController:
         """
         Retorna uma lista com os nomes originais e os novos nomes (sem renomear).
         """
-        # Reutiliza a lógica de renomeação, mas sem renomear de fato.
-        # Vamos simular o novo nome para cada arquivo.
         result = []
         counter = start_number
         for file_path in file_paths:
@@ -105,7 +103,6 @@ class FileController:
             if not path.exists() or not path.is_file():
                 continue
 
-            # Aplica os mesmos filtros e transformações (código duplicado da função rename)
             stem = path.stem
             ext = path.suffix
 
@@ -141,7 +138,6 @@ class FileController:
                 new_name = f"{prefix}{counter:04d}{suffix}{ext}"
                 counter += 1
 
-            # Verifica se já existe (se sim, adiciona sufixo)
             new_path = path.parent / new_name
             if new_path.exists():
                 base = new_path.stem
@@ -160,11 +156,6 @@ class FileController:
         return result
     
     def find_duplicates(self, dir_path, recursive=True, match_by='hash', include_hidden=False):
-        """
-        Escaneia um diretório e retorna grupos de arquivos duplicados.
-        match_by: 'hash' (MD5) ou 'name' (nome exato)
-        Retorna lista de grupos, cada grupo é uma lista de caminhos.
-        """
         from pathlib import Path
         src_path = Path(dir_path)
         if not src_path.exists():
@@ -183,25 +174,18 @@ class FileController:
                 with open(f, 'rb') as file:
                     file_hash = hashlib.md5(file.read()).hexdigest()
                 groups[file_hash].append(str(f))
-        else:  # name
+        else:
             for f in files:
                 groups[f.name].append(str(f))
 
-        # Filtra apenas grupos com mais de um arquivo
         duplicate_groups = [group for group in groups.values() if len(group) > 1]
         return duplicate_groups
     
     def remove_duplicates(self, groups, action='delete', destination=None):
-        """
-        groups: lista de grupos (listas de caminhos)
-        action: 'delete' (exclui todos exceto o primeiro), 'move' (move para destination)
-        Retorna número de arquivos removidos/movidos.
-        """
         import os
         import shutil
         count = 0
         for group in groups:
-            # Preserva o primeiro como original
             original = group[0]
             for dup in group[1:]:
                 if action == 'delete':
@@ -211,3 +195,129 @@ class FileController:
                     shutil.move(dup, dest_path)
                 count += 1
         return count
+    
+    # ========== ORGANIZAR POR EXTENSÃO (sem ocultos) ==========
+    def organize_by_extension(
+        self,
+        dir_path: str,
+        recursive: bool = True,
+        copy: bool = False,
+        on_conflict: str = 'skip',
+        move_others: bool = False,
+        delete_empty_folders: bool = False
+    ) -> int:
+        """
+        Organiza arquivos de um diretório movendo-os para subpastas
+        com base em suas extensões. Ignora arquivos ocultos.
+        move_others: se True, arquivos sem extensão vão para pasta 'OUTROS'.
+        delete_empty_folders: se True, remove pastas vazias após a organização.
+        Retorna o número de arquivos processados.
+        """
+        from pathlib import Path
+        import shutil
+        import os
+
+        src_path = Path(dir_path)
+        if not src_path.exists():
+            raise FileNotFoundError(f"Diretório não encontrado: {dir_path}")
+
+        # Coletar arquivos (excluindo ocultos)
+        if recursive:
+            files = list(src_path.rglob("*"))
+        else:
+            files = list(src_path.glob("*"))
+        files = [f for f in files if f.is_file() and not f.name.startswith('.')]
+
+        processed = 0
+        for file_path in files:
+            ext = file_path.suffix.lower()
+            if ext:
+                folder_name = ext[1:].upper()
+            else:
+                if move_others:
+                    folder_name = "OUTROS"
+                else:
+                    continue  # ignora arquivos sem extensão se move_others for False
+
+            dest_dir = src_path / folder_name
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+            dest_file = dest_dir / file_path.name
+            if dest_file.exists():
+                if on_conflict == 'skip':
+                    continue
+                elif on_conflict == 'rename':
+                    base = dest_file.stem
+                    counter = 1
+                    while dest_file.exists():
+                        new_name = f"{base}_{counter}{ext}" if ext else f"{base}_{counter}"
+                        dest_file = dest_dir / new_name
+                        counter += 1
+                # 'overwrite' sobrescreve
+
+            if copy:
+                shutil.copy2(str(file_path), str(dest_file))
+            else:
+                shutil.move(str(file_path), str(dest_file))
+            processed += 1
+
+        # Excluir pastas vazias (se solicitado)
+        if delete_empty_folders and not copy:
+            # Percorre de baixo para cima, excluindo pastas vazias (exceto a raiz)
+            for root, dirs, files in os.walk(src_path, topdown=False):
+                # Não remove a raiz
+                if root == str(src_path):
+                    continue
+                try:
+                    if not os.listdir(root):
+                        os.rmdir(root)
+                except OSError:
+                    pass
+
+        return processed
+
+    def preview_organize(
+        self,
+        dir_path: str,
+        recursive: bool = True,
+        move_others: bool = False
+    ):
+        """
+        Retorna uma pré-visualização dos arquivos organizados por extensão.
+        Ignora arquivos ocultos.
+        move_others: se True, arquivos sem extensão vão para 'OUTROS'.
+        """
+        from pathlib import Path
+        from collections import defaultdict
+
+        src_path = Path(dir_path)
+        if not src_path.exists():
+            raise FileNotFoundError(f"Diretório não encontrado: {dir_path}")
+
+        if recursive:
+            files = list(src_path.rglob("*"))
+        else:
+            files = list(src_path.glob("*"))
+        files = [f for f in files if f.is_file() and not f.name.startswith('.')]
+
+        groups = defaultdict(list)
+        for f in files:
+            ext = f.suffix.lower()
+            if ext:
+                folder_name = ext[1:].upper()
+            else:
+                if move_others:
+                    folder_name = "OUTROS"
+                else:
+                    continue  # ignora sem extensão se move_others False
+            groups[folder_name].append(str(f))
+
+        result = [
+            {
+                'folder': folder_name,
+                'files': paths,
+                'count': len(paths)
+            }
+            for folder_name, paths in groups.items()
+        ]
+        return result

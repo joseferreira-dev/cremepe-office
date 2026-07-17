@@ -21,6 +21,8 @@ window.API = {
         renamePreview: (params) => apiRequest('/files/rename-preview', 'POST', params),
         findDuplicates: (params) => apiRequest('/files/duplicates', 'POST', params),
         removeDuplicates: (params) => apiRequest('/files/duplicates/remove', 'POST', params),
+        organizePreview: (params) => apiRequest('/files/organize/preview', 'POST', params),
+        organize: (params) => apiRequest('/files/organize', 'POST', params),
     },
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),
