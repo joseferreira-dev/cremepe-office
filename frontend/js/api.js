@@ -41,6 +41,7 @@ window.API = {
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),
         convert: (params) => apiRequest('/word/convert', 'POST', params),
+        compare: (params) => apiRequest('/word/compare', 'POST', params),
     },
     excel: {
         merge: (params) => apiRequest('/excel/merge', 'POST', params),

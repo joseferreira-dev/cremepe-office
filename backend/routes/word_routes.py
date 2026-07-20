@@ -34,3 +34,17 @@ def convert_document():
         return jsonify({"success": True, "output_path": result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/compare', methods=['POST'])
+def compare_documents():
+    data = request.json
+    if not data.get('doc1_path') or not data.get('doc2_path'):
+        return jsonify({"error": "Campos obrigatórios: doc1_path, doc2_path"}), 400
+    try:
+        result = controller.compare_documents(
+            doc1_path=data['doc1_path'],
+            doc2_path=data['doc2_path']
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

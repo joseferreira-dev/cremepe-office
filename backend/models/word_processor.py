@@ -1,8 +1,13 @@
+import os
+import re
+import time
 import tempfile
+import difflib
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Tuple
 import pythoncom
 import win32com.client
+from docx import Document
 from docxcompose.composer import Composer
 
 # ==================== CONVERSÃO .doc -> .docx ====================
@@ -121,3 +126,103 @@ def convert_document(input_path: str, output_path: str, output_format: str) -> s
                 pass
 
     return result
+
+def extract_paragraphs(docx_path: Path) -> List[str]:
+    """Extrai texto de cada parágrafo de um documento .docx."""
+    doc = Document(docx_path)
+    paragraphs = []
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text:  # ignora parágrafos vazios
+            paragraphs.append(text)
+    return paragraphs
+
+def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
+    """
+    Compara dois documentos Word e retorna as diferenças.
+    Retorna um dicionário com:
+        - 'differences': lista de dicionários com tipo ('added', 'removed', 'modified') e detalhes.
+        - 'summary': resumo com contagens.
+    """
+    doc1_path = Path(doc1_path).resolve()
+    doc2_path = Path(doc2_path).resolve()
+
+    if not doc1_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {doc1_path}")
+    if not doc2_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {doc2_path}")
+
+    # Se for .doc, converter para .docx temporário
+    temp_doc1 = None
+    temp_doc2 = None
+    try:
+        if doc1_path.suffix.lower() == '.doc':
+            from models.word_processor import convert_doc_to_docx
+            temp_doc1 = convert_doc_to_docx(doc1_path)
+            doc1_path = temp_doc1
+        if doc2_path.suffix.lower() == '.doc':
+            from models.word_processor import convert_doc_to_docx
+            temp_doc2 = convert_doc_to_docx(doc2_path)
+            doc2_path = temp_doc2
+
+        paragraphs1 = extract_paragraphs(doc1_path)
+        paragraphs2 = extract_paragraphs(doc2_path)
+
+        # Usa SequenceMatcher para comparar listas de parágrafos
+        matcher = difflib.SequenceMatcher(None, paragraphs1, paragraphs2)
+        differences = []
+        added_count = 0
+        removed_count = 0
+        modified_count = 0
+
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == 'equal':
+                continue
+            elif tag == 'delete':
+                removed = paragraphs1[i1:i2]
+                differences.append({
+                    'type': 'removed',
+                    'text': '\n'.join(removed),
+                    'count': len(removed)
+                })
+                removed_count += len(removed)
+            elif tag == 'insert':
+                added = paragraphs2[j1:j2]
+                differences.append({
+                    'type': 'added',
+                    'text': '\n'.join(added),
+                    'count': len(added)
+                })
+                added_count += len(added)
+            elif tag == 'replace':
+                removed = paragraphs1[i1:i2]
+                added = paragraphs2[j1:j2]
+                differences.append({
+                    'type': 'modified',
+                    'old_text': '\n'.join(removed),
+                    'new_text': '\n'.join(added),
+                    'count': max(len(removed), len(added))
+                })
+                modified_count += max(len(removed), len(added))
+
+        return {
+            'differences': differences,
+            'summary': {
+                'added': added_count,
+                'removed': removed_count,
+                'modified': modified_count,
+                'total_differences': len(differences)
+            }
+        }
+    finally:
+        # Limpa arquivos temporários
+        if temp_doc1 and temp_doc1.exists():
+            try:
+                temp_doc1.unlink()
+            except:
+                pass
+        if temp_doc2 and temp_doc2.exists():
+            try:
+                temp_doc2.unlink()
+            except:
+                pass
