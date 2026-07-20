@@ -5,6 +5,7 @@ import hashlib
 from collections import defaultdict
 
 from models.file_manager import collect_files, rename_files_in_batch
+from models.file_comparator import compare_folders, sync_folders
 from datetime import datetime, timedelta
 
 class FileController:
@@ -463,3 +464,26 @@ class FileController:
             return {'saved_path': result}
         else:
             return {'content': result}
+
+    def compare_directories(
+        self,
+        source_dir: str,
+        target_dir: str,
+        recursive: bool = True,
+        include_hidden: bool = False,
+        compare_by_hash: bool = False
+    ) -> dict:
+        """Compara duas pastas e retorna diferenças."""
+        return compare_folders(source_dir, target_dir, recursive, include_hidden, compare_by_hash)
+
+    def sync_directories(
+        self,
+        source_dir: str,
+        target_dir: str,
+        recursive: bool = True,
+        include_hidden: bool = False,
+        compare_by_hash: bool = False,
+        action: str = 'copy_to_target'
+    ) -> dict:
+        """Sincroniza pastas."""
+        return sync_folders(source_dir, target_dir, recursive, include_hidden, compare_by_hash, action)

@@ -27,6 +27,8 @@ window.API = {
         renameByContent: (params) => apiRequest('/files/rename-by-content', 'POST', params),
         setAttributes: (params) => apiRequest('/files/attributes', 'POST', params),
         generateReport: (params) => apiRequest('/files/report', 'POST', params),
+        compare: (params) => apiRequest('/files/compare', 'POST', params),
+        sync: (params) => apiRequest('/files/sync', 'POST', params),
     },
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),

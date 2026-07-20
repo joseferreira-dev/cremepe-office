@@ -267,3 +267,38 @@ def generate_report():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/compare', methods=['POST'])
+def compare_directories():
+    data = request.json
+    if not data.get('source_dir') or not data.get('target_dir'):
+        return jsonify({"error": "Campos obrigatórios: source_dir, target_dir"}), 400
+    try:
+        result = controller.compare_directories(
+            source_dir=data['source_dir'],
+            target_dir=data['target_dir'],
+            recursive=data.get('recursive', True),
+            include_hidden=data.get('include_hidden', False),
+            compare_by_hash=data.get('compare_by_hash', False)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/sync', methods=['POST'])
+def sync_directories():
+    data = request.json
+    if not data.get('source_dir') or not data.get('target_dir'):
+        return jsonify({"error": "Campos obrigatórios: source_dir, target_dir"}), 400
+    try:
+        result = controller.sync_directories(
+            source_dir=data['source_dir'],
+            target_dir=data['target_dir'],
+            recursive=data.get('recursive', True),
+            include_hidden=data.get('include_hidden', False),
+            compare_by_hash=data.get('compare_by_hash', False),
+            action=data.get('action', 'copy_to_target')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
