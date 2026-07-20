@@ -220,3 +220,29 @@ def rename_by_content():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@file_bp.route('/attributes', methods=['POST'])
+def set_attributes():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        recursive = data.get('recursive', True)
+        options = {
+            'readonly': data.get('readonly'),
+            'hidden': data.get('hidden'),
+            'system': data.get('system'),
+            'modification_date': data.get('modification_date'),
+            'creation_date': data.get('creation_date'),
+            'permissions': data.get('permissions')
+        }
+        # Remove None para não sobrescrever com valor nulo
+        options = {k: v for k, v in options.items() if v is not None}
+        count = controller.set_attributes(
+            dir_path=data['dir'],
+            recursive=recursive,
+            options=options
+        )
+        return jsonify({"success": True, "processed_count": count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

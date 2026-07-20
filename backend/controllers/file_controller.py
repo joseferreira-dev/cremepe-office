@@ -389,3 +389,58 @@ class FileController:
                     result['errors'].append({'file': str(file_path), 'error': str(e)})
 
         return result
+    
+    def set_attributes(
+        self,
+        dir_path: str,
+        recursive: bool = True,
+        options: dict = None
+    ) -> int:
+        """
+        Aplica atributos a todos os arquivos de um diretório.
+        options: dict com:
+            readonly: bool
+            hidden: bool
+            system: bool
+            modification_date: str (ISO format, ex: '2026-07-20T14:30:00')
+            creation_date: str (ISO format)
+            permissions: str (ex: '755')
+        Retorna número de arquivos processados.
+        """
+        from pathlib import Path
+        import os
+        from datetime import datetime
+        from models.file_attributes import apply_attributes
+
+        src_path = Path(dir_path)
+        if not src_path.exists():
+            raise FileNotFoundError(f"Diretório não encontrado: {dir_path}")
+
+        if recursive:
+            files = list(src_path.rglob("*"))
+        else:
+            files = list(src_path.glob("*"))
+        files = [f for f in files if f.is_file() and not f.name.startswith('.')]
+
+        # Converter strings de data para datetime
+        if options:
+            if 'modification_date' in options and options['modification_date']:
+                options['modification_date'] = datetime.fromisoformat(options['modification_date'])
+            else:
+                options['modification_date'] = None
+            if 'creation_date' in options and options['creation_date']:
+                options['creation_date'] = datetime.fromisoformat(options['creation_date'])
+            else:
+                options['creation_date'] = None
+        else:
+            options = {}
+
+        processed = 0
+        for f in files:
+            try:
+                apply_attributes(f, options)
+                processed += 1
+            except Exception:
+                # Se falhar em um arquivo, continua
+                pass
+        return processed

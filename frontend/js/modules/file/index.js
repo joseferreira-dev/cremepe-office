@@ -9,6 +9,7 @@ class FileModule {
         this.duplicatesFeature = new DuplicatesFeature(this);
         this.organizeFeature = new OrganizeFeature(this);
         this.renameByContentFeature = new RenameByContentFeature(this);
+        this.attributesFeature = new AttributesFeature(this);
 
         this.features = [
             { id: 'collect', label: 'Coletar Arquivos', render: (container) => this.collectFeature.render(container) },
@@ -16,6 +17,7 @@ class FileModule {
             { id: 'duplicates', label: 'Localizar Duplicatas', render: (container) => this.duplicatesFeature.render(container) },
             { id: 'organize', label: 'Organizar por Extensão', render: (container) => this.organizeFeature.render(container) },
             { id: 'rename-by-content', label: 'Renomear por Conteúdo', render: (container) => this.renameByContentFeature.render(container) },
+            { id: 'attributes', label: 'Alterar Atributos', render: (container) => this.attributesFeature.render(container) },
         ];
     }
 
