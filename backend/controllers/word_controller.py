@@ -1,5 +1,5 @@
 from typing import List, Optional
-from models.word_processor import merge_documents, convert_document, compare_documents
+from models.word_processor import merge_documents, convert_document, compare_documents, extract_images
 
 class WordController:
     def merge_documents(self, docx_paths: List[str], output_path: str, insert_page_breaks: bool = True) -> str:
@@ -9,5 +9,7 @@ class WordController:
         return convert_document(input_path, output_path, output_format)
 
     def compare_documents(self, doc1_path: str, doc2_path: str) -> dict:
-        from models.word_processor import compare_documents as compare
-        return compare(doc1_path, doc2_path)
+        return compare_documents(doc1_path, doc2_path)
+
+    def extract_images(self, input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
+        return extract_images(input_path, output_dir, prefix)

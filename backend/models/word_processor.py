@@ -4,7 +4,7 @@ import time
 import tempfile
 import difflib
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Optional, Tuple
 import pythoncom
 import win32com.client
 from docx import Document
@@ -226,3 +226,90 @@ def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
                 temp_doc2.unlink()
             except:
                 pass
+
+def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
+    """
+    Extrai todas as imagens de um documento Word (incluindo cabeçalhos, rodapés, formas e wordarts)
+    e as salva na pasta de destino.
+    Retorna lista de caminhos das imagens extraídas.
+    """
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_dir = Path(output_dir).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    temp_docx = None
+    if input_path.suffix.lower() == '.doc':
+        temp_docx = convert_doc_to_docx(input_path)
+        input_path = temp_docx
+
+    try:
+        doc = Document(input_path)
+        images = []
+        counter = 1
+
+        # 1. Imagens da parte principal do documento
+        for rel in doc.part.rels.values():
+            if "image" in rel.target_ref:
+                image_blob = rel.target_part.blob
+                content_type = rel.target_part.content_type
+                ext = _get_extension_from_content_type(content_type)
+                if ext:
+                    filename = f"{prefix or input_path.stem}_img_{counter:04d}{ext}"
+                    output_path = output_dir / filename
+                    with open(output_path, 'wb') as f:
+                        f.write(image_blob)
+                    images.append(str(output_path))
+                    counter += 1
+
+        # 2. Imagens em cabeçalhos e rodapés
+        for section in doc.sections:
+            for header in section.header.paragraphs + section.header.tables:
+                if hasattr(header, '_element') and header._element is not None:
+                    header_part = header._element.getroottree().getroot().getroottree()
+                    pass
+
+        package = doc.part.package
+        for part in package.iter_parts():
+            # Se for uma parte de imagem, extrai
+            if 'image' in part.content_type:
+                image_blob = part.blob
+                content_type = part.content_type
+                ext = _get_extension_from_content_type(content_type)
+                if ext:
+                    # Usa o nome da parte como referência
+                    part_name = part.partname.split('/')[-1]
+                    filename = f"{prefix or input_path.stem}_img_{counter:04d}_{part_name}{ext}"
+                    output_path = output_dir / filename
+                    with open(output_path, 'wb') as f:
+                        f.write(image_blob)
+                    images.append(str(output_path))
+                    counter += 1
+
+        if not images:
+            raise ValueError("Nenhuma imagem encontrada no documento.")
+
+        return images
+
+    finally:
+        if temp_docx and temp_docx.exists():
+            try:
+                temp_docx.unlink()
+            except:
+                pass
+
+def _get_extension_from_content_type(content_type: str) -> str:
+    """Retorna extensão de arquivo baseada no tipo MIME."""
+    ext_map = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/gif': '.gif',
+        'image/bmp': '.bmp',
+        'image/tiff': '.tiff',
+        'image/webp': '.webp',
+        'image/vnd.microsoft.icon': '.ico',
+        'image/svg+xml': '.svg'
+    }
+    return ext_map.get(content_type, '.bin')

@@ -48,3 +48,19 @@ def compare_documents():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/extract-images', methods=['POST'])
+def extract_images():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_dir'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_dir"}), 400
+    try:
+        prefix = data.get('prefix')
+        result = controller.extract_images(
+            input_path=data['input_path'],
+            output_dir=data['output_dir'],
+            prefix=prefix
+        )
+        return jsonify({"success": True, "images": result, "count": len(result)}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

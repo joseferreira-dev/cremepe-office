@@ -5,11 +5,13 @@ class WordModule {
         this.mergeFeature = new MergeFeature(this);
         this.convertFeature = new ConvertFeature(this);
         this.compareFeature = new DocCompareFeature(this);
+        this.extractImagesFeature = new ExtractImagesFeature(this);
 
         this.features = [
             { id: 'merge', label: 'Juntar Documentos', render: (container) => this.mergeFeature.render(container) },
             { id: 'convert', label: 'Converter', render: (container) => this.convertFeature.render(container) },
             { id: 'compare', label: 'Comparar', render: (container) => this.compareFeature.render(container) },
+            { id: 'extract-images', label: 'Extrair Imagens', render: (container) => this.extractImagesFeature.render(container) },
         ];
     }
 
