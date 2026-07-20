@@ -321,3 +321,71 @@ class FileController:
             for folder_name, paths in groups.items()
         ]
         return result
+    
+    def rename_by_content(
+        self,
+        dir_path: str,
+        recursive: bool = True,
+        pattern: str = 'auto',
+        dry_run: bool = False
+    ) -> dict:
+        """
+        Renomeia arquivos com base em metadados de conteúdo.
+        Retorna dict com {'renamed': [], 'errors': [], 'skipped': []}
+        """
+        from models.file_metadata import get_image_metadata, get_audio_metadata, get_text_metadata, generate_new_name
+        from pathlib import Path
+        import os
+
+        src_path = Path(dir_path)
+        if not src_path.exists():
+            raise FileNotFoundError(f"Diretório não encontrado: {dir_path}")
+
+        files = []
+        if recursive:
+            files = list(src_path.rglob("*"))
+        else:
+            files = list(src_path.glob("*"))
+        # Ignora arquivos ocultos (nomes começando com '.')
+        files = [f for f in files if f.is_file() and not f.name.startswith('.')]
+
+        result = {'renamed': [], 'errors': [], 'skipped': []}
+        for file_path in files:
+            ext = file_path.suffix.lower()
+            metadata = None
+            if ext in ['.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.gif', '.webp']:
+                metadata = get_image_metadata(file_path, use_mtime_fallback=True)
+            elif ext in ['.mp3', '.flac', '.ogg', '.wma', '.m4a']:
+                metadata = get_audio_metadata(file_path)
+            elif ext in ['.txt', '.log', '.csv', '.md', '.json', '.xml']:
+                metadata = get_text_metadata(file_path)
+            else:
+                result['skipped'].append(str(file_path))
+                continue
+
+            if metadata is None:
+                result['skipped'].append(str(file_path))
+                continue
+
+            new_name = generate_new_name(file_path, metadata, pattern)
+            if new_name is None:
+                result['skipped'].append(str(file_path))
+                continue
+
+            new_full = file_path.parent / (new_name + ext)
+            if new_full.exists():
+                counter = 1
+                while new_full.exists():
+                    new_full = file_path.parent / f"{new_name}_{counter}{ext}"
+                    counter += 1
+
+            if dry_run:
+                result['renamed'].append({'original': str(file_path), 'new': str(new_full)})
+            else:
+                try:
+                    os.rename(str(file_path), str(new_full))
+                    result['renamed'].append({'original': str(file_path), 'new': str(new_full)})
+                except Exception as e:
+                    result['errors'].append({'file': str(file_path), 'error': str(e)})
+
+        return result

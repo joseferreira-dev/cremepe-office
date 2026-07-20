@@ -184,3 +184,39 @@ def organize_files():
         return jsonify({"success": True, "processed_count": result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/rename-by-content/preview', methods=['POST'])
+def preview_rename_by_content():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        recursive = data.get('recursive', True)
+        pattern = data.get('pattern', 'auto')
+        result = controller.rename_by_content(
+            dir_path=data['dir'],
+            recursive=recursive,
+            pattern=pattern,
+            dry_run=True
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/rename-by-content', methods=['POST'])
+def rename_by_content():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        recursive = data.get('recursive', True)
+        pattern = data.get('pattern', 'auto')
+        result = controller.rename_by_content(
+            dir_path=data['dir'],
+            recursive=recursive,
+            pattern=pattern,
+            dry_run=False
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
