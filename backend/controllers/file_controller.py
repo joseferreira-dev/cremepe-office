@@ -444,3 +444,22 @@ class FileController:
                 # Se falhar em um arquivo, continua
                 pass
         return processed
+
+    def generate_report(
+        self,
+        dir_path: str,
+        recursive: bool = True,
+        include_files: bool = True,
+        output_format: str = 'txt',
+        output_path: str = None
+    ) -> dict:
+        """
+        Gera um relatório da estrutura de pastas.
+        Retorna dict com 'content' (string) ou 'saved_path'.
+        """
+        from models.file_folder_report import generate_folder_report
+        result = generate_folder_report(dir_path, recursive, include_files, output_format, output_path)
+        if output_path:
+            return {'saved_path': result}
+        else:
+            return {'content': result}

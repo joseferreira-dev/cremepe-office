@@ -10,6 +10,7 @@ class FileModule {
         this.organizeFeature = new OrganizeFeature(this);
         this.renameByContentFeature = new RenameByContentFeature(this);
         this.attributesFeature = new AttributesFeature(this);
+        this.reportFeature = new ReportFeature(this);
 
         this.features = [
             { id: 'collect', label: 'Coletar Arquivos', render: (container) => this.collectFeature.render(container) },
@@ -18,6 +19,7 @@ class FileModule {
             { id: 'organize', label: 'Organizar por Extensão', render: (container) => this.organizeFeature.render(container) },
             { id: 'rename-by-content', label: 'Renomear por Conteúdo', render: (container) => this.renameByContentFeature.render(container) },
             { id: 'attributes', label: 'Alterar Atributos', render: (container) => this.attributesFeature.render(container) },
+            { id: 'report', label: 'Relatório de Estrutura', render: (container) => this.reportFeature.render(container) },
         ];
     }
 

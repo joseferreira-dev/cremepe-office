@@ -246,3 +246,24 @@ def set_attributes():
         return jsonify({"success": True, "processed_count": count}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/report', methods=['POST'])
+def generate_report():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        recursive = data.get('recursive', True)
+        include_files = data.get('include_files', True)
+        output_format = data.get('format', 'txt')
+        output_path = data.get('output_path')  # opcional
+        result = controller.generate_report(
+            dir_path=data['dir'],
+            recursive=recursive,
+            include_files=include_files,
+            output_format=output_format,
+            output_path=output_path
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
