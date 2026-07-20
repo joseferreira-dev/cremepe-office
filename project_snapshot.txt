@@ -23,6 +23,7 @@
 │   │   ├── file_folder_report.py
 │   │   ├── file_manager.py
 │   │   ├── file_metadata.py
+│   │   ├── file_splitter.py
 │   │   ├── pdf_processor.py
 │   │   └── word_processor.py
 │   ├── routes/
@@ -57,6 +58,7 @@
 │   │   │   │   ├── rename.js
 │   │   │   │   ├── rename_by_content.js
 │   │   │   │   ├── report.js
+│   │   │   │   ├── split.js
 │   │   │   │   └── utils.js
 │   │   │   ├── excel.js
 │   │   │   ├── home.js
@@ -745,6 +747,27 @@ class FileController:
     ) -> str:
         """Extrai um arquivo compactado (qualquer formato)."""
         return extract_archive(archive_path, extract_dir, password)
+
+    def split_file(
+        self,
+        file_path: str,
+        output_dir: str,
+        part_size_mb: int = 100,
+        overwrite: bool = False
+    ) -> dict:
+        from models.file_splitter import split_file
+        parts = split_file(file_path, output_dir, part_size_mb, overwrite)
+        return {'parts': parts, 'count': len(parts)}
+
+    def merge_parts(
+        self,
+        parts_list: List[str],
+        output_path: str,
+        overwrite: bool = False
+    ) -> dict:
+        from models.file_splitter import merge_parts
+        result = merge_parts(parts_list, output_path, overwrite)
+        return {'output_path': result}
 ```
 
 
@@ -888,8 +911,9 @@ import shutil
 import subprocess
 import platform
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 import zipfile
+import fnmatch
 
 try:
     import pyzipper
@@ -906,32 +930,36 @@ try:
 except ImportError:
     rarfile = None
 
-def _should_include(file_path: Path, include_patterns: List[str] = None,
+def _matches_patterns(name: str, patterns: List[str]) -> bool:
+    """Verifica se um nome (arquivo ou caminho) corresponde a algum padrão (glob)."""
+    if not patterns:
+        return True
+    for pattern in patterns:
+        if fnmatch.fnmatch(name, pattern):
+            return True
+    return False
+
+
+def _should_include(rel_path: str, include_patterns: List[str] = None,
                     exclude_patterns: List[str] = None,
                     exclude_hidden: bool = False) -> bool:
     """
-    Verifica se um arquivo/pasta deve ser incluído com base nos filtros.
-    Suporta padrões simples com '*' (glob).
+    Verifica se um arquivo (pelo caminho relativo) deve ser incluído.
+    - include_patterns: se definido, o item deve corresponder a pelo menos um padrão.
+    - exclude_patterns: se definido, o item não deve corresponder a nenhum padrão.
+    - exclude_hidden: se True, itens com nome começando com '.' são excluídos.
     """
-    name = file_path.name
-    # Verifica oculto
-    if exclude_hidden and name.startswith('.'):
+    if exclude_hidden and Path(rel_path).name.startswith('.'):
         return False
-    # Inclusão
+
     if include_patterns:
-        import fnmatch
-        # Verifica se o nome corresponde a algum padrão de inclusão
-        for pattern in include_patterns:
-            if fnmatch.fnmatch(name, pattern):
-                break
-        else:
-            return False  # não corresponde a nenhum padrão de inclusão
-    # Exclusão
+        if not _matches_patterns(rel_path, include_patterns):
+            return False
+
     if exclude_patterns:
-        import fnmatch
-        for pattern in exclude_patterns:
-            if fnmatch.fnmatch(name, pattern):
-                return False
+        if _matches_patterns(rel_path, exclude_patterns):
+            return False
+
     return True
 
 
@@ -944,40 +972,47 @@ def _collect_files(source_paths: List[str], recursive: bool = True,
     Retorna lista de caminhos absolutos.
     """
     all_files = []
-    for src in source_paths:
-        src_path = Path(src)
-        if not src_path.exists():
-            continue
-        if src_path.is_file():
-            if _should_include(src_path, include_patterns, exclude_patterns, exclude_hidden):
-                all_files.append(src_path)
+    base_paths = [Path(p) for p in source_paths if Path(p).exists()]
+
+    for base in base_paths:
+        if base.is_file():
+            rel_path = base.name
+            if _should_include(rel_path, include_patterns, exclude_patterns, exclude_hidden):
+                all_files.append(base)
         else:  # diretório
             if recursive:
-                for root, dirs, files in os.walk(src_path):
-                    # Filtra diretórios (para não entrar em pastas excluídas)
-                    dirs[:] = [d for d in dirs if _should_include(Path(root) / d, include_patterns, exclude_patterns, exclude_hidden)]
+                for root, dirs, files in os.walk(base):
+                    root_path = Path(root)
+                    # Exclui diretórios ocultos se necessário
+                    if exclude_hidden:
+                        dirs[:] = [d for d in dirs if not d.startswith('.')]
+
                     for f in files:
-                        file_path = Path(root) / f
-                        if _should_include(file_path, include_patterns, exclude_patterns, exclude_hidden):
+                        if exclude_hidden and f.startswith('.'):
+                            continue
+                        file_path = root_path / f
+                        rel_path = str(file_path.relative_to(base))
+                        if _should_include(rel_path, include_patterns, exclude_patterns, exclude_hidden):
                             all_files.append(file_path)
             else:
-                for item in src_path.iterdir():
-                    if item.is_file() and _should_include(item, include_patterns, exclude_patterns, exclude_hidden):
-                        all_files.append(item)
+                for item in base.iterdir():
+                    if item.is_file():
+                        if exclude_hidden and item.name.startswith('.'):
+                            continue
+                        rel_path = item.name
+                        if _should_include(rel_path, include_patterns, exclude_patterns, exclude_hidden):
+                            all_files.append(item)
+
     return all_files
+
 
 def _create_zip_with_pyzipper(source_paths: List[str], output_path: Path,
                               password: Optional[str] = None,
                               compression_level: int = 6,
                               compression_method: str = 'deflate') -> str:
-    """
-    Cria um ZIP com senha usando pyzipper.
-    Suporta métodos: 'deflate', 'bzip2', 'lzma', 'store'.
-    """
     if pyzipper is None:
         raise ImportError("pyzipper não está instalado. Instale com: pip install pyzipper")
 
-    # Mapeia método para constante do pyzipper
     method_map = {
         'deflate': pyzipper.ZIP_DEFLATED,
         'bzip2': pyzipper.ZIP_BZIP2,
@@ -986,7 +1021,6 @@ def _create_zip_with_pyzipper(source_paths: List[str], output_path: Path,
     }
     compression = method_map.get(compression_method.lower(), pyzipper.ZIP_DEFLATED)
 
-    # Criação do arquivo
     with pyzipper.AESZipFile(
         output_path,
         'w',
@@ -995,12 +1029,11 @@ def _create_zip_with_pyzipper(source_paths: List[str], output_path: Path,
     ) as zf:
         if password:
             zf.setpassword(password.encode('utf-8'))
-            zf.encryption = pyzipper.WZ_AES  # padrão AES-256
+            zf.encryption = pyzipper.WZ_AES
 
         for file_path in source_paths:
             path = Path(file_path)
             if path.is_dir():
-                # Adiciona recursivamente os arquivos da pasta
                 for root, dirs, files in os.walk(path):
                     for f in files:
                         full_path = Path(root) / f
@@ -1014,12 +1047,7 @@ def _create_zip_with_pyzipper(source_paths: List[str], output_path: Path,
 def _create_zip_with_subprocess(source_paths: List[str], output_path: Path,
                                 password: Optional[str] = None,
                                 compression_level: int = 6) -> str:
-    """
-    Fallback usando subprocess (zip no Linux/Mac, 7z no Windows).
-    """
-    # Verifica se é Windows
     if platform.system() == 'Windows':
-        # Usa 7z (se disponível)
         cmd = ['7z', 'a', '-tzip', f'-mx={compression_level}']
         if password:
             cmd.append(f'-p{password}')
@@ -1029,7 +1057,6 @@ def _create_zip_with_subprocess(source_paths: List[str], output_path: Path,
         if result.returncode != 0:
             raise RuntimeError(f"Erro ao criar ZIP com 7z: {result.stderr}")
     else:
-        # Usa zip (Unix)
         cmd = ['zip', '-r', f'-{compression_level}']
         if password:
             cmd.append(f'-P{password}')
@@ -1059,6 +1086,12 @@ def create_zip(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Normaliza listas de padrões (remove entradas vazias)
+    if include_patterns:
+        include_patterns = [p.strip() for p in include_patterns if p.strip()]
+    if exclude_patterns:
+        exclude_patterns = [p.strip() for p in exclude_patterns if p.strip()]
+
     # Coleta arquivos com filtros
     files_to_archive = _collect_files(
         source_paths,
@@ -1069,9 +1102,15 @@ def create_zip(
     )
 
     if not files_to_archive:
-        raise ValueError("Nenhum arquivo encontrado para arquivar.")
+        # Mensagem detalhada para ajudar o usuário
+        msg = "Nenhum arquivo encontrado para arquivar."
+        if include_patterns:
+            msg += f" Padrões de inclusão: {include_patterns}"
+        if exclude_patterns:
+            msg += f" Padrões de exclusão: {exclude_patterns}"
+        raise ValueError(msg)
 
-    # Tenta usar pyzipper (suporta senha), senão fallback
+    # Tenta pyzipper, senão fallback
     try:
         return _create_zip_with_pyzipper(
             [str(f) for f in files_to_archive],
@@ -1081,7 +1120,6 @@ def create_zip(
             compression_method=compression_method
         )
     except ImportError:
-        # Fallback subprocess
         return _create_zip_with_subprocess(
             [str(f) for f in files_to_archive],
             output_path,
@@ -1094,11 +1132,6 @@ def extract_archive(
     extract_dir: str,
     password: Optional[str] = None
 ) -> str:
-    """
-    Extrai um arquivo compactado.
-    Detecta formato pela extensão.
-    Retorna o diretório de extração.
-    """
     archive_path = Path(archive_path)
     extract_path = Path(extract_dir)
     extract_path.mkdir(parents=True, exist_ok=True)
@@ -1120,13 +1153,11 @@ def extract_archive(
 
 def _extract_zip(archive_path, extract_path, password):
     try:
-        # Tenta pyzipper primeiro (suporta senha)
         with pyzipper.AESZipFile(archive_path, 'r') as zf:
             if password:
                 zf.setpassword(password.encode('utf-8'))
             zf.extractall(extract_path)
     except:
-        # Fallback para zipfile padrão
         with zipfile.ZipFile(archive_path, 'r') as zf:
             if password:
                 zf.setpassword(password.encode('utf-8'))
@@ -1960,6 +1991,95 @@ def generate_new_name(original_path, metadata, pattern='auto'):
 ```
 
 
+### backend\models\file_splitter.py
+
+```
+import os
+import shutil
+from pathlib import Path
+from typing import List, Optional
+
+def split_file(
+    file_path: str,
+    output_dir: str,
+    part_size_mb: int = 100,
+    overwrite: bool = False
+) -> List[str]:
+    """
+    Divide um arquivo em partes menores.
+    Retorna lista de caminhos das partes criadas.
+    """
+    file_path = Path(file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    part_size = part_size_mb * 1024 * 1024  # em bytes
+    file_size = file_path.stat().st_size
+    part_number = 1
+    parts = []
+
+    with open(file_path, 'rb') as infile:
+        while True:
+            part_name = f"{file_path.stem}.part{part_number:04d}{file_path.suffix}"
+            part_path = output_dir / part_name
+
+            if part_path.exists() and not overwrite:
+                raise FileExistsError(f"Parte já existe: {part_path}")
+
+            with open(part_path, 'wb') as outfile:
+                bytes_read = 0
+                while bytes_read < part_size:
+                    chunk = infile.read(min(part_size - bytes_read, 1024 * 1024))  # 1 MB chunks
+                    if not chunk:
+                        break
+                    outfile.write(chunk)
+                    bytes_read += len(chunk)
+                if bytes_read == 0:
+                    # Se a última parte está vazia, remove e sai
+                    part_path.unlink()
+                    break
+                parts.append(str(part_path))
+                if bytes_read < part_size:
+                    # Fim do arquivo
+                    break
+            part_number += 1
+
+    return parts
+
+
+def merge_parts(
+    parts_list: List[str],
+    output_path: str,
+    overwrite: bool = False
+) -> str:
+    """
+    Monta um arquivo a partir de partes.
+    Retorna o caminho do arquivo remontado.
+    """
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if output_path.exists() and not overwrite:
+        raise FileExistsError(f"Arquivo de saída já existe: {output_path}")
+
+    # Ordena as partes numericamente (assumindo ordem dos .partNNNN)
+    parts_list = sorted(parts_list, key=lambda p: int(Path(p).stem.split('.part')[-1]))
+
+    with open(output_path, 'wb') as outfile:
+        for part in parts_list:
+            part_path = Path(part)
+            if not part_path.exists():
+                raise FileNotFoundError(f"Parte não encontrada: {part}")
+            with open(part_path, 'rb') as infile:
+                shutil.copyfileobj(infile, outfile)
+
+    return str(output_path)
+```
+
+
 ### backend\models\pdf_processor.py
 
 ```
@@ -2438,7 +2558,7 @@ def sync_directories():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@file_bp.route('/archive/compress', methods=['POST'])
+@file_bp.route('/compress', methods=['POST'])
 def archive_compress():
     data = request.json
     if not data.get('source_paths') or not data.get('output_path'):
@@ -2459,7 +2579,7 @@ def archive_compress():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@file_bp.route('/archive/extract', methods=['POST'])
+@file_bp.route('/extract', methods=['POST'])
 def archive_extract():
     data = request.json
     if not data.get('archive_path') or not data.get('extract_dir'):
@@ -2471,6 +2591,40 @@ def archive_extract():
             password=data.get('password')
         )
         return jsonify({"success": True, "extract_dir": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/split', methods=['POST'])
+def split_file():
+    data = request.json
+    if not data.get('file_path') or not data.get('output_dir'):
+        return jsonify({"error": "Campos obrigatórios: file_path, output_dir"}), 400
+    try:
+        part_size_mb = data.get('part_size_mb', 100)
+        overwrite = data.get('overwrite', False)
+        result = controller.split_file(
+            file_path=data['file_path'],
+            output_dir=data['output_dir'],
+            part_size_mb=part_size_mb,
+            overwrite=overwrite
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/merge', methods=['POST'])
+def merge_parts():
+    data = request.json
+    if not data.get('parts_list') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: parts_list, output_path"}), 400
+    try:
+        overwrite = data.get('overwrite', False)
+        result = controller.merge_parts(
+            parts_list=data['parts_list'],
+            output_path=data['output_path'],
+            overwrite=overwrite
+        )
+        return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 ```
@@ -2691,6 +2845,7 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/file/report.js"></script>
     <script src="js/modules/file/compare.js"></script>
     <script src="js/modules/file/archive.js"></script>
+    <script src="js/modules/file/split.js"></script>
     <script src="js/modules/home.js"></script>
     <script src="js/modules/pdf.js"></script>
     <script src="js/modules/word.js"></script>
@@ -3186,8 +3341,10 @@ window.API = {
         generateReport: (params) => apiRequest('/files/report', 'POST', params),
         compare: (params) => apiRequest('/files/compare', 'POST', params),
         sync: (params) => apiRequest('/files/sync', 'POST', params),
-        archiveCompress: (params) => apiRequest('/files/archive/compress', 'POST', params),
-        archiveExtract: (params) => apiRequest('/files/archive/extract', 'POST', params),
+        compress: (params) => apiRequest('/files/compress', 'POST', params),
+        extract: (params) => apiRequest('/files/extract', 'POST', params),
+        split: (params) => apiRequest('/files/split', 'POST', params),
+        merge: (params) => apiRequest('/files/merge', 'POST', params),
     },
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),
@@ -4258,7 +4415,7 @@ class ArchiveFeature {
         FileUtils.log('Compactando...', 'archive-log');
 
         try {
-            const result = await window.API.file.archiveCompress({
+            const result = await window.API.file.compress({
                 source_paths: sources,
                 output_path: output,
                 password,
@@ -4294,7 +4451,7 @@ class ArchiveFeature {
         FileUtils.log('Extraindo...', 'archive-log');
 
         try {
-            const result = await window.API.file.archiveExtract({
+            const result = await window.API.file.extract({
                 archive_path: archivePath,
                 extract_dir: extractDir,
                 password
@@ -5140,6 +5297,7 @@ class FileModule {
         this.reportFeature = new ReportFeature(this);
         this.compareFeature = new CompareFeature(this);
         this.archiveFeature = new ArchiveFeature(this);
+        this.splitFeature = new SplitFeature(this);
 
         this.features = [
             { id: 'collect', label: 'Coletar Arquivos', render: (container) => this.collectFeature.render(container) },
@@ -5151,6 +5309,7 @@ class FileModule {
             { id: 'report', label: 'Relatório de Estrutura', render: (container) => this.reportFeature.render(container) },
             { id: 'compare', label: 'Comparar Pastas', render: (container) => this.compareFeature.render(container) },
             { id: 'archive', label: 'Compactar e Extrair', render: (container) => this.archiveFeature.render(container) },
+            { id: 'split', label: 'Dividir e Remontar', render: (container) => this.splitFeature.render(container) },
         ];
     }
 
@@ -6037,6 +6196,243 @@ class ReportFeature {
             document.getElementById('report-progress').style.width = '100%';
         } catch (err) {
             FileUtils.log(`Erro: ${err.message}`, 'report-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\file\split.js
+
+```
+class SplitFeature {
+    constructor(module) {
+        this.module = module;
+        this.mode = 'split'; // 'split' | 'merge'
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Dividir / Remontar Arquivos</h4>
+                <p class="text-muted">Divida um arquivo grande em partes menores ou remonte partes em um único arquivo.</p>
+            </div>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-mode="split" id="tab-split">Dividir</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-mode="merge" id="tab-merge">Remontar</button>
+                </li>
+            </ul>
+
+            <!-- Conteúdo Dividir -->
+            <div id="split-content">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivo para dividir</h5>
+                        <div class="input-group">
+                            <input type="text" id="split-file" class="form-control" placeholder="Selecione o arquivo...">
+                            <button class="btn btn-outline-secondary" id="btn-split-file">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Destino</h5>
+                        <div class="input-group">
+                            <input type="text" id="split-output-dir" class="form-control" placeholder="Pasta para salvar as partes...">
+                            <button class="btn btn-outline-secondary" id="btn-split-dir">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Opções</h5>
+                        <div class="mb-2">
+                            <label class="form-label">Tamanho de cada parte (MB)</label>
+                            <input type="number" id="split-size" class="form-control" value="100" min="1" step="1">
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="split-overwrite">
+                            <label class="form-check-label">Sobrescrever partes existentes</label>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-success" id="btn-split"><i class="bi bi-play-fill"></i> Dividir</button>
+            </div>
+
+            <!-- Conteúdo Remontar -->
+            <div id="merge-content" style="display:none;">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Selecione as partes (.partNNNN)</h5>
+                        <div class="mb-2">
+                            <label class="form-label">Partes</label>
+                            <div class="input-group">
+                                <input type="text" id="merge-parts" class="form-control" placeholder="Caminhos separados por vírgula ou selecione">
+                                <button class="btn btn-outline-secondary" id="btn-merge-parts">Selecionar arquivos</button>
+                            </div>
+                            <div id="parts-list" style="max-height:100px; overflow:auto; font-size:0.9rem; margin-top:4px;"></div>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Arquivo de saída</label>
+                            <div class="input-group">
+                                <input type="text" id="merge-output" class="form-control" placeholder="Caminho para salvar o arquivo remontado...">
+                                <button class="btn btn-outline-secondary" id="btn-merge-output">Selecionar</button>
+                            </div>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="merge-overwrite">
+                            <label class="form-check-label">Sobrescrever se existir</label>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-success" id="btn-merge"><i class="bi bi-play-fill"></i> Remontar</button>
+            </div>
+
+            <div class="progress mt-2"><div class="progress-bar" id="split-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="split-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        // Tabs
+        container.querySelectorAll('.nav-link').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const mode = e.target.dataset.mode;
+                this.mode = mode;
+                document.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+                e.target.classList.add('active');
+                document.getElementById('split-content').style.display = (mode === 'split') ? 'block' : 'none';
+                document.getElementById('merge-content').style.display = (mode === 'merge') ? 'block' : 'none';
+            });
+        });
+
+        // Dividir
+        container.querySelector('#btn-split-file').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openFile'] })
+                    .then(result => {
+                        if (!result.canceled) document.getElementById('split-file').value = result.filePaths[0];
+                    });
+            }
+        });
+        container.querySelector('#btn-split-dir').addEventListener('click', () => {
+            FileUtils.selectDirectory('split-output-dir');
+        });
+        container.querySelector('#btn-split').addEventListener('click', () => this.splitFile());
+
+        // Remontar
+        container.querySelector('#btn-merge-parts').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
+                    .then(result => {
+                        if (!result.canceled) {
+                            const current = document.getElementById('merge-parts').value;
+                            const newPaths = result.filePaths.join(', ');
+                            document.getElementById('merge-parts').value = current ? current + ', ' + newPaths : newPaths;
+                            this.updatePartsList();
+                        }
+                    });
+            }
+        });
+        container.querySelector('#btn-merge-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({})
+                    .then(result => {
+                        if (!result.canceled && result.filePath) {
+                            document.getElementById('merge-output').value = result.filePath;
+                        }
+                    });
+            }
+        });
+        container.querySelector('#btn-merge').addEventListener('click', () => this.mergeParts());
+    }
+
+    updatePartsList() {
+        const val = document.getElementById('merge-parts').value;
+        const paths = val.split(',').map(s => s.trim()).filter(Boolean);
+        const listDiv = document.getElementById('parts-list');
+        if (paths.length === 0) {
+            listDiv.innerHTML = '<p class="text-muted">Nenhuma parte selecionada.</p>';
+        } else {
+            listDiv.innerHTML = paths.map(p => `<div><i class="bi bi-file-earmark me-1"></i> ${p}</div>`).join('');
+        }
+    }
+
+    async splitFile() {
+        const filePath = document.getElementById('split-file').value.trim();
+        const outputDir = document.getElementById('split-output-dir').value.trim();
+        const partSize = parseInt(document.getElementById('split-size').value) || 100;
+        const overwrite = document.getElementById('split-overwrite').checked;
+
+        if (!filePath || !outputDir) {
+            FileUtils.log('Preencha o arquivo e o destino.', 'split-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-split');
+        btn.disabled = true;
+        FileUtils.clearLog('split-log');
+        FileUtils.log('Dividindo arquivo...', 'split-log');
+
+        try {
+            const result = await window.API.file.split({
+                file_path: filePath,
+                output_dir: outputDir,
+                part_size_mb: partSize,
+                overwrite
+            });
+            FileUtils.log(`Dividido em ${result.count} partes:\n${result.parts.join('\n')}`, 'split-log');
+            document.getElementById('split-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'split-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async mergeParts() {
+        const partsInput = document.getElementById('merge-parts').value.trim();
+        const partsList = partsInput.split(',').map(s => s.trim()).filter(Boolean);
+        const outputPath = document.getElementById('merge-output').value.trim();
+        const overwrite = document.getElementById('merge-overwrite').checked;
+
+        if (!partsList.length || !outputPath) {
+            FileUtils.log('Selecione as partes e o destino.', 'split-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-merge');
+        btn.disabled = true;
+        FileUtils.clearLog('split-log');
+        FileUtils.log('Remontando arquivo...', 'split-log');
+
+        try {
+            const result = await window.API.file.merge({
+                parts_list: partsList,
+                output_path: outputPath,
+                overwrite
+            });
+            FileUtils.log(`Arquivo remontado em: ${result.output_path}`, 'split-log');
+            document.getElementById('split-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'split-log');
         } finally {
             btn.disabled = false;
         }

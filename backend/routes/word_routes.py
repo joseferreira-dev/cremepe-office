@@ -4,25 +4,19 @@ from controllers.word_controller import WordController
 word_bp = Blueprint('word', __name__)
 controller = WordController()
 
-@word_bp.route('/convert-to-pdf', methods=['POST'])
-def convert_to_pdf():
+@word_bp.route('/merge', methods=['POST'])
+def merge_documents():
     data = request.json
-    if not data.get('docx_path'):
-        return jsonify({"error": "Campo obrigatório: docx_path"}), 400
+    if not data.get('docx_paths') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: docx_paths, output_path"}), 400
     try:
-        output = data.get('output_path')
-        result = controller.convert_to_pdf(data['docx_path'], output)
+        insert_page_breaks = data.get('insert_page_breaks', True)
+        result = controller.merge_documents(
+            docx_paths=data['docx_paths'],
+            output_path=data['output_path'],
+            insert_page_breaks=insert_page_breaks
+        )
         return jsonify({"success": True, "output_path": result}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@word_bp.route('/extract-text', methods=['POST'])
-def extract_text():
-    data = request.json
-    if not data.get('docx_path'):
-        return jsonify({"error": "Campo obrigatório: docx_path"}), 400
-    try:
-        result = controller.extract_text(data['docx_path'])
-        return jsonify({"success": True, "text": result}), 200
-    except Exception as e:
+        print(f"Erro no merge: {e}")
         return jsonify({"error": str(e)}), 500

@@ -1,8 +1,6 @@
-from models.word_processor import convert_docx_to_pdf, extract_text_from_docx
+from typing import List
+from models.word_processor import merge_documents
 
 class WordController:
-    def convert_to_pdf(self, docx_path, output_path=None):
-        return convert_docx_to_pdf(docx_path, output_path)
-
-    def extract_text(self, docx_path):
-        return extract_text_from_docx(docx_path)
+    def merge_documents(self, docx_paths: List[str], output_path: str, insert_page_breaks: bool = True) -> str:
+        return merge_documents(docx_paths, output_path, insert_page_breaks)

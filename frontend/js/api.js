@@ -39,8 +39,7 @@ window.API = {
         split: (params) => apiRequest('/pdf/split', 'POST', params),
     },
     word: {
-        convertToPdf: (params) => apiRequest('/word/convert-to-pdf', 'POST', params),
-        extractText: (params) => apiRequest('/word/extract-text', 'POST', params),
+        merge: (params) => apiRequest('/word/merge', 'POST', params),
     },
     excel: {
         merge: (params) => apiRequest('/excel/merge', 'POST', params),
