@@ -302,3 +302,39 @@ def sync_directories():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/archive/compress', methods=['POST'])
+def archive_compress():
+    data = request.json
+    if not data.get('source_paths') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: source_paths, output_path"}), 400
+    try:
+        result = controller.archive_compress(
+            source_paths=data['source_paths'],
+            output_path=data['output_path'],
+            password=data.get('password'),
+            compression_level=data.get('compression_level', 6),
+            compression_method=data.get('compression_method', 'deflate'),
+            recursive=data.get('recursive', True),
+            include_patterns=data.get('include_patterns'),
+            exclude_patterns=data.get('exclude_patterns'),
+            exclude_hidden=data.get('exclude_hidden', False)
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/archive/extract', methods=['POST'])
+def archive_extract():
+    data = request.json
+    if not data.get('archive_path') or not data.get('extract_dir'):
+        return jsonify({"error": "Campos obrigatórios: archive_path, extract_dir"}), 400
+    try:
+        result = controller.archive_extract(
+            archive_path=data['archive_path'],
+            extract_dir=data['extract_dir'],
+            password=data.get('password')
+        )
+        return jsonify({"success": True, "extract_dir": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

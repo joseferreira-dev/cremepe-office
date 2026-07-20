@@ -17,6 +17,10 @@
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── excel_processor.py
+│   │   ├── file_archive_manager.py
+│   │   ├── file_attributes.py
+│   │   ├── file_comparator.py
+│   │   ├── file_folder_report.py
 │   │   ├── file_manager.py
 │   │   ├── file_metadata.py
 │   │   ├── pdf_processor.py
@@ -43,12 +47,16 @@
 │   ├── js/
 │   │   ├── modules/
 │   │   │   ├── file/
+│   │   │   │   ├── archive.js
+│   │   │   │   ├── attributes.js
 │   │   │   │   ├── collect.js
+│   │   │   │   ├── compare.js
 │   │   │   │   ├── duplicates.js
 │   │   │   │   ├── index.js
 │   │   │   │   ├── organize.js
 │   │   │   │   ├── rename.js
 │   │   │   │   ├── rename_by_content.js
+│   │   │   │   ├── report.js
 │   │   │   │   └── utils.js
 │   │   │   ├── excel.js
 │   │   │   ├── home.js
@@ -130,6 +138,10 @@ openpyxl==3.1.5
 reportlab==5.0.0
 Pillow==12.3.0
 mutagen==1.48.1
+py7zr==1.1.3
+rarfile==4.3
+pyzipper==0.4.0
+cryptography==49.0.0
 ```
 
 
@@ -207,13 +219,17 @@ class ExcelController:
 ### backend\controllers\file_controller.py
 
 ```
+from ast import List
 from pathlib import Path
 import re
+from typing import Optional
 import unicodedata
 import hashlib
 from collections import defaultdict
 
 from models.file_manager import collect_files, rename_files_in_batch
+from models.file_comparator import compare_folders, sync_folders
+from models.file_archive_manager import create_zip, extract_archive
 from datetime import datetime, timedelta
 
 class FileController:
@@ -563,7 +579,7 @@ class FileController:
             ext = file_path.suffix.lower()
             metadata = None
             if ext in ['.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.gif', '.webp']:
-                metadata = get_image_metadata(file_path)
+                metadata = get_image_metadata(file_path, use_mtime_fallback=True)
             elif ext in ['.mp3', '.flac', '.ogg', '.wma', '.m4a']:
                 metadata = get_audio_metadata(file_path)
             elif ext in ['.txt', '.log', '.csv', '.md', '.json', '.xml']:
@@ -598,6 +614,137 @@ class FileController:
                     result['errors'].append({'file': str(file_path), 'error': str(e)})
 
         return result
+    
+    def set_attributes(
+        self,
+        dir_path: str,
+        recursive: bool = True,
+        options: dict = None
+    ) -> int:
+        """
+        Aplica atributos a todos os arquivos de um diretório.
+        options: dict com:
+            readonly: bool
+            hidden: bool
+            system: bool
+            modification_date: str (ISO format, ex: '2026-07-20T14:30:00')
+            creation_date: str (ISO format)
+            permissions: str (ex: '755')
+        Retorna número de arquivos processados.
+        """
+        from pathlib import Path
+        import os
+        from datetime import datetime
+        from models.file_attributes import apply_attributes
+
+        src_path = Path(dir_path)
+        if not src_path.exists():
+            raise FileNotFoundError(f"Diretório não encontrado: {dir_path}")
+
+        if recursive:
+            files = list(src_path.rglob("*"))
+        else:
+            files = list(src_path.glob("*"))
+        files = [f for f in files if f.is_file() and not f.name.startswith('.')]
+
+        # Converter strings de data para datetime
+        if options:
+            if 'modification_date' in options and options['modification_date']:
+                options['modification_date'] = datetime.fromisoformat(options['modification_date'])
+            else:
+                options['modification_date'] = None
+            if 'creation_date' in options and options['creation_date']:
+                options['creation_date'] = datetime.fromisoformat(options['creation_date'])
+            else:
+                options['creation_date'] = None
+        else:
+            options = {}
+
+        processed = 0
+        for f in files:
+            try:
+                apply_attributes(f, options)
+                processed += 1
+            except Exception:
+                # Se falhar em um arquivo, continua
+                pass
+        return processed
+
+    def generate_report(
+        self,
+        dir_path: str,
+        recursive: bool = True,
+        include_files: bool = True,
+        output_format: str = 'txt',
+        output_path: str = None
+    ) -> dict:
+        """
+        Gera um relatório da estrutura de pastas.
+        Retorna dict com 'content' (string) ou 'saved_path'.
+        """
+        from models.file_folder_report import generate_folder_report
+        result = generate_folder_report(dir_path, recursive, include_files, output_format, output_path)
+        if output_path:
+            return {'saved_path': result}
+        else:
+            return {'content': result}
+
+    def compare_directories(
+        self,
+        source_dir: str,
+        target_dir: str,
+        recursive: bool = True,
+        include_hidden: bool = False,
+        compare_by_hash: bool = False
+    ) -> dict:
+        """Compara duas pastas e retorna diferenças."""
+        return compare_folders(source_dir, target_dir, recursive, include_hidden, compare_by_hash)
+
+    def sync_directories(
+        self,
+        source_dir: str,
+        target_dir: str,
+        recursive: bool = True,
+        include_hidden: bool = False,
+        compare_by_hash: bool = False,
+        action: str = 'copy_to_target'
+    ) -> dict:
+        """Sincroniza pastas."""
+        return sync_folders(source_dir, target_dir, recursive, include_hidden, compare_by_hash, action)
+    
+    def archive_compress(
+        self,
+        source_paths: List[str],
+        output_path: str,
+        password: Optional[str] = None,
+        compression_level: int = 6,
+        compression_method: str = 'deflate',
+        recursive: bool = True,
+        include_patterns: List[str] = None,
+        exclude_patterns: List[str] = None,
+        exclude_hidden: bool = False
+    ) -> str:
+        """Cria um arquivo ZIP com as opções especificadas."""
+        return create_zip(
+            source_paths=source_paths,
+            output_path=output_path,
+            password=password,
+            compression_level=compression_level,
+            compression_method=compression_method,
+            recursive=recursive,
+            include_patterns=include_patterns,
+            exclude_patterns=exclude_patterns,
+            exclude_hidden=exclude_hidden
+        )
+
+    def archive_extract(
+        self,
+        archive_path: str,
+        extract_dir: str,
+        password: Optional[str] = None
+    ) -> str:
+        """Extrai um arquivo compactado (qualquer formato)."""
+        return extract_archive(archive_path, extract_dir, password)
 ```
 
 
@@ -730,6 +877,733 @@ def write_excel_file(file_path, data, sheet_name='Sheet1'):
 
     wb.save(str(file_path))
     return str(file_path)
+```
+
+
+### backend\models\file_archive_manager.py
+
+```
+import os
+import shutil
+import subprocess
+import platform
+from pathlib import Path
+from typing import List, Optional, Dict, Any
+import zipfile
+
+try:
+    import pyzipper
+except ImportError:
+    pyzipper = None
+
+try:
+    import py7zr
+except ImportError:
+    py7zr = None
+
+try:
+    import rarfile
+except ImportError:
+    rarfile = None
+
+def _should_include(file_path: Path, include_patterns: List[str] = None,
+                    exclude_patterns: List[str] = None,
+                    exclude_hidden: bool = False) -> bool:
+    """
+    Verifica se um arquivo/pasta deve ser incluído com base nos filtros.
+    Suporta padrões simples com '*' (glob).
+    """
+    name = file_path.name
+    # Verifica oculto
+    if exclude_hidden and name.startswith('.'):
+        return False
+    # Inclusão
+    if include_patterns:
+        import fnmatch
+        # Verifica se o nome corresponde a algum padrão de inclusão
+        for pattern in include_patterns:
+            if fnmatch.fnmatch(name, pattern):
+                break
+        else:
+            return False  # não corresponde a nenhum padrão de inclusão
+    # Exclusão
+    if exclude_patterns:
+        import fnmatch
+        for pattern in exclude_patterns:
+            if fnmatch.fnmatch(name, pattern):
+                return False
+    return True
+
+
+def _collect_files(source_paths: List[str], recursive: bool = True,
+                   include_patterns: List[str] = None,
+                   exclude_patterns: List[str] = None,
+                   exclude_hidden: bool = False) -> List[Path]:
+    """
+    Coleta todos os arquivos a partir de uma lista de caminhos, aplicando filtros.
+    Retorna lista de caminhos absolutos.
+    """
+    all_files = []
+    for src in source_paths:
+        src_path = Path(src)
+        if not src_path.exists():
+            continue
+        if src_path.is_file():
+            if _should_include(src_path, include_patterns, exclude_patterns, exclude_hidden):
+                all_files.append(src_path)
+        else:  # diretório
+            if recursive:
+                for root, dirs, files in os.walk(src_path):
+                    # Filtra diretórios (para não entrar em pastas excluídas)
+                    dirs[:] = [d for d in dirs if _should_include(Path(root) / d, include_patterns, exclude_patterns, exclude_hidden)]
+                    for f in files:
+                        file_path = Path(root) / f
+                        if _should_include(file_path, include_patterns, exclude_patterns, exclude_hidden):
+                            all_files.append(file_path)
+            else:
+                for item in src_path.iterdir():
+                    if item.is_file() and _should_include(item, include_patterns, exclude_patterns, exclude_hidden):
+                        all_files.append(item)
+    return all_files
+
+def _create_zip_with_pyzipper(source_paths: List[str], output_path: Path,
+                              password: Optional[str] = None,
+                              compression_level: int = 6,
+                              compression_method: str = 'deflate') -> str:
+    """
+    Cria um ZIP com senha usando pyzipper.
+    Suporta métodos: 'deflate', 'bzip2', 'lzma', 'store'.
+    """
+    if pyzipper is None:
+        raise ImportError("pyzipper não está instalado. Instale com: pip install pyzipper")
+
+    # Mapeia método para constante do pyzipper
+    method_map = {
+        'deflate': pyzipper.ZIP_DEFLATED,
+        'bzip2': pyzipper.ZIP_BZIP2,
+        'lzma': pyzipper.ZIP_LZMA,
+        'store': pyzipper.ZIP_STORED
+    }
+    compression = method_map.get(compression_method.lower(), pyzipper.ZIP_DEFLATED)
+
+    # Criação do arquivo
+    with pyzipper.AESZipFile(
+        output_path,
+        'w',
+        compression=compression,
+        compresslevel=compression_level
+    ) as zf:
+        if password:
+            zf.setpassword(password.encode('utf-8'))
+            zf.encryption = pyzipper.WZ_AES  # padrão AES-256
+
+        for file_path in source_paths:
+            path = Path(file_path)
+            if path.is_dir():
+                # Adiciona recursivamente os arquivos da pasta
+                for root, dirs, files in os.walk(path):
+                    for f in files:
+                        full_path = Path(root) / f
+                        arcname = full_path.relative_to(path.parent)
+                        zf.write(full_path, arcname)
+            else:
+                zf.write(path, path.name)
+    return str(output_path)
+
+
+def _create_zip_with_subprocess(source_paths: List[str], output_path: Path,
+                                password: Optional[str] = None,
+                                compression_level: int = 6) -> str:
+    """
+    Fallback usando subprocess (zip no Linux/Mac, 7z no Windows).
+    """
+    # Verifica se é Windows
+    if platform.system() == 'Windows':
+        # Usa 7z (se disponível)
+        cmd = ['7z', 'a', '-tzip', f'-mx={compression_level}']
+        if password:
+            cmd.append(f'-p{password}')
+        cmd.append(str(output_path))
+        cmd.extend(source_paths)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Erro ao criar ZIP com 7z: {result.stderr}")
+    else:
+        # Usa zip (Unix)
+        cmd = ['zip', '-r', f'-{compression_level}']
+        if password:
+            cmd.append(f'-P{password}')
+        cmd.append(str(output_path))
+        cmd.extend(source_paths)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Erro ao criar ZIP com zip: {result.stderr}")
+    return str(output_path)
+
+
+def create_zip(
+    source_paths: List[str],
+    output_path: str,
+    password: Optional[str] = None,
+    compression_level: int = 6,
+    compression_method: str = 'deflate',
+    recursive: bool = True,
+    include_patterns: List[str] = None,
+    exclude_patterns: List[str] = None,
+    exclude_hidden: bool = False
+) -> str:
+    """
+    Cria um arquivo ZIP a partir de uma lista de caminhos.
+    Retorna o caminho do arquivo criado.
+    """
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Coleta arquivos com filtros
+    files_to_archive = _collect_files(
+        source_paths,
+        recursive=recursive,
+        include_patterns=include_patterns,
+        exclude_patterns=exclude_patterns,
+        exclude_hidden=exclude_hidden
+    )
+
+    if not files_to_archive:
+        raise ValueError("Nenhum arquivo encontrado para arquivar.")
+
+    # Tenta usar pyzipper (suporta senha), senão fallback
+    try:
+        return _create_zip_with_pyzipper(
+            [str(f) for f in files_to_archive],
+            output_path,
+            password=password,
+            compression_level=compression_level,
+            compression_method=compression_method
+        )
+    except ImportError:
+        # Fallback subprocess
+        return _create_zip_with_subprocess(
+            [str(f) for f in files_to_archive],
+            output_path,
+            password=password,
+            compression_level=compression_level
+        )
+
+def extract_archive(
+    archive_path: str,
+    extract_dir: str,
+    password: Optional[str] = None
+) -> str:
+    """
+    Extrai um arquivo compactado.
+    Detecta formato pela extensão.
+    Retorna o diretório de extração.
+    """
+    archive_path = Path(archive_path)
+    extract_path = Path(extract_dir)
+    extract_path.mkdir(parents=True, exist_ok=True)
+
+    ext = archive_path.suffix.lower()
+    if ext == '.zip':
+        _extract_zip(archive_path, extract_path, password)
+    elif ext == '.7z':
+        _extract_7z(archive_path, extract_path, password)
+    elif ext == '.rar':
+        _extract_rar(archive_path, extract_path, password)
+    elif ext == '.tar' or archive_path.suffixes[-2:] == ['.tar', '.gz'] or archive_path.suffix == '.tgz':
+        _extract_tar(archive_path, extract_path)
+    else:
+        raise ValueError(f"Formato não suportado: {ext}")
+
+    return str(extract_path)
+
+
+def _extract_zip(archive_path, extract_path, password):
+    try:
+        # Tenta pyzipper primeiro (suporta senha)
+        with pyzipper.AESZipFile(archive_path, 'r') as zf:
+            if password:
+                zf.setpassword(password.encode('utf-8'))
+            zf.extractall(extract_path)
+    except:
+        # Fallback para zipfile padrão
+        with zipfile.ZipFile(archive_path, 'r') as zf:
+            if password:
+                zf.setpassword(password.encode('utf-8'))
+            zf.extractall(extract_path)
+
+
+def _extract_7z(archive_path, extract_path, password):
+    if py7zr is None:
+        raise ImportError("py7zr não instalado. Instale com: pip install py7zr")
+    with py7zr.SevenZipFile(archive_path, mode='r', password=password) as archive:
+        archive.extractall(path=extract_path)
+
+
+def _extract_rar(archive_path, extract_path, password):
+    if rarfile is None:
+        raise ImportError("rarfile não instalado. Instale com: pip install rarfile")
+    with rarfile.RarFile(archive_path) as rf:
+        rf.extractall(extract_path, pwd=password)
+
+
+def _extract_tar(archive_path, extract_path):
+    import tarfile
+    with tarfile.open(archive_path, 'r:*') as tar:
+        tar.extractall(path=extract_path)
+```
+
+
+### backend\models\file_attributes.py
+
+```
+import os
+import subprocess
+import platform
+from pathlib import Path
+from datetime import datetime
+import time
+
+# ==================== WINDOWS: Creation date ====================
+if platform.system() == 'Windows':
+    import ctypes
+    from ctypes import wintypes
+
+    class FILETIME(ctypes.Structure):
+        _fields_ = [("dwLowDateTime", wintypes.DWORD),
+                    ("dwHighDateTime", wintypes.DWORD)]
+
+    def datetime_to_filetime(dt):
+        epoch = datetime(1601, 1, 1)
+        delta = dt - epoch
+        microseconds = delta.total_seconds() * 1000000
+        filetime = int(microseconds * 10)
+        low = filetime & 0xFFFFFFFF
+        high = (filetime >> 32) & 0xFFFFFFFF
+        return FILETIME(low, high)
+
+    def set_file_creation_time(filepath, dt):
+        """Define data de criação de um arquivo no Windows (usa ctypes)."""
+        handle = ctypes.windll.kernel32.CreateFileW(
+            str(filepath),
+            0x40000000,  # GENERIC_WRITE
+            0,
+            None,
+            3,           # OPEN_EXISTING
+            0x80,        # FILE_FLAG_BACKUP_SEMANTICS
+            None
+        )
+        if handle == -1:
+            raise ctypes.WinError()
+        try:
+            ft = datetime_to_filetime(dt)
+            # Aplica a mesma data para criação, acesso e modificação
+            result = ctypes.windll.kernel32.SetFileTime(handle, ctypes.byref(ft), ctypes.byref(ft), ctypes.byref(ft))
+            if result == 0:
+                raise ctypes.WinError()
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+else:
+    def set_file_creation_time(filepath, dt):
+        # Não suportado em Unix – ignora
+        pass
+
+
+# ==================== ATRIBUTOS (Windows: attrib) ====================
+def set_readonly(filepath, readonly):
+    if platform.system() == 'Windows':
+        subprocess.run(["attrib", "+R" if readonly else "-R", str(filepath)],
+                       check=True, capture_output=True)
+    else:
+        # Unix: remove/adiciona permissão de escrita para dono
+        current = os.stat(filepath).st_mode
+        if readonly:
+            os.chmod(filepath, current & ~0o222)
+        else:
+            os.chmod(filepath, current | 0o222)
+
+def set_hidden(filepath, hidden):
+    if platform.system() == 'Windows':
+        subprocess.run(["attrib", "+H" if hidden else "-H", str(filepath)],
+                       check=True, capture_output=True)
+    # Em Unix, ignoramos (não há atributo oculto padrão)
+
+def set_system(filepath, system):
+    if platform.system() == 'Windows':
+        subprocess.run(["attrib", "+S" if system else "-S", str(filepath)],
+                       check=True, capture_output=True)
+
+
+# ==================== PERMISSÕES (Unix) ====================
+def set_permissions(filepath, mode_octal):
+    if platform.system() != 'Windows':
+        try:
+            os.chmod(filepath, int(mode_octal, 8))
+        except:
+            pass
+
+
+# ==================== APLICA TODAS AS ALTERAÇÕES ====================
+def apply_attributes(filepath, options):
+    """
+    Aplica todas as alterações definidas em options.
+    options: dict com chaves:
+        readonly: bool ou None
+        hidden: bool ou None
+        system: bool ou None
+        modification_date: datetime ou None
+        creation_date: datetime ou None
+        permissions: str (ex: "755") ou None
+    """
+    if 'readonly' in options and options['readonly'] is not None:
+        set_readonly(filepath, options['readonly'])
+    if 'hidden' in options and options['hidden'] is not None:
+        set_hidden(filepath, options['hidden'])
+    if 'system' in options and options['system'] is not None:
+        set_system(filepath, options['system'])
+    if 'modification_date' in options and options['modification_date'] is not None:
+        dt = options['modification_date']
+        # Aplica mtime e atime
+        if platform.system() == 'Windows':
+            # No Windows, atime e mtime podem ser alterados com os.utime
+            timestamp = dt.timestamp()
+            os.utime(filepath, (timestamp, timestamp))
+        else:
+            timestamp = dt.timestamp()
+            os.utime(filepath, (timestamp, timestamp))
+    if 'creation_date' in options and options['creation_date'] is not None:
+        if platform.system() == 'Windows':
+            set_file_creation_time(filepath, options['creation_date'])
+    if 'permissions' in options and options['permissions'] is not None:
+        set_permissions(filepath, options['permissions'])
+```
+
+
+### backend\models\file_comparator.py
+
+```
+import os
+import hashlib
+import shutil
+from pathlib import Path
+from datetime import datetime
+from typing import Dict, List, Tuple, Optional
+
+def get_file_hash(filepath: Path, chunk_size=8192) -> str:
+    """Calcula o hash MD5 de um arquivo."""
+    hasher = hashlib.md5()
+    with open(filepath, 'rb') as f:
+        for chunk in iter(lambda: f.read(chunk_size), b''):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+def scan_directory(
+    dir_path: str,
+    recursive: bool = True,
+    include_hidden: bool = False
+) -> Dict[str, dict]:
+    """
+    Escaneia um diretório e retorna um dicionário com informações de cada arquivo.
+    Chave: caminho relativo (usando / como separador).
+    Valor: dict com 'path', 'size', 'mtime', 'hash' (calculado se necessário).
+    """
+    base_path = Path(dir_path)
+    if not base_path.exists():
+        raise FileNotFoundError(f"Diretório não encontrado: {dir_path}")
+
+    files = {}
+    if recursive:
+        all_files = list(base_path.rglob("*"))
+    else:
+        all_files = list(base_path.glob("*"))
+
+    for f in all_files:
+        if not f.is_file():
+            continue
+        if not include_hidden and f.name.startswith('.'):
+            continue
+        rel_path = str(f.relative_to(base_path)).replace('\\', '/')
+        stat = f.stat()
+        files[rel_path] = {
+            'path': str(f),
+            'size': stat.st_size,
+            'mtime': stat.st_mtime,
+            'hash': None  # será preenchido sob demanda
+        }
+    return files
+
+def compare_folders(
+    source_dir: str,
+    target_dir: str,
+    recursive: bool = True,
+    include_hidden: bool = False,
+    compare_by_hash: bool = False
+) -> Dict[str, any]:
+    """
+    Compara duas pastas e retorna diferenças.
+    Retorna:
+        {
+            'only_in_source': [caminhos],
+            'only_in_target': [caminhos],
+            'modified_in_source': [caminhos],
+            'identical': [caminhos],
+            'source_files': dict,  # todos os arquivos da origem (para uso futuro)
+            'target_files': dict,  # todos os arquivos do destino
+            'total_source': int,
+            'total_target': int
+        }
+    """
+    source_files = scan_directory(source_dir, recursive, include_hidden)
+    target_files = scan_directory(target_dir, recursive, include_hidden)
+
+    # Preencher hashes se necessário
+    if compare_by_hash:
+        for rel_path, info in source_files.items():
+            info['hash'] = get_file_hash(Path(info['path']))
+        for rel_path, info in target_files.items():
+            info['hash'] = get_file_hash(Path(info['path']))
+
+    only_in_source = []
+    only_in_target = []
+    modified_in_source = []
+    identical = []
+
+    all_paths = set(source_files.keys()) | set(target_files.keys())
+
+    for rel_path in all_paths:
+        in_src = rel_path in source_files
+        in_tgt = rel_path in target_files
+
+        if in_src and not in_tgt:
+            only_in_source.append(rel_path)
+        elif not in_src and in_tgt:
+            only_in_target.append(rel_path)
+        else:
+            # em ambos – comparar
+            src_info = source_files[rel_path]
+            tgt_info = target_files[rel_path]
+            if compare_by_hash:
+                if src_info['hash'] == tgt_info['hash']:
+                    identical.append(rel_path)
+                else:
+                    modified_in_source.append(rel_path)
+            else:
+                # comparar por data/hora e tamanho
+                if src_info['size'] == tgt_info['size'] and src_info['mtime'] == tgt_info['mtime']:
+                    identical.append(rel_path)
+                else:
+                    modified_in_source.append(rel_path)
+
+    return {
+        'only_in_source': only_in_source,
+        'only_in_target': only_in_target,
+        'modified_in_source': modified_in_source,
+        'identical': identical,
+        'source_files': source_files,
+        'target_files': target_files,
+        'total_source': len(source_files),
+        'total_target': len(target_files)
+    }
+
+def sync_folders(
+    source_dir: str,
+    target_dir: str,
+    recursive: bool = True,
+    include_hidden: bool = False,
+    compare_by_hash: bool = False,
+    action: str = 'copy_to_target'  # 'copy_to_target', 'mirror'
+) -> Dict[str, any]:
+    """
+    Sincroniza a pasta destino com a origem.
+    action: 'copy_to_target' copia apenas novos/atualizados para destino.
+            'mirror' remove arquivos que estão apenas no destino.
+    Retorna resumo das operações.
+    """
+    comparison = compare_folders(source_dir, target_dir, recursive, include_hidden, compare_by_hash)
+
+    source_path = Path(source_dir)
+    target_path = Path(target_dir)
+    target_path.mkdir(parents=True, exist_ok=True)
+
+    copied = 0
+    removed = 0
+    skipped = 0
+
+    # Copiar arquivos novos ou modificados para destino
+    for rel_path in comparison['only_in_source'] + comparison['modified_in_source']:
+        src_file = Path(comparison['source_files'][rel_path]['path'])
+        dest_file = target_path / rel_path
+        dest_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            shutil.copy2(str(src_file), str(dest_file))
+            copied += 1
+        except Exception:
+            skipped += 1
+
+    # Se mirror, remover arquivos que estão apenas no destino
+    if action == 'mirror':
+        for rel_path in comparison['only_in_target']:
+            dest_file = target_path / rel_path
+            try:
+                if dest_file.exists():
+                    dest_file.unlink()
+                    removed += 1
+            except Exception:
+                pass
+        # Remover pastas vazias no destino (após exclusão)
+        for root, dirs, files in os.walk(target_path, topdown=False):
+            # Não remove a raiz
+            if root == str(target_path):
+                continue
+            try:
+                if not os.listdir(root):
+                    os.rmdir(root)
+            except OSError:
+                pass
+
+    return {
+        'copied': copied,
+        'removed': removed,
+        'skipped': skipped,
+        'total_source': comparison['total_source'],
+        'total_target': comparison['total_target']
+    }
+```
+
+
+### backend\models\file_folder_report.py
+
+```
+import os
+import csv
+from pathlib import Path
+from datetime import datetime
+import json
+
+def generate_folder_report(directory, recursive=True, include_files=True, output_format='txt', output_path=None):
+    """
+    Gera um relatório da estrutura de pastas.
+    directory: caminho da pasta raiz
+    recursive: incluir subpastas
+    include_files: listar arquivos (se False, apenas pastas)
+    output_format: 'txt' (indentado) ou 'csv'
+    output_path: caminho para salvar (se None, retorna string)
+    Retorna o conteúdo do relatório (string) ou salva no arquivo.
+    """
+    src_path = Path(directory)
+    if not src_path.exists():
+        raise FileNotFoundError(f"Diretório não encontrado: {directory}")
+
+    if output_format == 'txt':
+        content = generate_txt_report(src_path, recursive, include_files)
+    elif output_format == 'csv':
+        content = generate_csv_report(src_path, recursive, include_files)
+    else:
+        raise ValueError("Formato inválido. Use 'txt' ou 'csv'.")
+
+    if output_path:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return output_path
+    else:
+        return content
+
+def generate_txt_report(src_path, recursive, include_files):
+    """Gera relatório em formato texto indentado."""
+    lines = []
+    lines.append(f"Relatório de estrutura: {src_path}")
+    lines.append(f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("=" * 60)
+    
+    # Função recursiva para percorrer
+    def walk(path, indent=0):
+        prefix = "  " * indent
+        # Exibe a pasta atual
+        try:
+            stats = os.stat(path)
+            mtime = datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+            # Conta arquivos dentro da pasta (apenas direto, não recursivo)
+            try:
+                items = list(path.iterdir())
+                file_count = sum(1 for p in items if p.is_file())
+                dir_count = sum(1 for p in items if p.is_dir())
+                total_items = len(items)
+            except PermissionError:
+                file_count = dir_count = total_items = 0
+            size = stats.st_size if path.is_file() else 0
+            # Para pastas, tamanho total (recursivo) seria pesado; usamos 0 ou calculamos sob demanda
+            # Exibe linha da pasta
+            lines.append(f"{prefix}📁 {path.name}/ (arquivos: {file_count}, subpastas: {dir_count}, modificado: {mtime})")
+            
+            # Se include_files for True, lista os arquivos na pasta atual
+            if include_files:
+                for item in path.iterdir():
+                    if item.is_file():
+                        try:
+                            fstats = os.stat(item)
+                            fmtime = datetime.fromtimestamp(fstats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                            fsize = fstats.st_size
+                            lines.append(f"{prefix}  📄 {item.name} ({fsize} bytes, {fmtime})")
+                        except PermissionError:
+                            lines.append(f"{prefix}  📄 {item.name} (sem permissão)")
+            
+            # Se recursivo, desce nas subpastas
+            if recursive:
+                for item in path.iterdir():
+                    if item.is_dir() and not item.name.startswith('.'):
+                        walk(item, indent + 1)
+        except PermissionError:
+            lines.append(f"{prefix}⛔ Sem permissão para acessar {path.name}")
+
+    walk(src_path)
+    return "\n".join(lines)
+
+def generate_csv_report(src_path, recursive, include_files):
+    """Gera relatório em formato CSV."""
+    import io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    # Cabeçalho
+    if include_files:
+        writer.writerow(['Tipo', 'Nome', 'Caminho', 'Tamanho (bytes)', 'Data Modificação', 'Arquivos na Pasta'])
+    else:
+        writer.writerow(['Tipo', 'Nome', 'Caminho', 'Data Modificação', 'Arquivos na Pasta'])
+
+    def walk(path, parent_path=''):
+        try:
+            # Primeiro a pasta atual
+            stats = os.stat(path)
+            mtime = datetime.fromtimestamp(stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+            # Conta arquivos na pasta (direto)
+            try:
+                items = list(path.iterdir())
+                file_count = sum(1 for p in items if p.is_file())
+            except PermissionError:
+                file_count = 0
+            if include_files:
+                writer.writerow(['PASTA', path.name, str(path), 0, mtime, file_count])
+                # Lista arquivos
+                for item in path.iterdir():
+                    if item.is_file():
+                        try:
+                            fstats = os.stat(item)
+                            fmtime = datetime.fromtimestamp(fstats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                            writer.writerow(['ARQUIVO', item.name, str(item), fstats.st_size, fmtime, ''])
+                        except PermissionError:
+                            writer.writerow(['ARQUIVO', item.name, str(item), 'SEM PERMISSÃO', '', ''])
+            else:
+                writer.writerow(['PASTA', path.name, str(path), mtime, file_count])
+            
+            # Subpastas (se recursivo)
+            if recursive:
+                for item in path.iterdir():
+                    if item.is_dir() and not item.name.startswith('.'):
+                        walk(item)
+        except PermissionError:
+            pass
+
+    walk(src_path)
+    return output.getvalue()
 ```
 
 
@@ -956,6 +1830,7 @@ except ImportError:
 
 # Áudio
 try:
+    import mutagen
     from mutagen import File
     from mutagen.mp3 import MP3
     from mutagen.flac import FLAC
@@ -964,9 +1839,10 @@ try:
 except ImportError:
     mutagen = None
 
-def get_image_metadata(file_path):
+def get_image_metadata(file_path, use_mtime_fallback=True):
     """
     Extrai data EXIF de imagens JPEG/PNG/etc.
+    Se não houver EXIF e use_mtime_fallback for True, usa a data de modificação.
     Retorna dict com 'datetime_original' (string) ou None.
     """
     if not Image:
@@ -974,14 +1850,26 @@ def get_image_metadata(file_path):
     try:
         img = Image.open(file_path)
         exifdata = img._getexif()
-        if not exifdata:
-            return None
-        for tag_id, value in exifdata.items():
-            tag = TAGS.get(tag_id, tag_id)
-            if tag == 'DateTimeOriginal' or tag == 'DateTime':
-                return {'datetime_original': str(value)}
+        if exifdata:
+            for tag_id, value in exifdata.items():
+                tag = TAGS.get(tag_id, tag_id)
+                if tag == 'DateTimeOriginal' or tag == 'DateTime':
+                    return {'datetime_original': str(value)}
+        # Fallback: data de modificação
+        if use_mtime_fallback:
+            mtime = os.path.getmtime(file_path)
+            dt = datetime.fromtimestamp(mtime)
+            return {'datetime_original': dt.strftime('%Y-%m-%d %H:%M:%S')}
         return None
     except Exception:
+        # Fallback mesmo em erro
+        if use_mtime_fallback:
+            try:
+                mtime = os.path.getmtime(file_path)
+                dt = datetime.fromtimestamp(mtime)
+                return {'datetime_original': dt.strftime('%Y-%m-%d %H:%M:%S')}
+            except:
+                pass
         return None
 
 def get_audio_metadata(file_path):
@@ -989,9 +1877,7 @@ def get_audio_metadata(file_path):
     Extrai tags ID3 de MP3, FLAC, OGG, etc.
     Retorna dict com 'artist', 'title' ou None.
     """
-    try:
-        import mutagen
-    except ImportError:
+    if not mutagen:
         return None
     try:
         audio = mutagen.File(file_path)
@@ -1050,8 +1936,26 @@ def generate_new_name(original_path, metadata, pattern='auto'):
             return line.replace(' ', '_')
         else:
             return None
+    elif pattern == 'date':
+        if 'datetime_original' in metadata:
+            dt_str = metadata['datetime_original'].replace(':', '-').replace(' ', '_')
+            return f"{dt_str}_{stem}"
+        else:
+            return None
+    elif pattern == 'artist':
+        if 'artist' in metadata and metadata['artist']:
+            artist = re.sub(r'[^\w\s-]', '', metadata['artist'])[:30]
+            title = re.sub(r'[^\w\s-]', '', metadata['title'])[:30] if metadata['title'] else ''
+            return f"{artist}_{title}".replace(' ', '_')
+        else:
+            return None
+    elif pattern == 'line':
+        if 'first_line' in metadata:
+            line = re.sub(r'[^\w\s-]', '', metadata['first_line'])[:40]
+            return line.replace(' ', '_')
+        else:
+            return None
     else:
-        # Padrões customizados podem ser adicionados depois
         return None
 ```
 
@@ -1451,6 +2355,124 @@ def rename_by_content():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@file_bp.route('/attributes', methods=['POST'])
+def set_attributes():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        recursive = data.get('recursive', True)
+        options = {
+            'readonly': data.get('readonly'),
+            'hidden': data.get('hidden'),
+            'system': data.get('system'),
+            'modification_date': data.get('modification_date'),
+            'creation_date': data.get('creation_date'),
+            'permissions': data.get('permissions')
+        }
+        # Remove None para não sobrescrever com valor nulo
+        options = {k: v for k, v in options.items() if v is not None}
+        count = controller.set_attributes(
+            dir_path=data['dir'],
+            recursive=recursive,
+            options=options
+        )
+        return jsonify({"success": True, "processed_count": count}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/report', methods=['POST'])
+def generate_report():
+    data = request.json
+    if not data.get('dir'):
+        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+    try:
+        recursive = data.get('recursive', True)
+        include_files = data.get('include_files', True)
+        output_format = data.get('format', 'txt')
+        output_path = data.get('output_path')  # opcional
+        result = controller.generate_report(
+            dir_path=data['dir'],
+            recursive=recursive,
+            include_files=include_files,
+            output_format=output_format,
+            output_path=output_path
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/compare', methods=['POST'])
+def compare_directories():
+    data = request.json
+    if not data.get('source_dir') or not data.get('target_dir'):
+        return jsonify({"error": "Campos obrigatórios: source_dir, target_dir"}), 400
+    try:
+        result = controller.compare_directories(
+            source_dir=data['source_dir'],
+            target_dir=data['target_dir'],
+            recursive=data.get('recursive', True),
+            include_hidden=data.get('include_hidden', False),
+            compare_by_hash=data.get('compare_by_hash', False)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/sync', methods=['POST'])
+def sync_directories():
+    data = request.json
+    if not data.get('source_dir') or not data.get('target_dir'):
+        return jsonify({"error": "Campos obrigatórios: source_dir, target_dir"}), 400
+    try:
+        result = controller.sync_directories(
+            source_dir=data['source_dir'],
+            target_dir=data['target_dir'],
+            recursive=data.get('recursive', True),
+            include_hidden=data.get('include_hidden', False),
+            compare_by_hash=data.get('compare_by_hash', False),
+            action=data.get('action', 'copy_to_target')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/archive/compress', methods=['POST'])
+def archive_compress():
+    data = request.json
+    if not data.get('source_paths') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: source_paths, output_path"}), 400
+    try:
+        result = controller.archive_compress(
+            source_paths=data['source_paths'],
+            output_path=data['output_path'],
+            password=data.get('password'),
+            compression_level=data.get('compression_level', 6),
+            compression_method=data.get('compression_method', 'deflate'),
+            recursive=data.get('recursive', True),
+            include_patterns=data.get('include_patterns'),
+            exclude_patterns=data.get('exclude_patterns'),
+            exclude_hidden=data.get('exclude_hidden', False)
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/archive/extract', methods=['POST'])
+def archive_extract():
+    data = request.json
+    if not data.get('archive_path') or not data.get('extract_dir'):
+        return jsonify({"error": "Campos obrigatórios: archive_path, extract_dir"}), 400
+    try:
+        result = controller.archive_extract(
+            archive_path=data['archive_path'],
+            extract_dir=data['extract_dir'],
+            password=data.get('password')
+        )
+        return jsonify({"success": True, "extract_dir": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 ```
 
 
@@ -1665,6 +2687,10 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/file/index.js"></script>
     <script src="js/modules/file/organize.js"></script>
     <script src="js/modules/file/rename_by_content.js"></script>
+    <script src="js/modules/file/attributes.js"></script>
+    <script src="js/modules/file/report.js"></script>
+    <script src="js/modules/file/compare.js"></script>
+    <script src="js/modules/file/archive.js"></script>
     <script src="js/modules/home.js"></script>
     <script src="js/modules/pdf.js"></script>
     <script src="js/modules/word.js"></script>
@@ -2156,6 +3182,12 @@ window.API = {
         organize: (params) => apiRequest('/files/organize', 'POST', params),
         renameByContentPreview: (params) => apiRequest('/files/rename-by-content/preview', 'POST', params),
         renameByContent: (params) => apiRequest('/files/rename-by-content', 'POST', params),
+        setAttributes: (params) => apiRequest('/files/attributes', 'POST', params),
+        generateReport: (params) => apiRequest('/files/report', 'POST', params),
+        compare: (params) => apiRequest('/files/compare', 'POST', params),
+        sync: (params) => apiRequest('/files/sync', 'POST', params),
+        archiveCompress: (params) => apiRequest('/files/archive/compress', 'POST', params),
+        archiveExtract: (params) => apiRequest('/files/archive/extract', 'POST', params),
     },
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),
@@ -2963,6 +3995,472 @@ window.WordModule = WordModule;
 ```
 
 
+### frontend\js\modules\file\archive.js
+
+```
+class ArchiveFeature {
+    constructor(module) {
+        this.module = module;
+        this.mode = 'compress'; // 'compress' | 'extract'
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Compactar / Extrair</h4>
+                <p class="text-muted">Crie arquivos ZIP com opções avançadas ou extraia arquivos compactados.</p>
+            </div>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-mode="compress" id="tab-compress">Compactar (ZIP)</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-mode="extract" id="tab-extract">Extrair</button>
+                </li>
+            </ul>
+
+            <!-- Conteúdo Compactar -->
+            <div id="archive-compress-content">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivos/Pastas para compactar</h5>
+                        <div class="mb-2">
+                            <label class="form-label">Selecione arquivos ou pastas</label>
+                            <div class="input-group">
+                                <input type="text" id="archive-sources" class="form-control" placeholder="Caminhos separados por vírgula">
+                                <button class="btn btn-outline-secondary" id="btn-add-files">Adicionar Arquivos</button>
+                                <button class="btn btn-outline-secondary" id="btn-add-folder">Adicionar Pasta</button>
+                            </div>
+                        </div>
+                        <div id="source-list" style="max-height:100px; overflow:auto; font-size:0.9rem;"></div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Destino</h5>
+                        <div class="input-group">
+                            <input type="text" id="archive-output" class="form-control" placeholder="Caminho do arquivo ZIP">
+                            <button class="btn btn-outline-secondary" id="btn-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Opções de Compactação</h5>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Nível de compressão</label>
+                                <input type="range" id="compression-level" class="form-range" min="0" max="9" value="6">
+                                <span id="level-label">6</span>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Método</label>
+                                <select id="compression-method" class="form-select">
+                                    <option value="deflate">DEFLATE</option>
+                                    <option value="bzip2">BZIP2</option>
+                                    <option value="lzma">LZMA</option>
+                                    <option value="store">STORED (sem compressão)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Senha (opcional)</label>
+                                <input type="password" id="archive-password" class="form-control" placeholder="Deixe vazio para sem senha">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Padrões de inclusão (ex: *.pdf,*.docx)</label>
+                                <input type="text" id="include-patterns" class="form-control" placeholder="Separados por vírgula">
+                            </div>
+                        </div>
+                        <div class="row g-2 mt-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Padrões de exclusão (ex: *.tmp,*.log)</label>
+                                <input type="text" id="exclude-patterns" class="form-control" placeholder="Separados por vírgula">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="exclude-hidden">
+                                    <label class="form-check-label">Excluir arquivos ocultos</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="archive-recursive" checked>
+                                    <label class="form-check-label">Incluir subpastas</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-success" id="btn-compress"><i class="bi bi-play-fill"></i> Compactar</button>
+            </div>
+
+            <!-- Conteúdo Extrair -->
+            <div id="archive-extract-content" style="display:none;">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivo para extrair</h5>
+                        <div class="input-group">
+                            <input type="text" id="extract-archive" class="form-control" placeholder="Selecione o arquivo compactado...">
+                            <button class="btn btn-outline-secondary" id="btn-extract-archive">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Destino da extração</h5>
+                        <div class="input-group">
+                            <input type="text" id="extract-dir" class="form-control" placeholder="Selecione a pasta de destino...">
+                            <button class="btn btn-outline-secondary" id="btn-extract-dir">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Senha (opcional)</h5>
+                        <input type="password" id="extract-password" class="form-control" placeholder="Deixe vazio se não houver senha">
+                    </div>
+                </div>
+
+                <button class="btn btn-success" id="btn-extract"><i class="bi bi-play-fill"></i> Extrair</button>
+            </div>
+
+            <div class="progress mt-2"><div class="progress-bar" id="archive-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="archive-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        // Tabs
+        container.querySelectorAll('.nav-link').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const mode = e.target.dataset.mode;
+                this.mode = mode;
+                document.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+                e.target.classList.add('active');
+                document.getElementById('archive-compress-content').style.display = (mode === 'compress') ? 'block' : 'none';
+                document.getElementById('archive-extract-content').style.display = (mode === 'extract') ? 'block' : 'none';
+            });
+        });
+
+        // Selecionar arquivos/pastas para compactar
+        container.querySelector('#btn-add-files').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
+                    .then(result => {
+                        if (!result.canceled) {
+                            const current = document.getElementById('archive-sources').value;
+                            const newPaths = result.filePaths.join(', ');
+                            document.getElementById('archive-sources').value = current ? current + ', ' + newPaths : newPaths;
+                            this.updateSourceList();
+                        }
+                    });
+            }
+        });
+
+        container.querySelector('#btn-add-folder').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
+                    .then(result => {
+                        if (!result.canceled) {
+                            const current = document.getElementById('archive-sources').value;
+                            const newPath = result.filePaths[0];
+                            document.getElementById('archive-sources').value = current ? current + ', ' + newPath : newPath;
+                            this.updateSourceList();
+                        }
+                    });
+            }
+        });
+
+        // Selecionar destino
+        container.querySelector('#btn-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({ filters: [{ name: 'ZIP', extensions: ['zip'] }] })
+                    .then(result => {
+                        if (!result.canceled && result.filePath) {
+                            document.getElementById('archive-output').value = result.filePath;
+                        }
+                    });
+            }
+        });
+
+        // Selecionar arquivo para extrair
+        container.querySelector('#btn-extract-archive').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Arquivos compactados', extensions: ['zip', '7z', 'rar', 'tar', 'gz', 'tgz'] }] })
+                    .then(result => {
+                        if (!result.canceled) document.getElementById('extract-archive').value = result.filePaths[0];
+                    });
+            }
+        });
+
+        container.querySelector('#btn-extract-dir').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
+                    .then(result => {
+                        if (!result.canceled) document.getElementById('extract-dir').value = result.filePaths[0];
+                    });
+            }
+        });
+
+        // Nível de compressão
+        container.querySelector('#compression-level').addEventListener('input', (e) => {
+            document.getElementById('level-label').textContent = e.target.value;
+        });
+
+        // Botões
+        container.querySelector('#btn-compress').addEventListener('click', () => this.compress());
+        container.querySelector('#btn-extract').addEventListener('click', () => this.extract());
+    }
+
+    updateSourceList() {
+        const val = document.getElementById('archive-sources').value;
+        const paths = val.split(',').map(s => s.trim()).filter(Boolean);
+        const listDiv = document.getElementById('source-list');
+        if (paths.length === 0) {
+            listDiv.innerHTML = '<p class="text-muted">Nenhum arquivo/pasta selecionado.</p>';
+        } else {
+            listDiv.innerHTML = paths.map(p => `<div><i class="bi bi-file-earmark me-1"></i> ${p}</div>`).join('');
+        }
+    }
+
+    async compress() {
+        const sources = document.getElementById('archive-sources').value.split(',').map(s => s.trim()).filter(Boolean);
+        const output = document.getElementById('archive-output').value.trim();
+        if (!sources.length || !output) {
+            FileUtils.log('Selecione os arquivos/pastas e defina o destino.', 'archive-log');
+            return;
+        }
+
+        const password = document.getElementById('archive-password').value.trim() || undefined;
+        const level = parseInt(document.getElementById('compression-level').value);
+        const method = document.getElementById('compression-method').value;
+        const recursive = document.getElementById('archive-recursive').checked;
+        const excludeHidden = document.getElementById('exclude-hidden').checked;
+        const includePatterns = document.getElementById('include-patterns').value.trim() || undefined;
+        const excludePatterns = document.getElementById('exclude-patterns').value.trim() || undefined;
+
+        const btn = document.getElementById('btn-compress');
+        btn.disabled = true;
+        FileUtils.clearLog('archive-log');
+        FileUtils.log('Compactando...', 'archive-log');
+
+        try {
+            const result = await window.API.file.archiveCompress({
+                source_paths: sources,
+                output_path: output,
+                password,
+                compression_level: level,
+                compression_method: method,
+                recursive,
+                exclude_hidden: excludeHidden,
+                include_patterns: includePatterns ? includePatterns.split(',').map(s => s.trim()) : undefined,
+                exclude_patterns: excludePatterns ? excludePatterns.split(',').map(s => s.trim()) : undefined
+            });
+            FileUtils.log(`Compactação concluída: ${result.output_path}`, 'archive-log');
+            document.getElementById('archive-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'archive-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async extract() {
+        const archivePath = document.getElementById('extract-archive').value.trim();
+        const extractDir = document.getElementById('extract-dir').value.trim();
+        if (!archivePath || !extractDir) {
+            FileUtils.log('Selecione o arquivo e o destino.', 'archive-log');
+            return;
+        }
+
+        const password = document.getElementById('extract-password').value.trim() || undefined;
+
+        const btn = document.getElementById('btn-extract');
+        btn.disabled = true;
+        FileUtils.clearLog('archive-log');
+        FileUtils.log('Extraindo...', 'archive-log');
+
+        try {
+            const result = await window.API.file.archiveExtract({
+                archive_path: archivePath,
+                extract_dir: extractDir,
+                password
+            });
+            FileUtils.log(`Extraído para: ${result.extract_dir}`, 'archive-log');
+            document.getElementById('archive-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'archive-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\file\attributes.js
+
+```
+class AttributesFeature {
+    constructor(module) {
+        this.module = module;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Alterar Atributos em Lote</h4>
+                <p class="text-muted">Modifique datas, atributos (somente leitura, oculto, sistema) e permissões de vários arquivos de uma vez.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Diretório</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta</label>
+                        <div class="input-group">
+                            <input type="text" id="attr-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-attr-dir">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="attr-recursive" checked>
+                        <label class="form-check-label">Incluir subpastas</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Atributos (Windows)</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="attr-readonly">
+                                <label class="form-check-label">Somente leitura</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="attr-hidden">
+                                <label class="form-check-label">Oculto</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="attr-system">
+                                <label class="form-check-label">Sistema</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <label class="form-label">Permissões (Unix, ex: 755)</label>
+                        <input type="text" id="attr-permissions" class="form-control" placeholder="Deixe vazio para não alterar" style="width:150px;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Datas</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Data de modificação</label>
+                            <input type="datetime-local" id="attr-modification-date" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Data de criação (Windows)</label>
+                            <input type="datetime-local" id="attr-creation-date" class="form-control">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-apply-attributes"><i class="bi bi-play-fill"></i> Aplicar</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="attr-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="attr-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-attr-dir').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('attr-dir');
+        });
+
+        container.querySelector('#btn-apply-attributes').addEventListener('click', () => this.applyAttributes());
+    }
+
+    async applyAttributes() {
+        const dir = document.getElementById('attr-dir').value.trim();
+        if (!dir) {
+            FileUtils.log('Selecione uma pasta.', 'attr-log');
+            return;
+        }
+
+        const recursive = document.getElementById('attr-recursive').checked;
+        const readonly = document.getElementById('attr-readonly').checked ? true : undefined;
+        const hidden = document.getElementById('attr-hidden').checked ? true : undefined;
+        const system = document.getElementById('attr-system').checked ? true : undefined;
+        const permissions = document.getElementById('attr-permissions').value.trim() || undefined;
+        const modification_date = document.getElementById('attr-modification-date').value || undefined;
+        const creation_date = document.getElementById('attr-creation-date').value || undefined;
+
+        // Validação: pelo menos uma opção
+        if (readonly === undefined && hidden === undefined && system === undefined &&
+            !permissions && !modification_date && !creation_date) {
+            FileUtils.log('Selecione pelo menos uma opção para alterar.', 'attr-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-apply-attributes');
+        btn.disabled = true;
+        FileUtils.clearLog('attr-log');
+        FileUtils.log('Aplicando atributos...', 'attr-log');
+
+        try {
+            const result = await window.API.file.setAttributes({
+                dir,
+                recursive,
+                readonly,
+                hidden,
+                system,
+                permissions,
+                modification_date,
+                creation_date
+            });
+            FileUtils.log(`Concluído! ${result.processed_count} arquivos processados.`, 'attr-log');
+            document.getElementById('attr-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'attr-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
 ### frontend\js\modules\file\collect.js
 
 ```
@@ -3231,6 +4729,228 @@ class CollectFeature {
 ```
 
 
+### frontend\js\modules\file\compare.js
+
+```
+class CompareFeature {
+    constructor(module) {
+        this.module = module;
+        this.compareResult = null;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Comparar e Sincronizar Pastas</h4>
+                <p class="text-muted">Compare duas pastas e sincronize arquivos novos/modificados.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pastas</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Origem</label>
+                        <div class="input-group">
+                            <input type="text" id="compare-source" class="form-control" placeholder="Selecione a pasta origem...">
+                            <button class="btn btn-outline-secondary" id="btn-compare-source">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Destino</label>
+                        <div class="input-group">
+                            <input type="text" id="compare-target" class="form-control" placeholder="Selecione a pasta destino...">
+                            <button class="btn btn-outline-secondary" id="btn-compare-target">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="compare-recursive" checked>
+                        <label class="form-check-label">Incluir subpastas</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="compare-hidden">
+                        <label class="form-check-label">Incluir arquivos ocultos</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="compare-hash">
+                        <label class="form-check-label">Comparar por hash MD5 (mais preciso, porém mais lento)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-outline-success" id="btn-compare"><i class="bi bi-eye"></i> Comparar</button>
+                <button class="btn btn-success" id="btn-sync" disabled><i class="bi bi-arrow-left-right"></i> Sincronizar (copiar para destino)</button>
+                <button class="btn btn-danger" id="btn-mirror" disabled><i class="bi bi-arrow-repeat"></i> Espelhar (remover arquivos extras no destino)</button>
+            </div>
+
+            <div id="compare-result" style="display:none;">
+                <div class="row g-2 mb-2">
+                    <div class="col-6 col-md-3"><span class="badge bg-primary">Origem: <span id="total-source">0</span> arquivos</span></div>
+                    <div class="col-6 col-md-3"><span class="badge bg-secondary">Destino: <span id="total-target">0</span> arquivos</span></div>
+                    <div class="col-6 col-md-3"><span class="badge bg-success">Idênticos: <span id="identical-count">0</span></span></div>
+                    <div class="col-6 col-md-3"><span class="badge bg-warning">Diferentes: <span id="modified-count">0</span></span></div>
+                    <div class="col-6 col-md-3"><span class="badge bg-info">Apenas na origem: <span id="only-source-count">0</span></span></div>
+                    <div class="col-6 col-md-3"><span class="badge bg-danger">Apenas no destino: <span id="only-target-count">0</span></span></div>
+                </div>
+
+                <div id="compare-details" style="max-height:300px; overflow:auto; border:1px solid #dee2e6; border-radius:0.375rem; padding:8px; font-size:0.9rem;">
+                    <!-- Detalhes serão preenchidos -->
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="compare-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-compare-source').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('compare-source');
+        });
+        container.querySelector('#btn-compare-target').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('compare-target');
+        });
+
+        container.querySelector('#btn-compare').addEventListener('click', () => this.compareFolders());
+        container.querySelector('#btn-sync').addEventListener('click', () => this.syncFolders('copy_to_target'));
+        container.querySelector('#btn-mirror').addEventListener('click', () => this.syncFolders('mirror'));
+    }
+
+    async compareFolders() {
+        const source = document.getElementById('compare-source').value.trim();
+        const target = document.getElementById('compare-target').value.trim();
+        if (!source || !target) {
+            FileUtils.log('Selecione ambas as pastas.', 'compare-log');
+            return;
+        }
+        if (source === target) {
+            FileUtils.log('Origem e destino não podem ser iguais.', 'compare-log');
+            return;
+        }
+
+        const recursive = document.getElementById('compare-recursive').checked;
+        const includeHidden = document.getElementById('compare-hidden').checked;
+        const compareByHash = document.getElementById('compare-hash').checked;
+
+        const btn = document.getElementById('btn-compare');
+        btn.disabled = true;
+        FileUtils.clearLog('compare-log');
+        FileUtils.log('Comparando pastas...', 'compare-log');
+
+        try {
+            const result = await window.API.file.compare({
+                source_dir: source,
+                target_dir: target,
+                recursive,
+                include_hidden: includeHidden,
+                compare_by_hash: compareByHash
+            });
+            this.compareResult = result;
+
+            document.getElementById('total-source').textContent = result.total_source;
+            document.getElementById('total-target').textContent = result.total_target;
+            document.getElementById('identical-count').textContent = result.identical.length;
+            document.getElementById('modified-count').textContent = result.modified_in_source.length;
+            document.getElementById('only-source-count').textContent = result.only_in_source.length;
+            document.getElementById('only-target-count').textContent = result.only_in_target.length;
+
+            const resultDiv = document.getElementById('compare-result');
+            resultDiv.style.display = 'block';
+
+            const detailsDiv = document.getElementById('compare-details');
+            let html = '';
+            if (result.only_in_source.length) {
+                html += `<strong><span class="text-info">Apenas na origem:</span></strong><ul>`;
+                result.only_in_source.forEach(p => html += `<li>${p}</li>`);
+                html += '</ul>';
+            }
+            if (result.only_in_target.length) {
+                html += `<strong><span class="text-danger">Apenas no destino:</span></strong><ul>`;
+                result.only_in_target.forEach(p => html += `<li>${p}</li>`);
+                html += '</ul>';
+            }
+            if (result.modified_in_source.length) {
+                html += `<strong><span class="text-warning">Modificados na origem:</span></strong><ul>`;
+                result.modified_in_source.forEach(p => html += `<li>${p}</li>`);
+                html += '</ul>';
+            }
+            if (result.identical.length) {
+                html += `<strong><span class="text-success">Idênticos:</span></strong> ${result.identical.length} arquivos`;
+            }
+            if (!html) {
+                html = '<p class="text-muted">Nenhuma diferença encontrada.</p>';
+            }
+            detailsDiv.innerHTML = html;
+
+            document.getElementById('btn-sync').disabled = false;
+            document.getElementById('btn-mirror').disabled = false;
+
+            FileUtils.log(`Comparação concluída. ${result.only_in_source.length + result.modified_in_source.length} arquivos para copiar.`, 'compare-log');
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'compare-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async syncFolders(action) {
+        if (!this.compareResult) {
+            FileUtils.log('Execute a comparação primeiro.', 'compare-log');
+            return;
+        }
+
+        const source = document.getElementById('compare-source').value.trim();
+        const target = document.getElementById('compare-target').value.trim();
+        const recursive = document.getElementById('compare-recursive').checked;
+        const includeHidden = document.getElementById('compare-hidden').checked;
+        const compareByHash = document.getElementById('compare-hash').checked;
+
+        const btn = action === 'copy_to_target' ? document.getElementById('btn-sync') : document.getElementById('btn-mirror');
+        btn.disabled = true;
+
+        const actionLabel = action === 'copy_to_target' ? 'copiar para destino' : 'espelhar (remover extras)';
+        if (!confirm(`Deseja realmente ${actionLabel}?`)) {
+            btn.disabled = false;
+            return;
+        }
+
+        FileUtils.clearLog('compare-log');
+        FileUtils.log(`Sincronizando (${actionLabel})...`, 'compare-log');
+
+        try {
+            const result = await window.API.file.sync({
+                source_dir: source,
+                target_dir: target,
+                recursive,
+                include_hidden: includeHidden,
+                compare_by_hash: compareByHash,
+                action
+            });
+            FileUtils.log(`Concluído! ${result.copied} arquivos copiados, ${result.removed} removidos, ${result.skipped} ignorados.`, 'compare-log');
+            // Recarregar comparação automaticamente
+            await this.compareFolders();
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'compare-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
 ### frontend\js\modules\file\duplicates.js
 
 ```
@@ -3416,6 +5136,10 @@ class FileModule {
         this.duplicatesFeature = new DuplicatesFeature(this);
         this.organizeFeature = new OrganizeFeature(this);
         this.renameByContentFeature = new RenameByContentFeature(this);
+        this.attributesFeature = new AttributesFeature(this);
+        this.reportFeature = new ReportFeature(this);
+        this.compareFeature = new CompareFeature(this);
+        this.archiveFeature = new ArchiveFeature(this);
 
         this.features = [
             { id: 'collect', label: 'Coletar Arquivos', render: (container) => this.collectFeature.render(container) },
@@ -3423,6 +5147,10 @@ class FileModule {
             { id: 'duplicates', label: 'Localizar Duplicatas', render: (container) => this.duplicatesFeature.render(container) },
             { id: 'organize', label: 'Organizar por Extensão', render: (container) => this.organizeFeature.render(container) },
             { id: 'rename-by-content', label: 'Renomear por Conteúdo', render: (container) => this.renameByContentFeature.render(container) },
+            { id: 'attributes', label: 'Alterar Atributos', render: (container) => this.attributesFeature.render(container) },
+            { id: 'report', label: 'Relatório de Estrutura', render: (container) => this.reportFeature.render(container) },
+            { id: 'compare', label: 'Comparar Pastas', render: (container) => this.compareFeature.render(container) },
+            { id: 'archive', label: 'Compactar e Extrair', render: (container) => this.archiveFeature.render(container) },
         ];
     }
 
@@ -4111,7 +5839,8 @@ class RenameByContentFeature {
                 html += `<tr><td>${item.original}</td><td><strong>${item.new}</strong></td><td class="text-success">✓</td></tr>`;
             });
             skipped.forEach(item => {
-                html += `<tr><td>${item}</td><td>—</td><td class="text-warning">⏭</td></tr>`;
+                const reason = item.reason || 'Desconhecido';
+                html += `<tr><td>${item.path}</td><td>—</td><td class="text-warning">Ignorado: ${reason}</td></tr>`;
             });
             errors.forEach(item => {
                 html += `<tr><td>${item.file}</td><td>—</td><td class="text-danger">${item.error}</td></tr>`;
@@ -4154,6 +5883,160 @@ class RenameByContentFeature {
             document.getElementById('rename-content-preview-area').style.display = 'none';
         } catch (err) {
             FileUtils.log(`Erro: ${err.message}`, 'rename-content-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\file\report.js
+
+```
+class ReportFeature {
+    constructor(module) {
+        this.module = module;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Gerar Relatório de Estrutura</h4>
+                <p class="text-muted">Exporte a árvore de diretórios para TXT ou CSV, com opção de incluir ou não os arquivos.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Diretório</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta</label>
+                        <div class="input-group">
+                            <input type="text" id="report-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-report-dir">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="report-recursive" checked>
+                        <label class="form-check-label">Incluir subpastas</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="report-include-files" checked>
+                        <label class="form-check-label">Listar arquivos</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Formato de saída</h5>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="report-format" id="report-format-txt" value="txt" checked>
+                                <label class="form-check-label">TXT (indentado)</label>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="report-format" id="report-format-csv" value="csv">
+                                <label class="form-check-label">CSV</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Salvar em arquivo (opcional)</h5>
+                    <div class="input-group">
+                        <input type="text" id="report-output-path" class="form-control" placeholder="Caminho para salvar (deixe vazio para visualizar)">
+                        <button class="btn btn-outline-secondary" id="btn-report-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-generate-report"><i class="bi bi-play-fill"></i> Gerar Relatório</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="report-progress" style="width:0%"></div></div>
+
+            <div id="report-result" style="display:none;" class="mt-3">
+                <label class="fw-bold text-success">Resultado</label>
+                <div id="report-content" class="border rounded p-2" style="max-height:400px; overflow:auto; font-family:monospace; font-size:0.85rem; white-space:pre-wrap;"></div>
+            </div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="report-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-report-dir').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('report-dir');
+        });
+
+        container.querySelector('#btn-report-output').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                const formatRadio = document.querySelector('input[name="report-format"]:checked');
+                const ext = formatRadio ? formatRadio.value : 'txt';
+                const filters = [{ name: ext.toUpperCase(), extensions: [ext] }];
+                window.electronAPI.showSaveDialog({ filters })
+                    .then(result => {
+                        if (!result.canceled && result.filePath) {
+                            document.getElementById('report-output-path').value = result.filePath;
+                        }
+                    });
+            }
+        });
+
+        container.querySelector('#btn-generate-report').addEventListener('click', () => this.generateReport());
+    }
+
+    async generateReport() {
+        const dir = document.getElementById('report-dir').value.trim();
+        if (!dir) {
+            FileUtils.log('Selecione uma pasta.', 'report-log');
+            return;
+        }
+
+        const recursive = document.getElementById('report-recursive').checked;
+        const includeFiles = document.getElementById('report-include-files').checked;
+        const formatRadio = document.querySelector('input[name="report-format"]:checked');
+        const format = formatRadio ? formatRadio.value : 'txt';
+        const outputPath = document.getElementById('report-output-path').value.trim() || undefined;
+
+        const btn = document.getElementById('btn-generate-report');
+        btn.disabled = true;
+        FileUtils.clearLog('report-log');
+        FileUtils.log('Gerando relatório...', 'report-log');
+
+        try {
+            const result = await window.API.file.generateReport({
+                dir,
+                recursive,
+                include_files: includeFiles,
+                format,
+                output_path: outputPath
+            });
+
+            if (result.saved_path) {
+                FileUtils.log(`Relatório salvo em: ${result.saved_path}`, 'report-log');
+            } else {
+                const contentDiv = document.getElementById('report-result');
+                contentDiv.style.display = 'block';
+                document.getElementById('report-content').textContent = result.content;
+                FileUtils.log('Relatório gerado com sucesso.', 'report-log');
+            }
+            document.getElementById('report-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'report-log');
         } finally {
             btn.disabled = false;
         }
@@ -4212,7 +6095,34 @@ const FileUtils = {
         if (logArea) {
             logArea.innerHTML = '';
         }
-    }
+    },
+
+    // Adicione no FileUtils:
+    selectFile: function (inputId, filters) {
+        if (window.electronAPI && window.electronAPI.showOpenDialog) {
+            window.electronAPI.showOpenDialog({ properties: ['openFile'], filters })
+                .then(result => {
+                    if (!result.canceled && result.filePaths.length > 0) {
+                        document.getElementById(inputId).value = result.filePaths[0];
+                    }
+                });
+        } else {
+            alert('Selecione o arquivo manualmente.');
+        }
+    },
+
+    selectSaveFile: function (inputId, filters) {
+        if (window.electronAPI && window.electronAPI.showSaveDialog) {
+            window.electronAPI.showSaveDialog({ filters })
+                .then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById(inputId).value = result.filePath;
+                    }
+                });
+        } else {
+            alert('Selecione o local para salvar.');
+        }
+    },
 };
 ```
 

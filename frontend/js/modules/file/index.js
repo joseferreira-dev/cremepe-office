@@ -12,6 +12,7 @@ class FileModule {
         this.attributesFeature = new AttributesFeature(this);
         this.reportFeature = new ReportFeature(this);
         this.compareFeature = new CompareFeature(this);
+        this.archiveFeature = new ArchiveFeature(this);
 
         this.features = [
             { id: 'collect', label: 'Coletar Arquivos', render: (container) => this.collectFeature.render(container) },
@@ -22,6 +23,7 @@ class FileModule {
             { id: 'attributes', label: 'Alterar Atributos', render: (container) => this.attributesFeature.render(container) },
             { id: 'report', label: 'Relatório de Estrutura', render: (container) => this.reportFeature.render(container) },
             { id: 'compare', label: 'Comparar Pastas', render: (container) => this.compareFeature.render(container) },
+            { id: 'archive', label: 'Compactar e Extrair', render: (container) => this.archiveFeature.render(container) },
         ];
     }
 

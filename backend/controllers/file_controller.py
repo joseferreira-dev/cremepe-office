@@ -1,11 +1,14 @@
+from ast import List
 from pathlib import Path
 import re
+from typing import Optional
 import unicodedata
 import hashlib
 from collections import defaultdict
 
 from models.file_manager import collect_files, rename_files_in_batch
 from models.file_comparator import compare_folders, sync_folders
+from models.file_archive_manager import create_zip, extract_archive
 from datetime import datetime, timedelta
 
 class FileController:
@@ -487,3 +490,37 @@ class FileController:
     ) -> dict:
         """Sincroniza pastas."""
         return sync_folders(source_dir, target_dir, recursive, include_hidden, compare_by_hash, action)
+    
+    def archive_compress(
+        self,
+        source_paths: List[str],
+        output_path: str,
+        password: Optional[str] = None,
+        compression_level: int = 6,
+        compression_method: str = 'deflate',
+        recursive: bool = True,
+        include_patterns: List[str] = None,
+        exclude_patterns: List[str] = None,
+        exclude_hidden: bool = False
+    ) -> str:
+        """Cria um arquivo ZIP com as opções especificadas."""
+        return create_zip(
+            source_paths=source_paths,
+            output_path=output_path,
+            password=password,
+            compression_level=compression_level,
+            compression_method=compression_method,
+            recursive=recursive,
+            include_patterns=include_patterns,
+            exclude_patterns=exclude_patterns,
+            exclude_hidden=exclude_hidden
+        )
+
+    def archive_extract(
+        self,
+        archive_path: str,
+        extract_dir: str,
+        password: Optional[str] = None
+    ) -> str:
+        """Extrai um arquivo compactado (qualquer formato)."""
+        return extract_archive(archive_path, extract_dir, password)

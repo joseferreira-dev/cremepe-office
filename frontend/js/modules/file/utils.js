@@ -45,5 +45,32 @@ const FileUtils = {
         if (logArea) {
             logArea.innerHTML = '';
         }
-    }
+    },
+
+    // Adicione no FileUtils:
+    selectFile: function (inputId, filters) {
+        if (window.electronAPI && window.electronAPI.showOpenDialog) {
+            window.electronAPI.showOpenDialog({ properties: ['openFile'], filters })
+                .then(result => {
+                    if (!result.canceled && result.filePaths.length > 0) {
+                        document.getElementById(inputId).value = result.filePaths[0];
+                    }
+                });
+        } else {
+            alert('Selecione o arquivo manualmente.');
+        }
+    },
+
+    selectSaveFile: function (inputId, filters) {
+        if (window.electronAPI && window.electronAPI.showSaveDialog) {
+            window.electronAPI.showSaveDialog({ filters })
+                .then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById(inputId).value = result.filePath;
+                    }
+                });
+        } else {
+            alert('Selecione o local para salvar.');
+        }
+    },
 };

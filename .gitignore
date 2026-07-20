@@ -26,3 +26,7 @@ yarn-error.log
 # Outputs
 output/
 logs/
+
+# Outros
+project_snapshot.txt
+compile.py

@@ -29,6 +29,8 @@ window.API = {
         generateReport: (params) => apiRequest('/files/report', 'POST', params),
         compare: (params) => apiRequest('/files/compare', 'POST', params),
         sync: (params) => apiRequest('/files/sync', 'POST', params),
+        archiveCompress: (params) => apiRequest('/files/archive/compress', 'POST', params),
+        archiveExtract: (params) => apiRequest('/files/archive/extract', 'POST', params),
     },
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),
