@@ -18,5 +18,19 @@ def merge_documents():
         )
         return jsonify({"success": True, "output_path": result}), 200
     except Exception as e:
-        print(f"Erro no merge: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/convert', methods=['POST'])
+def convert_document():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path') or not data.get('output_format'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path, output_format"}), 400
+    try:
+        result = controller.convert_document(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            output_format=data['output_format']
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
         return jsonify({"error": str(e)}), 500

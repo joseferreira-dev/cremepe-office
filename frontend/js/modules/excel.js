@@ -73,7 +73,7 @@ class ExcelModule {
             </div>
             <button class="btn btn-success" id="btn-merge-excel">Mesclar</button>
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="excel-log">Log de operações vazio</div>
             </div>
         `;
@@ -142,7 +142,7 @@ class ExcelModule {
             </div>
             <button class="btn btn-success" id="btn-read-excel">Ler</button>
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="read-log">Log de operações vazio</div>
             </div>
             <div class="mt-2">
@@ -210,7 +210,7 @@ class ExcelModule {
             </div>
             <button class="btn btn-success" id="btn-write-excel">Escrever</button>
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="write-log">Log de operações vazio</div>
             </div>
         `;

@@ -12,3 +12,4 @@ pyzipper==0.4.0
 cryptography==49.0.0
 pywin32==312
 docxcompose==2.2.0
+html2text==2025.4.15

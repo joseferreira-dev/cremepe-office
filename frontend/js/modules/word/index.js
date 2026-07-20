@@ -3,11 +3,11 @@ class WordModule {
         this.container = container;
         this.currentFeature = 'merge';
         this.mergeFeature = new MergeFeature(this);
-        // futuras features: splitFeature, replaceFeature, etc.
+        this.convertFeature = new ConvertFeature(this);
 
         this.features = [
             { id: 'merge', label: 'Juntar Documentos', render: (container) => this.mergeFeature.render(container) },
-            // outras features serão adicionadas aqui
+            { id: 'convert', label: 'Converter', render: (container) => this.convertFeature.render(container) },
         ];
     }
 
