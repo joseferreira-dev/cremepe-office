@@ -303,7 +303,7 @@ def sync_directories():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@file_bp.route('/archive/compress', methods=['POST'])
+@file_bp.route('/compress', methods=['POST'])
 def archive_compress():
     data = request.json
     if not data.get('source_paths') or not data.get('output_path'):
@@ -324,7 +324,7 @@ def archive_compress():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@file_bp.route('/archive/extract', methods=['POST'])
+@file_bp.route('/extract', methods=['POST'])
 def archive_extract():
     data = request.json
     if not data.get('archive_path') or not data.get('extract_dir'):
@@ -336,5 +336,39 @@ def archive_extract():
             password=data.get('password')
         )
         return jsonify({"success": True, "extract_dir": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/split', methods=['POST'])
+def split_file():
+    data = request.json
+    if not data.get('file_path') or not data.get('output_dir'):
+        return jsonify({"error": "Campos obrigatórios: file_path, output_dir"}), 400
+    try:
+        part_size_mb = data.get('part_size_mb', 100)
+        overwrite = data.get('overwrite', False)
+        result = controller.split_file(
+            file_path=data['file_path'],
+            output_dir=data['output_dir'],
+            part_size_mb=part_size_mb,
+            overwrite=overwrite
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file_bp.route('/merge', methods=['POST'])
+def merge_parts():
+    data = request.json
+    if not data.get('parts_list') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: parts_list, output_path"}), 400
+    try:
+        overwrite = data.get('overwrite', False)
+        result = controller.merge_parts(
+            parts_list=data['parts_list'],
+            output_path=data['output_path'],
+            overwrite=overwrite
+        )
+        return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500

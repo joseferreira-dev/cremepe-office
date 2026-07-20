@@ -258,7 +258,7 @@ class ArchiveFeature {
         FileUtils.log('Compactando...', 'archive-log');
 
         try {
-            const result = await window.API.file.archiveCompress({
+            const result = await window.API.file.compress({
                 source_paths: sources,
                 output_path: output,
                 password,
@@ -294,7 +294,7 @@ class ArchiveFeature {
         FileUtils.log('Extraindo...', 'archive-log');
 
         try {
-            const result = await window.API.file.archiveExtract({
+            const result = await window.API.file.extract({
                 archive_path: archivePath,
                 extract_dir: extractDir,
                 password

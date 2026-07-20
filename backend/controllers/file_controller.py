@@ -524,3 +524,24 @@ class FileController:
     ) -> str:
         """Extrai um arquivo compactado (qualquer formato)."""
         return extract_archive(archive_path, extract_dir, password)
+
+    def split_file(
+        self,
+        file_path: str,
+        output_dir: str,
+        part_size_mb: int = 100,
+        overwrite: bool = False
+    ) -> dict:
+        from models.file_splitter import split_file
+        parts = split_file(file_path, output_dir, part_size_mb, overwrite)
+        return {'parts': parts, 'count': len(parts)}
+
+    def merge_parts(
+        self,
+        parts_list: List[str],
+        output_path: str,
+        overwrite: bool = False
+    ) -> dict:
+        from models.file_splitter import merge_parts
+        result = merge_parts(parts_list, output_path, overwrite)
+        return {'output_path': result}
