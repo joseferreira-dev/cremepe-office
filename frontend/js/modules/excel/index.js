@@ -4,6 +4,7 @@ class ExcelModule {
         this.currentFeature = 'convert';
         this.features = [
             { id: 'convert', label: 'Conversão em Lote', render: (container) => new ExcelConvertFeature().render(container) },
+            { id: 'merge-all', label: 'Mesclar Tudo em Um', render: (container) => new ExcelMergeAllFeature().render(container) },
         ];
     }
 

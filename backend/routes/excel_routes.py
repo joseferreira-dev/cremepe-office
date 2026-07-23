@@ -24,3 +24,23 @@ def convert_batch():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@excel_bp.route('/merge-all', methods=['POST'])
+def merge_all():
+    data = request.json
+    required = ['source_dir', 'dest_file']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.merge_all(
+            source_dir=data['source_dir'],
+            dest_file=data['dest_file'],
+            mode=data.get('mode', 'sheets'),
+            include_header=data.get('include_header', True),
+            recursive=data.get('recursive', False)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

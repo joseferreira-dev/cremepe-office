@@ -1,9 +1,10 @@
 import os
 import csv
 from pathlib import Path
+import re
 import openpyxl
 import xlwt
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 # ========== UTILITÁRIOS ==========
 def _get_base_name(file_path):
@@ -176,3 +177,149 @@ def batch_convert(source_dir, dest_dir, input_format, output_format, recursive=F
             results['errors'].append({'file': str(file_path), 'error': str(e)})
 
     return results
+
+# ========== MESCLAR TUDO EM UM ==========
+def _sanitize_sheet_name(name: str, max_len=31) -> str:
+    """Sanitiza o nome da aba para ser válido no Excel."""
+    # Remove caracteres inválidos: \ / ? * [ ]
+    name = re.sub(r'[\\/*?:\[\]]', '', name)
+    # Remove espaços extras e limita tamanho
+    name = name.strip()[:max_len]
+    if not name:
+        name = "Sheet"
+    return name
+
+def merge_all_files(
+    source_dir: str,
+    dest_file: str,
+    mode: str = 'sheets',          # 'sheets' ou 'stack'
+    include_header: bool = True,   # só usado em 'stack'
+    recursive: bool = False
+) -> dict:
+    """
+    Consolida todos os arquivos .xlsx de uma pasta em um único arquivo.
+
+    Args:
+        source_dir: Pasta de origem
+        dest_file: Caminho do arquivo de saída (.xlsx)
+        mode: 'sheets' (cada arquivo em uma aba) ou 'stack' (empilhar linhas)
+        include_header: Se True e mode='stack', usa cabeçalho do primeiro arquivo
+        recursive: Se True, inclui subpastas
+
+    Returns:
+        dict com estatísticas: processed, total_rows, total_sheets, errors
+    """
+    source_path = Path(source_dir).resolve()
+    if not source_path.exists():
+        raise FileNotFoundError(f"Pasta não encontrada: {source_dir}")
+
+    dest_path = Path(dest_file).resolve()
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Coletar arquivos .xlsx
+    if recursive:
+        files = list(source_path.rglob('*.xlsx'))
+    else:
+        files = list(source_path.glob('*.xlsx'))
+
+    if not files:
+        raise ValueError(f"Nenhum arquivo .xlsx encontrado em {source_dir}")
+
+    stats = {
+        'processed': 0,
+        'total_rows': 0,
+        'total_sheets': 0,
+        'errors': []
+    }
+
+    if mode == 'sheets':
+        # Criar um novo workbook
+        wb_out = Workbook()
+        # Remover a aba padrão (será substituída)
+        default_sheet = wb_out.active
+        wb_out.remove(default_sheet)
+
+        for file_path in files:
+            try:
+                wb_in = load_workbook(file_path, data_only=True)
+                # Usar a primeira planilha ativa
+                ws_in = wb_in.active
+                if ws_in is None:
+                    stats['errors'].append(f"{file_path.name}: Planilha vazia")
+                    continue
+
+                # Nome da aba: nome do arquivo sem extensão, sanitizado
+                sheet_name = _sanitize_sheet_name(file_path.stem)
+                # Garantir nome único
+                if sheet_name in wb_out.sheetnames:
+                    counter = 2
+                    base = sheet_name
+                    while f"{base}_{counter}" in wb_out.sheetnames:
+                        counter += 1
+                    sheet_name = f"{base}_{counter}"
+
+                ws_out = wb_out.create_sheet(title=sheet_name)
+
+                # Copiar dados
+                for row in ws_in.iter_rows(values_only=True):
+                    ws_out.append(row)
+
+                stats['processed'] += 1
+                stats['total_sheets'] += 1
+                stats['total_rows'] += ws_in.max_row - 1  # desconsidera cabeçalho? não, contamos tudo
+
+            except Exception as e:
+                stats['errors'].append(f"{file_path.name}: {str(e)}")
+
+        # Salvar
+        wb_out.save(dest_path)
+
+    else:  # mode == 'stack'
+        wb_out = Workbook()
+        ws_out = wb_out.active
+        ws_out.title = "Consolidado"
+
+        first_file = True
+        total_rows = 0
+
+        for file_path in files:
+            try:
+                wb_in = load_workbook(file_path, data_only=True)
+                ws_in = wb_in.active
+                if ws_in is None:
+                    stats['errors'].append(f"{file_path.name}: Planilha vazia")
+                    continue
+
+                # Determinar linhas a copiar
+                rows_to_copy = list(ws_in.iter_rows(values_only=True))
+
+                if not rows_to_copy:
+                    continue
+
+                if include_header:
+                    if first_file:
+                        # Copiar cabeçalho do primeiro arquivo
+                        header_row = rows_to_copy[0]
+                        ws_out.append(header_row)
+                        data_rows = rows_to_copy[1:]
+                        first_file = False
+                    else:
+                        # Pular cabeçalho dos demais
+                        data_rows = rows_to_copy[1:]
+                else:
+                    # Sem cabeçalho: copiar todas as linhas
+                    data_rows = rows_to_copy
+
+                # Copiar linhas de dados
+                for row in data_rows:
+                    ws_out.append(row)
+
+                stats['processed'] += 1
+                stats['total_rows'] += len(data_rows)
+
+            except Exception as e:
+                stats['errors'].append(f"{file_path.name}: {str(e)}")
+
+        wb_out.save(dest_path)
+
+    return stats
