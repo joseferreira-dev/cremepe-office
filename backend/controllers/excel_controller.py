@@ -2,7 +2,8 @@ from models.excel_processor import (
     batch_convert,
     extract_cells_from_directory,
     merge_all_files,
-    split_by_column
+    split_by_column,
+    split_sheets_to_files
 )
 
 class ExcelController:
@@ -19,3 +20,6 @@ class ExcelController:
     
     def split_by_column(self, input_file, output_dir, column, output_format='xlsx', include_header=True):
         return split_by_column(input_file, output_dir, column, output_format, include_header)
+    
+    def split_sheets(self, input_file, output_dir, output_format='xlsx'):
+        return split_sheets_to_files(input_file, output_dir, output_format)

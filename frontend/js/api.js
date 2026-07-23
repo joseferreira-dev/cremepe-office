@@ -52,6 +52,7 @@ window.API = {
         mergeAll: (params) => apiRequest('/excel/merge-all', 'POST', params),
         extractCells: (params) => apiRequest('/excel/extract-cells', 'POST', params),
         splitByColumn: (params) => apiRequest('/excel/split-by-column', 'POST', params),
+        splitSheets: (params) => apiRequest('/excel/split-sheets', 'POST', params),
     },
     health: () => apiRequest('/health'),
 };

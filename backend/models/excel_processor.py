@@ -561,3 +561,58 @@ def split_by_column(
         stats['output_files'].append(str(out_file))
 
     return stats
+
+# ========== EXTRAIR ABAS PARA ARQUIVOS INDIVIDUAIS ==========
+def split_sheets_to_files(input_file: str, output_dir: str, output_format: str = 'xlsx') -> dict:
+    """
+    Divide um arquivo Excel em múltiplos arquivos, um por aba.
+    
+    Args:
+        input_file: caminho do arquivo .xlsx
+        output_dir: pasta de destino
+        output_format: 'xlsx' ou 'csv'
+    
+    Returns:
+        dict com estatísticas: processed, files, errors
+    """
+    input_path = Path(input_file).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_file}")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    wb = load_workbook(input_path, data_only=True)
+    stats = {'processed': 0, 'files': [], 'errors': []}
+    
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        # Nome do arquivo de saída (sanitizado)
+        base_name = _sanitize_sheet_name(sheet_name, max_len=50)
+        
+        if output_format == 'csv':
+            out_file = output_path / f"{base_name}.csv"
+            try:
+                with open(out_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    for row in ws.iter_rows(values_only=True):
+                        writer.writerow(row)
+                stats['processed'] += 1
+                stats['files'].append(str(out_file))
+            except Exception as e:
+                stats['errors'].append(f"{sheet_name}: {str(e)}")
+        else:  # xlsx
+            out_file = output_path / f"{base_name}.xlsx"
+            try:
+                wb_out = Workbook()
+                ws_out = wb_out.active
+                ws_out.title = sheet_name  # mantém o nome original
+                for row in ws.iter_rows(values_only=True):
+                    ws_out.append(row)
+                wb_out.save(out_file)
+                stats['processed'] += 1
+                stats['files'].append(str(out_file))
+            except Exception as e:
+                stats['errors'].append(f"{sheet_name}: {str(e)}")
+    
+    return stats

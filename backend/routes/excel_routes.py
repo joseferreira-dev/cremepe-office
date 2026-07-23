@@ -83,3 +83,21 @@ def split_by_column():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@excel_bp.route('/split-sheets', methods=['POST'])
+def split_sheets():
+    data = request.json
+    required = ['input_file', 'output_dir']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_sheets(
+            input_file=data['input_file'],
+            output_dir=data['output_dir'],
+            output_format=data.get('output_format', 'xlsx')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
