@@ -48,9 +48,7 @@ window.API = {
         filepath: (params) => apiRequest('/word/filepath', 'POST', params),
     },
     excel: {
-        merge: (params) => apiRequest('/excel/merge', 'POST', params),
-        read: (params) => apiRequest('/excel/read', 'POST', params),
-        write: (params) => apiRequest('/excel/write', 'POST', params),
+        convertBatch: (params) => apiRequest('/excel/convert-batch', 'POST', params),
     },
     health: () => apiRequest('/health'),
 };

@@ -47,6 +47,10 @@
 │   │   └── styles.css
 │   ├── js/
 │   │   ├── modules/
+│   │   │   ├── excel/
+│   │   │   │   ├── convert.js
+│   │   │   │   ├── index.js
+│   │   │   │   └── utils.js
 │   │   │   ├── file/
 │   │   │   │   ├── archive.js
 │   │   │   │   ├── attributes.js
@@ -69,7 +73,6 @@
 │   │   │   │   ├── merge.js
 │   │   │   │   ├── utils.js
 │   │   │   │   └── watermark.js
-│   │   │   ├── excel.js
 │   │   │   ├── home.js
 │   │   │   ├── pdf.js
 │   │   │   └── settings.js
@@ -155,6 +158,7 @@ cryptography==49.0.0
 pywin32==312
 docxcompose==2.2.0
 html2text==2025.4.15
+xlwt==1.3.0
 ```
 
 
@@ -215,17 +219,13 @@ ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".bmp", ".gif"]
 ### backend\controllers\excel_controller.py
 
 ```
-from models.excel_processor import merge_excel_files, read_excel_sheet, write_excel_file
+from models.excel_processor import batch_convert
 
 class ExcelController:
-    def merge(self, file_paths, output_path):
-        return merge_excel_files(file_paths, output_path)
-
-    def read_sheet(self, file_path, sheet_name=0):
-        return read_excel_sheet(file_path, sheet_name)
-
-    def write_data(self, file_path, data, sheet_name='Sheet1'):
-        return write_excel_file(file_path, data, sheet_name)
+    def convert_batch(self, source_dir, dest_dir, input_format, output_format,
+                      recursive=False, overwrite=False):
+        return batch_convert(source_dir, dest_dir, input_format, output_format,
+                             recursive, overwrite)
 ```
 
 
@@ -896,89 +896,183 @@ class WordController:
 
 ```
 import os
+import csv
 from pathlib import Path
-from openpyxl import load_workbook, Workbook
-from openpyxl.utils import get_column_letter
+import openpyxl
+import xlwt
+from openpyxl import load_workbook
 
-def merge_excel_files(file_paths, output_path):
-    """
-    Mescla vários arquivos Excel em uma única planilha, copiando todas as linhas de cada arquivo.
-    Assume que todos têm a mesma estrutura (cabeçalho na primeira linha).
-    """
-    if not file_paths:
-        raise ValueError("Lista de arquivos vazia")
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+# ========== UTILITÁRIOS ==========
+def _get_base_name(file_path):
+    return Path(file_path).stem
 
-    # Cria um novo workbook
-    wb_out = Workbook()
-    ws_out = wb_out.active
-    ws_out.title = "Merged"
+def _read_csv_rows(input_path):
+    """Lê um arquivo CSV e retorna lista de listas."""
+    with open(input_path, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        return list(reader)
 
-    first_file = True
-    for file_path in file_paths:
-        file_path = Path(file_path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
-        wb = load_workbook(file_path, data_only=True)
-        # Assume que queremos a primeira planilha
-        ws = wb.worksheets[0]
-        # Copia linhas
-        for row in ws.iter_rows(values_only=True):
-            # Se for o primeiro arquivo, copia cabeçalho também
-            # Senão, pula cabeçalho (assumindo que é a primeira linha)
-            if not first_file and row == ws[1]:  # simplificação: verifica se é igual ao cabeçalho
-                continue
-            ws_out.append(row)
-        first_file = False
-
-    wb_out.save(str(output_path))
-    return str(output_path)
-
-def read_excel_sheet(file_path, sheet_name=0):
-    """
-    Lê uma planilha Excel e retorna os dados como lista de dicionários.
-    """
-    file_path = Path(file_path)
-    if not file_path.exists():
-        raise FileNotFoundError(f"Arquivo não encontrado: {file_path}")
-    wb = load_workbook(file_path, data_only=True)
-    if isinstance(sheet_name, int):
-        ws = wb.worksheets[sheet_name]
-    else:
-        ws = wb[sheet_name]
-    # Obtém cabeçalhos da primeira linha
-    headers = [cell.value for cell in ws[1]]
-    data = []
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        if not any(row):  # linha vazia
-            continue
-        data.append(dict(zip(headers, row)))
-    return data
-
-def write_excel_file(file_path, data, sheet_name='Sheet1'):
-    """
-    Escreve uma lista de dicionários em um arquivo Excel.
-    """
-    file_path = Path(file_path)
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-
-    wb = Workbook()
+# ========== XLSX -> OUTROS ==========
+def convert_xlsx_to_csv(input_path, output_path):
+    wb = load_workbook(input_path, data_only=True)
     ws = wb.active
-    ws.title = sheet_name
+    with open(output_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        for row in ws.iter_rows(values_only=True):
+            writer.writerow(row)
 
-    if not data:
-        # Se não houver dados, cria arquivo vazio
-        wb.save(str(file_path))
-        return str(file_path)
+def convert_xlsx_to_xls(input_path, output_path):
+    wb = load_workbook(input_path, data_only=True)
+    ws = wb.active
+    book = xlwt.Workbook(encoding='utf-8')
+    sheet = book.add_sheet('Sheet1')
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        for j, val in enumerate(row):
+            if val is None:
+                val = ''
+            sheet.write(i, j, val)
+    book.save(output_path)
 
-    headers = list(data[0].keys())
-    ws.append(headers)
-    for row in data:
-        ws.append([row.get(h, '') for h in headers])
+def convert_xlsx_to_html(input_path, output_path):
+    wb = load_workbook(input_path, data_only=True)
+    ws = wb.active
+    html = '<table border="1" cellpadding="3" style="border-collapse:collapse;">\n'
+    for row in ws.iter_rows(values_only=True):
+        html += '<tr>'
+        for cell in row:
+            html += f'<td>{cell if cell is not None else ""}</td>'
+        html += '</tr>\n'
+    html += '</table>'
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(html)
 
-    wb.save(str(file_path))
-    return str(file_path)
+def convert_xlsx_to_markdown(input_path, output_path):
+    wb = load_workbook(input_path, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write('')
+        return
+    headers = [str(cell) if cell is not None else '' for cell in rows[0]]
+    md = '| ' + ' | '.join(headers) + ' |\n'
+    md += '|' + '|'.join(['---' for _ in headers]) + '|\n'
+    for row in rows[1:]:
+        values = [str(cell) if cell is not None else '' for cell in row]
+        md += '| ' + ' | '.join(values) + ' |\n'
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(md)
+
+# ========== CSV -> OUTROS ==========
+def convert_csv_to_xlsx(input_path, output_path):
+    rows = _read_csv_rows(input_path)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    for row in rows:
+        ws.append(row)
+    wb.save(output_path)
+
+def convert_csv_to_xls(input_path, output_path):
+    rows = _read_csv_rows(input_path)
+    book = xlwt.Workbook(encoding='utf-8')
+    sheet = book.add_sheet('Sheet1')
+    for i, row in enumerate(rows):
+        for j, val in enumerate(row):
+            sheet.write(i, j, val)
+    book.save(output_path)
+
+def convert_csv_to_html(input_path, output_path):
+    rows = _read_csv_rows(input_path)
+    html = '<table border="1" cellpadding="3" style="border-collapse:collapse;">\n'
+    for row in rows:
+        html += '<tr>'
+        for cell in row:
+            html += f'<td>{cell}</td>'
+        html += '</tr>\n'
+    html += '</table>'
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(html)
+
+def convert_csv_to_markdown(input_path, output_path):
+    rows = _read_csv_rows(input_path)
+    if not rows:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write('')
+        return
+    headers = rows[0]
+    md = '| ' + ' | '.join(headers) + ' |\n'
+    md += '|' + '|'.join(['---' for _ in headers]) + '|\n'
+    for row in rows[1:]:
+        md += '| ' + ' | '.join(row) + ' |\n'
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(md)
+
+# ========== CONVERSÃO EM LOTE ==========
+def batch_convert(source_dir, dest_dir, input_format, output_format, recursive=False, overwrite=False):
+    """
+    Converte todos os arquivos de uma pasta (e subpastas, se recursive=True)
+    do formato de entrada para o formato de saída.
+
+    input_format: 'xlsx' ou 'csv'
+    output_format: 'xlsx', 'csv', 'xls', 'html', 'markdown'
+    """
+    source_path = Path(source_dir).resolve()
+    dest_path = Path(dest_dir).resolve()
+    if not source_path.exists():
+        raise FileNotFoundError(f"Pasta origem não encontrada: {source_dir}")
+    dest_path.mkdir(parents=True, exist_ok=True)
+
+    ext_map = {
+        'xlsx': '.xlsx',
+        'csv': '.csv',
+        'xls': '.xls',
+        'html': '.html',
+        'markdown': '.md'
+    }
+    input_ext = ext_map[input_format]
+    output_ext = ext_map[output_format]
+
+    if recursive:
+        files = list(source_path.rglob('*'))
+    else:
+        files = list(source_path.glob('*'))
+    files = [f for f in files if f.is_file() and f.suffix.lower() == input_ext]
+
+    results = {'processed': 0, 'skipped': 0, 'errors': []}
+
+    for file_path in files:
+        base = file_path.stem
+        output_file = dest_path / (base + output_ext)
+
+        if output_file.exists() and not overwrite:
+            results['skipped'] += 1
+            continue
+
+        try:
+            # Mapeia a função de conversão
+            if input_format == 'xlsx':
+                if output_format == 'csv':
+                    convert_xlsx_to_csv(file_path, output_file)
+                elif output_format == 'xls':
+                    convert_xlsx_to_xls(file_path, output_file)
+                elif output_format == 'html':
+                    convert_xlsx_to_html(file_path, output_file)
+                elif output_format == 'markdown':
+                    convert_xlsx_to_markdown(file_path, output_file)
+            elif input_format == 'csv':
+                if output_format == 'xlsx':
+                    convert_csv_to_xlsx(file_path, output_file)
+                elif output_format == 'xls':
+                    convert_csv_to_xls(file_path, output_file)
+                elif output_format == 'html':
+                    convert_csv_to_html(file_path, output_file)
+                elif output_format == 'markdown':
+                    convert_csv_to_markdown(file_path, output_file)
+            results['processed'] += 1
+        except Exception as e:
+            results['errors'].append({'file': str(file_path), 'error': str(e)})
+
+    return results
 ```
 
 
@@ -2774,207 +2868,193 @@ def insert_file_path(
         )
 
         # =====================================================
-        # INSERÇÃO NAS SEÇÕES
+        # INSERÇÃO APENAS NA ÚLTIMA SEÇÃO (ÚLTIMA PÁGINA)
         # =====================================================
 
-        for section in doc.Sections:
+        # Obtém a última seção do documento
+        last_section_index = doc.Sections.Count
+        last_section = doc.Sections(last_section_index)
 
-            header = section.Headers(1)
+        # Usa apenas a última seção (em vez de percorrer todas)
+        section = last_section
+        header = section.Headers(1)
 
-            # =================================================
-            # POSIÇÃO SUPERIOR
-            # =================================================
+        # =================================================
+        # POSIÇÃO SUPERIOR
+        # =================================================
 
-            if position == 'top':
+        if position == 'top':
 
-                shape = header.Shapes.AddTextEffect(
-                    PresetTextEffect=0,
-                    Text=text_to_insert,
-                    FontName="Arial",
-                    FontSize=font_size,
-                    FontBold=bold,
-                    FontItalic=italic,
-                    Left=0,
-                    Top=0
-                )
+            shape = header.Shapes.AddTextEffect(
+                PresetTextEffect=0,
+                Text=text_to_insert,
+                FontName="Arial",
+                FontSize=font_size,
+                FontBold=bold,
+                FontItalic=italic,
+                Left=0,
+                Top=0
+            )
 
-                shape.RelativeHorizontalPosition = 1
-                shape.RelativeVerticalPosition = 1
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
 
-                shape.Rotation = 0
+            shape.Rotation = 0
 
-                shape.Left = (
-                    page_width
-                    - shape.Width
-                ) / 2
+            shape.Left = (
+                page_width
+                - shape.Width
+            ) / 2
 
-                shape.Top = margin_pt
+            shape.Top = margin_pt
 
-            # =================================================
-            # POSIÇÃO INFERIOR
-            # =================================================
+        # =================================================
+        # POSIÇÃO INFERIOR
+        # =================================================
 
-            elif position == 'bottom':
+        elif position == 'bottom':
 
-                shape = header.Shapes.AddTextEffect(
-                    PresetTextEffect=0,
-                    Text=text_to_insert,
-                    FontName="Arial",
-                    FontSize=font_size,
-                    FontBold=bold,
-                    FontItalic=italic,
-                    Left=0,
-                    Top=0
-                )
+            shape = header.Shapes.AddTextEffect(
+                PresetTextEffect=0,
+                Text=text_to_insert,
+                FontName="Arial",
+                FontSize=font_size,
+                FontBold=bold,
+                FontItalic=italic,
+                Left=0,
+                Top=0
+            )
 
-                shape.RelativeHorizontalPosition = 1
-                shape.RelativeVerticalPosition = 1
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
 
-                shape.Rotation = 0
+            shape.Rotation = 0
 
-                shape.Left = (
-                    page_width
-                    - shape.Width
-                ) / 2
+            shape.Left = (
+                page_width
+                - shape.Width
+            ) / 2
 
-                shape.Top = (
-                    page_height
-                    - margin_pt
-                    - shape.Height
-                )
+            shape.Top = (
+                page_height
+                - margin_pt
+                - shape.Height
+            )
 
-            # =================================================
-            # POSIÇÃO ESQUERDA
-            # =================================================
+        # =================================================
+        # POSIÇÃO ESQUERDA
+        # =================================================
 
-            elif position == 'left':
+        elif position == 'left':
 
-                shape = header.Shapes.AddTextEffect(
-                    PresetTextEffect=0,
-                    Text=text_to_insert,
-                    FontName="Arial",
-                    FontSize=font_size,
-                    FontBold=bold,
-                    FontItalic=italic,
-                    Left=0,
-                    Top=0
-                )
+            shape = header.Shapes.AddTextEffect(
+                PresetTextEffect=0,
+                Text=text_to_insert,
+                FontName="Arial",
+                FontSize=font_size,
+                FontBold=bold,
+                FontItalic=italic,
+                Left=0,
+                Top=0
+            )
 
-                shape.RelativeHorizontalPosition = 1
-                shape.RelativeVerticalPosition = 1
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
 
-                shape.Rotation = 270
+            shape.Rotation = 270
 
-                # Após a rotação, o Word mantém o ponto
-                # de referência original da caixa.
-                #
-                # Por isso o objeto é deslocado para dentro
-                # da página utilizando sua largura real.
+            shape.Left = margin_pt
 
-                shape.Left = margin_pt
+            shape.Top = (
+                page_height
+                - shape.Height
+            ) / 2
 
-                shape.Top = (
-                    page_height
-                    - shape.Height
-                ) / 2
+        # =================================================
+        # POSIÇÃO DIREITA
+        # =================================================
 
-            # =================================================
-            # POSIÇÃO DIREITA
-            # =================================================
+        else:
 
-            else:
+            shape = header.Shapes.AddTextEffect(
+                PresetTextEffect=0,
+                Text=text_to_insert,
+                FontName="Arial",
+                FontSize=font_size,
+                FontBold=bold,
+                FontItalic=italic,
+                Left=0,
+                Top=0
+            )
 
-                shape = header.Shapes.AddTextEffect(
-                    PresetTextEffect=0,
-                    Text=text_to_insert,
-                    FontName="Arial",
-                    FontSize=font_size,
-                    FontBold=bold,
-                    FontItalic=italic,
-                    Left=0,
-                    Top=0
-                )
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
 
-                shape.RelativeHorizontalPosition = 1
-                shape.RelativeVerticalPosition = 1
+            shape.Rotation = 90
 
-                shape.Rotation = 90
+            shape.Left = (
+                page_width
+                - margin_pt
+                - shape.Width
+            )
 
-                # A posição direita é calculada utilizando
-                # o limite real da página.
-                #
-                # O objeto é primeiro trazido para dentro
-                # da página e depois alinhado à margem.
+            shape.Top = (
+                page_height
+                - shape.Height
+            ) / 2
 
-                shape.Left = (
-                    page_width
-                    - margin_pt
-                    - shape.Width
-                )
+        # =================================================
+        # CONFIGURAÇÕES DO WORDART
+        # =================================================
 
-                shape.Top = (
-                    page_height
-                    - shape.Height
-                ) / 2
+        shape.LockAnchor = True
 
-            # =================================================
-            # CONFIGURAÇÕES DO WORDART
-            # =================================================
+        shape.LockAspectRatio = False
 
-            shape.LockAnchor = True
+        # =================================================
+        # COR DO TEXTO
+        # =================================================
 
-            shape.LockAspectRatio = False
+        try:
 
-            # =================================================
-            # COR DO TEXTO
-            # =================================================
+            hex_color = color.replace(
+                '#',
+                ''
+            )
 
-            try:
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16)
+            b = int(hex_color[4:6], 16)
 
-                hex_color = color.replace(
-                    '#',
-                    ''
-                )
+            rgb = (
+                r
+                + (g << 8)
+                + (b << 16)
+            )
 
-                # Converte HEX para RGB no formato utilizado pelo Word.
-                # O Word utiliza a ordem BGR internamente.
-                r = int(hex_color[0:2], 16)
-                g = int(hex_color[2:4], 16)
-                b = int(hex_color[4:6], 16)
+            shape.Fill.ForeColor.RGB = rgb
 
-                rgb = (
-                    r
-                    + (g << 8)
-                    + (b << 16)
-                )
+            shape.Fill.Visible = True
 
-                # Define a cor do preenchimento do WordArt.
-                shape.Fill.ForeColor.RGB = rgb
+            shape.Line.Visible = False
 
-                # Torna o preenchimento visível.
-                shape.Fill.Visible = True
+        except Exception:
 
-                # Remove somente o contorno.
-                shape.Line.Visible = False
+            shape.Fill.ForeColor.RGB = (
+                128
+                + (128 << 8)
+                + (128 << 16)
+            )
 
-            except Exception:
+            shape.Fill.Visible = True
 
-                # Cor padrão: cinza
-                shape.Fill.ForeColor.RGB = (
-                    128
-                    + (128 << 8)
-                    + (128 << 16)
-                )
+            shape.Line.Visible = False
 
-                shape.Fill.Visible = True
+        # =================================================
+        # CAMADA
+        # =================================================
 
-                shape.Line.Visible = False
-
-            # =================================================
-            # CAMADA
-            # =================================================
-
-            shape.ZOrder(3)
+        shape.ZOrder(3)
 
         # =====================================================
         # SALVAMENTO
@@ -3061,38 +3141,24 @@ from controllers.excel_controller import ExcelController
 excel_bp = Blueprint('excel', __name__)
 controller = ExcelController()
 
-@excel_bp.route('/merge', methods=['POST'])
-def merge():
+@excel_bp.route('/convert-batch', methods=['POST'])
+def convert_batch():
     data = request.json
-    if not data.get('file_paths') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: file_paths, output_path"}), 400
-    try:
-        result = controller.merge(data['file_paths'], data['output_path'])
-        return jsonify({"success": True, "output_path": result}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    required = ['source_dir', 'dest_dir', 'input_format', 'output_format']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
 
-@excel_bp.route('/read', methods=['POST'])
-def read():
-    data = request.json
-    if not data.get('file_path'):
-        return jsonify({"error": "Campo obrigatório: file_path"}), 400
     try:
-        sheet = data.get('sheet_name', 0)
-        result = controller.read_sheet(data['file_path'], sheet)
-        return jsonify({"success": True, "data": result}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@excel_bp.route('/write', methods=['POST'])
-def write():
-    data = request.json
-    if not data.get('file_path') or not data.get('data'):
-        return jsonify({"error": "Campos obrigatórios: file_path, data"}), 400
-    try:
-        sheet = data.get('sheet_name', 'Sheet1')
-        result = controller.write_data(data['file_path'], data['data'], sheet)
-        return jsonify({"success": True, "output_path": result}), 200
+        result = controller.convert_batch(
+            source_dir=data['source_dir'],
+            dest_dir=data['dest_dir'],
+            input_format=data['input_format'].lower(),
+            output_format=data['output_format'].lower(),
+            recursive=data.get('recursive', False),
+            overwrite=data.get('overwrite', False)
+        )
+        return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 ```
@@ -3796,7 +3862,6 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/file/split.js"></script>
     <script src="js/modules/home.js"></script>
     <script src="js/modules/pdf.js"></script>
-    <script src="js/modules/excel.js"></script>
     <script src="js/modules/settings.js"></script>
     <script src="js/modules/word/utils.js"></script>
     <script src="js/modules/word/merge.js"></script>
@@ -3806,6 +3871,9 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/word/watermark.js"></script>
     <script src="js/modules/word/filepath.js"></script>
     <script src="js/modules/word/index.js"></script>
+    <script src="js/modules/excel/utils.js"></script>
+    <script src="js/modules/excel/convert.js"></script>
+    <script src="js/modules/excel/index.js"></script>
     <script src="js/app.js"></script>
 </body>
 
@@ -4315,9 +4383,7 @@ window.API = {
         filepath: (params) => apiRequest('/word/filepath', 'POST', params),
     },
     excel: {
-        merge: (params) => apiRequest('/excel/merge', 'POST', params),
-        read: (params) => apiRequest('/excel/read', 'POST', params),
-        write: (params) => apiRequest('/excel/write', 'POST', params),
+        convertBatch: (params) => apiRequest('/excel/convert-batch', 'POST', params),
     },
     health: () => apiRequest('/health'),
 };
@@ -4382,270 +4448,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(err => console.warn('Backend indisponível:', err.message));
     }
 });
-```
-
-
-### frontend\js\modules\excel.js
-
-```
-class ExcelModule {
-    constructor(container) {
-        this.container = container;
-        this.currentFeature = 'merge';
-        this.features = [
-            { id: 'merge', label: 'Mesclar Planilhas', render: this.renderMerge.bind(this) },
-            { id: 'read', label: 'Ler Planilha', render: this.renderRead.bind(this) },
-            { id: 'write', label: 'Escrever Dados', render: this.renderWrite.bind(this) },
-        ];
-    }
-
-    render() {
-        this.container.innerHTML = `
-            <div class="page active">
-                <h2 class="module-title"><i class="bi bi-file-earmark-excel me-2"></i>Planilhas</h2>
-                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
-                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
-                        <h3>Funcionalidades</h3>
-                        <ul class="feature-list">
-                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
-                        </ul>
-                    </div>
-                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
-                </div>
-            </div>
-        `;
-        this.container.querySelectorAll('.feature-list li').forEach(item => {
-            item.addEventListener('click', () => {
-                const feature = item.dataset.feature;
-                this.selectFeature(feature);
-            });
-        });
-        this.renderCurrentFeature();
-    }
-
-    selectFeature(featureId) {
-        this.currentFeature = featureId;
-        this.container.querySelectorAll('.feature-list li').forEach(li => {
-            li.classList.toggle('active', li.dataset.feature === featureId);
-        });
-        this.renderCurrentFeature();
-    }
-
-    renderCurrentFeature() {
-        const feature = this.features.find(f => f.id === this.currentFeature);
-        if (feature) feature.render();
-    }
-
-    renderMerge() {
-        const content = document.getElementById('feature-content');
-        content.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-arrow-left-right me-2"></i>Mesclar Planilhas</h4>
-                <p class="text-muted">Combine várias planilhas Excel em uma única.</p>
-            </div>
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="mb-2">
-                        <label class="form-label">Arquivos</label>
-                        <div class="input-group">
-                            <input type="text" id="excel-merge-files" class="form-control" placeholder="Caminhos separados por vírgula">
-                            <button class="btn btn-outline-secondary" id="btn-add-excel">Adicionar</button>
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label">Salvar como</label>
-                        <div class="input-group">
-                            <input type="text" id="excel-merge-output" class="form-control" placeholder="Caminho de saída">
-                            <button class="btn btn-outline-secondary" id="btn-excel-output">Selecionar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <button class="btn btn-success" id="btn-merge-excel">Mesclar</button>
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="excel-log">Log de operações vazio</div>
-            </div>
-        `;
-
-        document.getElementById('btn-add-excel').addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openFile', 'multiSelections'], filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }] })
-                    .then(result => {
-                        if (!result.canceled) {
-                            const current = document.getElementById('excel-merge-files').value;
-                            const newPaths = result.filePaths.join(', ');
-                            document.getElementById('excel-merge-files').value = current ? current + ', ' + newPaths : newPaths;
-                        }
-                    });
-            }
-        });
-
-        document.getElementById('btn-excel-output').addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({ filters: [{ name: 'Excel', extensions: ['xlsx'] }] })
-                    .then(result => {
-                        if (!result.canceled && result.filePath) {
-                            document.getElementById('excel-merge-output').value = result.filePath;
-                        }
-                    });
-            }
-        });
-
-        document.getElementById('btn-merge-excel').addEventListener('click', async () => {
-            const files = document.getElementById('excel-merge-files').value.split(',').map(s => s.trim()).filter(Boolean);
-            const output = document.getElementById('excel-merge-output').value.trim();
-            if (!files.length || !output) {
-                this.log('Preencha os arquivos e o caminho de saída.', 'excel-log');
-                return;
-            }
-            try {
-                const result = await window.API.excel.merge({ file_paths: files, output_path: output });
-                this.log(`Planilhas mescladas: ${result.output_path}`, 'excel-log');
-            } catch (err) {
-                this.log(`Erro: ${err.message}`, 'excel-log');
-            }
-        });
-    }
-
-    renderRead() {
-        const content = document.getElementById('feature-content');
-        content.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-eye me-2"></i>Ler Planilha</h4>
-                <p class="text-muted">Visualize o conteúdo de uma planilha Excel.</p>
-            </div>
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="mb-2">
-                        <label class="form-label">Arquivo</label>
-                        <div class="input-group">
-                            <input type="text" id="excel-read-file" class="form-control" placeholder="Caminho do arquivo">
-                            <button class="btn btn-outline-secondary" id="btn-read-select">Selecionar</button>
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label">Nome da planilha (ou índice)</label>
-                        <input type="text" id="excel-sheet-name" class="form-control" value="0" style="width:200px;">
-                    </div>
-                </div>
-            </div>
-            <button class="btn btn-success" id="btn-read-excel">Ler</button>
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="read-log">Log de operações vazio</div>
-            </div>
-            <div class="mt-2">
-                <label class="fw-bold text-success">Dados</label>
-                <div id="excel-data" class="p-2 border rounded" style="max-height:300px; overflow:auto;"></div>
-            </div>
-        `;
-
-        document.getElementById('btn-read-select').addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Excel', extensions: ['xlsx', 'xls'] }] })
-                    .then(result => {
-                        if (!result.canceled) document.getElementById('excel-read-file').value = result.filePaths[0];
-                    });
-            }
-        });
-
-        document.getElementById('btn-read-excel').addEventListener('click', async () => {
-            const file = document.getElementById('excel-read-file').value.trim();
-            const sheet = document.getElementById('excel-sheet-name').value.trim();
-            if (!file) {
-                this.log('Selecione um arquivo.', 'read-log');
-                return;
-            }
-            try {
-                const result = await window.API.excel.read({ file_path: file, sheet_name: isNaN(sheet) ? sheet : parseInt(sheet) });
-                const dataDiv = document.getElementById('excel-data');
-                if (result.data && result.data.length) {
-                    dataDiv.innerHTML = `<pre class="mb-0">${JSON.stringify(result.data, null, 2)}</pre>`;
-                } else {
-                    dataDiv.innerHTML = '<p class="text-muted">Nenhum dado encontrado.</p>';
-                }
-                this.log(`Lidos ${result.data.length} registros.`, 'read-log');
-            } catch (err) {
-                this.log(`Erro: ${err.message}`, 'read-log');
-            }
-        });
-    }
-
-    renderWrite() {
-        const content = document.getElementById('feature-content');
-        content.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-pencil me-2"></i>Escrever Dados</h4>
-                <p class="text-muted">Crie uma planilha Excel a partir de dados JSON.</p>
-            </div>
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="mb-2">
-                        <label class="form-label">Arquivo de saída</label>
-                        <div class="input-group">
-                            <input type="text" id="excel-write-file" class="form-control" placeholder="Caminho de saída">
-                            <button class="btn btn-outline-secondary" id="btn-write-select">Selecionar</button>
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label">Nome da planilha</label>
-                        <input type="text" id="excel-write-sheet" class="form-control" value="Sheet1" style="width:200px;">
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label">Dados (JSON)</label>
-                        <textarea id="excel-write-data" class="form-control" rows="4" placeholder='[{"col1":"valor1","col2":"valor2"}]'></textarea>
-                    </div>
-                </div>
-            </div>
-            <button class="btn btn-success" id="btn-write-excel">Escrever</button>
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="write-log">Log de operações vazio</div>
-            </div>
-        `;
-
-        document.getElementById('btn-write-select').addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({ filters: [{ name: 'Excel', extensions: ['xlsx'] }] })
-                    .then(result => {
-                        if (!result.canceled && result.filePath) {
-                            document.getElementById('excel-write-file').value = result.filePath;
-                        }
-                    });
-            }
-        });
-
-        document.getElementById('btn-write-excel').addEventListener('click', async () => {
-            const file = document.getElementById('excel-write-file').value.trim();
-            const sheet = document.getElementById('excel-write-sheet').value.trim();
-            const dataStr = document.getElementById('excel-write-data').value.trim();
-            if (!file || !dataStr) {
-                this.log('Preencha o arquivo e os dados.', 'write-log');
-                return;
-            }
-            try {
-                const data = JSON.parse(dataStr);
-                if (!Array.isArray(data) || data.length === 0) throw new Error('Dados devem ser um array não vazio.');
-                const result = await window.API.excel.write({ file_path: file, sheet_name: sheet, data });
-                this.log(`Dados escritos em ${result.output_path}`, 'write-log');
-            } catch (err) {
-                this.log(`Erro: ${err.message}`, 'write-log');
-            }
-        });
-    }
-
-    log(message, logId) {
-        const logArea = document.getElementById(logId);
-        if (logArea) {
-            const p = document.createElement('p');
-            p.textContent = message;
-            logArea.appendChild(p);
-            logArea.scrollTop = logArea.scrollHeight;
-        }
-    }
-}
-window.ExcelModule = ExcelModule;
 ```
 
 
@@ -4923,6 +4725,230 @@ class SettingsPage {
     }
 }
 window.SettingsPage = SettingsPage;
+```
+
+
+### frontend\js\modules\excel\convert.js
+
+```
+class ConvertFeature {
+    constructor(container) {
+        this.container = container;
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-arrow-left-right me-2"></i>Conversão em Lote</h4>
+                <p class="text-muted">Converta vários arquivos XLSX ou CSV para outros formatos de uma só vez.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pastas</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta de origem</label>
+                        <div class="input-group">
+                            <input type="text" id="excel-source-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-excel-source">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta de destino</label>
+                        <div class="input-group">
+                            <input type="text" id="excel-dest-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-excel-dest">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Formato de entrada</h5>
+                            <select id="excel-input-format" class="form-select">
+                                <option value="xlsx">XLSX</option>
+                                <option value="csv">CSV</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Formato de saída</h5>
+                            <select id="excel-output-format" class="form-select">
+                                <option value="xlsx">XLSX</option>
+                                <option value="csv">CSV</option>
+                                <option value="xls">XLS (Excel 97-2003)</option>
+                                <option value="html">HTML</option>
+                                <option value="markdown">Markdown</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="excel-recursive">
+                        <label class="form-check-label">Incluir subpastas</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="excel-overwrite">
+                        <label class="form-check-label">Sobrescrever arquivos existentes</label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-excel-convert"><i class="bi bi-play-fill"></i> Converter</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="excel-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="excel-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-excel-source').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('excel-source-dir');
+        });
+
+        document.getElementById('btn-excel-dest').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('excel-dest-dir');
+        });
+
+        document.getElementById('btn-excel-convert').addEventListener('click', () => this.convertBatch());
+    }
+
+    async convertBatch() {
+        const sourceDir = document.getElementById('excel-source-dir').value.trim();
+        const destDir = document.getElementById('excel-dest-dir').value.trim();
+        const inputFormat = document.getElementById('excel-input-format').value;
+        const outputFormat = document.getElementById('excel-output-format').value;
+        const recursive = document.getElementById('excel-recursive').checked;
+        const overwrite = document.getElementById('excel-overwrite').checked;
+
+        if (!sourceDir || !destDir) {
+            FileUtils.log('Selecione as pastas de origem e destino.', 'excel-log');
+            return;
+        }
+        if (sourceDir === destDir) {
+            FileUtils.log('Origem e destino não podem ser iguais.', 'excel-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-excel-convert');
+        btn.disabled = true;
+        FileUtils.clearLog('excel-log');
+        FileUtils.log(`Iniciando conversão de ${inputFormat.toUpperCase()} → ${outputFormat.toUpperCase()}...`, 'excel-log');
+
+        try {
+            const result = await window.API.excel.convertBatch({
+                source_dir: sourceDir,
+                dest_dir: destDir,
+                input_format: inputFormat,
+                output_format: outputFormat,
+                recursive: recursive,
+                overwrite: overwrite
+            });
+
+            const { processed, skipped, errors } = result;
+            FileUtils.log(`Concluído! ${processed} arquivos convertidos, ${skipped} ignorados.`, 'excel-log');
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'excel-log');
+                errors.forEach(e => FileUtils.log(`  ${e.file}: ${e.error}`, 'excel-log'));
+            }
+            document.getElementById('excel-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'excel-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+// Exporta a classe para uso no módulo principal
+window.ConvertFeature = ConvertFeature;
+```
+
+
+### frontend\js\modules\excel\index.js
+
+```
+class ExcelModule {
+    constructor(container) {
+        this.container = container;
+        this.currentFeature = 'convert';
+        this.features = [
+            { id: 'convert', label: 'Conversão em Lote', render: (container) => new ConvertFeature(container).render() },
+        ];
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h2 class="module-title"><i class="bi bi-file-earmark-excel me-2"></i>Planilhas</h2>
+                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
+                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
+                        <h3>Funcionalidades</h3>
+                        <ul class="feature-list">
+                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
+                </div>
+            </div>
+        `;
+
+        this.container.querySelectorAll('.feature-list li').forEach(item => {
+            item.addEventListener('click', () => {
+                const feature = item.dataset.feature;
+                this.selectFeature(feature);
+            });
+        });
+
+        this.renderCurrentFeature();
+    }
+
+    selectFeature(featureId) {
+        this.currentFeature = featureId;
+        this.container.querySelectorAll('.feature-list li').forEach(li => {
+            li.classList.toggle('active', li.dataset.feature === featureId);
+        });
+        this.renderCurrentFeature();
+    }
+
+    renderCurrentFeature() {
+        const feature = this.features.find(f => f.id === this.currentFeature);
+        if (feature) {
+            const content = document.getElementById('feature-content');
+            content.innerHTML = '';
+            feature.render(content);
+        }
+    }
+}
+
+window.ExcelModule = ExcelModule;
+```
+
+
+### frontend\js\modules\excel\utils.js
+
+```
+// Utilitários para o módulo Excel (futuro)
+const ExcelUtils = {};
 ```
 
 
