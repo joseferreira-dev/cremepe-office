@@ -1,5 +1,13 @@
 from typing import List, Optional
-from models.word_processor import merge_documents, convert_document, compare_documents, extract_images, add_watermark, preview_watermark_position
+from models.word_processor import (
+    merge_documents,
+    convert_document,
+    compare_documents,
+    extract_images,
+    add_watermark,
+    preview_watermark_position,
+    insert_file_path
+)
 
 class WordController:
     def merge_documents(self, docx_paths: List[str], output_path: str, insert_page_breaks: bool = True) -> str:
@@ -13,7 +21,7 @@ class WordController:
 
     def extract_images(self, input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
         return extract_images(input_path, output_dir, prefix)
-    
+
     def add_watermark(
         self,
         input_path: str,
@@ -47,4 +55,22 @@ class WordController:
         return preview_watermark_position(
             page_width_cm, page_height_cm, position,
             width_cm, height_cm, margin_left_cm, margin_top_cm
+        )
+
+    def insert_file_path(
+        self,
+        input_path: str,
+        output_path: str,
+        position: str = 'right',
+        margin_cm: float = 1.0,
+        font_size: int = 12,
+        color: str = '#000000',
+        bold: bool = False,
+        italic: bool = False,
+        transparency: float = 0.5,
+        use_full_path: bool = True
+    ) -> str:
+        return insert_file_path(
+            input_path, output_path, position, margin_cm,
+            font_size, color, bold, italic, transparency, use_full_path
         )

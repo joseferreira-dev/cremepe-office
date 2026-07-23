@@ -104,3 +104,25 @@ def preview_watermark():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/filepath', methods=['POST'])
+def insert_file_path():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+    try:
+        result = controller.insert_file_path(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            position=data.get('position', 'right'),
+            margin_cm=data.get('margin_cm', 1.0),
+            font_size=data.get('font_size', 12),
+            color=data.get('color', '#000000'),
+            bold=data.get('bold', False),
+            italic=data.get('italic', False),
+            transparency=data.get('transparency', 0.5),
+            use_full_path=data.get('use_full_path', True)
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

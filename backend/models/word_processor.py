@@ -88,10 +88,7 @@ def convert_with_word(input_path: Path, output_path: Path, format_code: int) -> 
 
 # ==================== FUNÇÃO PRINCIPAL DE CONVERSÃO ====================
 def convert_document(input_path: str, output_path: str, output_format: str) -> str:
-    """
-    Converte um documento para o formato especificado.
-    output_format: 'html', 'txt', 'doc', 'pdf'
-    """
+    """Converte um documento para o formato especificado."""
     input_path = Path(input_path).resolve()
     if not input_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
@@ -303,9 +300,7 @@ def add_watermark(
     margin_left_cm: float = 0.0,
     margin_top_cm: float = 0.0
 ) -> str:
-    """
-    Insere marca d'água (texto ou imagem) com posição exata relativa à página.
-    """
+    """Insere marca d'água (texto ou imagem) com posição exata relativa à página."""
     input_path = Path(input_path).resolve()
     if not input_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
@@ -327,19 +322,15 @@ def add_watermark(
 
         doc = word.Documents.Open(str(input_path))
 
-        # Dimensões da página em pontos
         page_width = doc.PageSetup.PageWidth
         page_height = doc.PageSetup.PageHeight
 
-        # Tamanho em pontos (1 cm = 28.3464567 pontos)
         width_pt = width_cm * 28.3464567
         height_pt = height_cm * 28.3464567
 
-        # Margens adicionais em pontos
         margin_left_pt = margin_left_cm * 28.3464567
         margin_top_pt = margin_top_cm * 28.3464567
 
-        # Coordenadas base relativas à página
         base_positions = {
             'top-left': (0, 0),
             'top-center': ((page_width - width_pt) / 2, 0),
@@ -355,14 +346,11 @@ def add_watermark(
         left = left_base + margin_left_pt
         top = top_base + margin_top_pt
 
-        # Acessa o cabeçalho primário de cada seção
         for section in doc.Sections:
-            header = section.Headers(1)  # wdHeaderFooterPrimary
-
-            # Cria a forma diretamente no cabeçalho
+            header = section.Headers(1)
             if content_type == 'text':
                 if not text:
-                    raise ValueError("Texto obrigatório para marca d'água de texto")
+                    raise ValueError("Texto obrigatório")
                 shape = header.Shapes.AddTextEffect(
                     PresetTextEffect=0,
                     Text=text,
@@ -376,9 +364,9 @@ def add_watermark(
                 shape.Width = width_pt
                 shape.Height = height_pt
                 shape.Fill.Transparency = 1.0 - transparency
-                shape.Fill.ForeColor.RGB = 0  # preto
+                shape.Fill.ForeColor.RGB = 0
                 shape.Line.Visible = False
-            else:  # image
+            else:
                 if not image_path or not Path(image_path).exists():
                     raise FileNotFoundError(f"Imagem não encontrada: {image_path}")
                 shape = header.Shapes.AddPicture(
@@ -392,13 +380,11 @@ def add_watermark(
                 )
                 shape.Fill.Transparency = 1.0 - transparency
 
-            # Define posição relativa à página
-            shape.RelativeHorizontalPosition = 1  # wdRelativeHorizontalPositionPage
-            shape.RelativeVerticalPosition = 1    # wdRelativeVerticalPositionPage
-            shape.LockAnchor = True               # impede deslocamento
-            shape.ZOrder(3)                       # wdSendBehindText
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
+            shape.LockAnchor = True
+            shape.ZOrder(3)
 
-        # Salva o documento
         ext = output_path.suffix.lower()
         save_format = 0 if ext == '.doc' else 16
         doc.SaveAs(str(output_path), FileFormat=save_format)
@@ -427,9 +413,6 @@ def preview_watermark_position(
     margin_left_cm: float = 0.0,
     margin_top_cm: float = 0.0
 ) -> dict:
-    """
-    Retorna as coordenadas (em cm) da marca d'água para preview visual.
-    """
     base_positions = {
         'top-left': (0, 0),
         'top-center': ((page_width_cm - width_cm) / 2, 0),
@@ -453,3 +436,371 @@ def preview_watermark_position(
         'page_width': page_width_cm,
         'page_height': page_height_cm
     }
+
+# ==================== CAMINHO DO ARQUIVO (CORRIGIDO) ====================
+def insert_file_path(
+    input_path: str,
+    output_path: str,
+    position: str = 'right',
+    margin_cm: float = 1.0,
+    font_size: int = 8,
+    color: str = '#000000',
+    bold: bool = False,
+    italic: bool = False,
+    transparency: float = 0.5,
+    use_full_path: bool = True
+) -> str:
+    """
+    Insere o caminho do arquivo nas margens do documento Word
+    utilizando WordArt.
+
+    Posições suportadas:
+        - top
+        - bottom
+        - left
+        - right
+    """
+
+    input_path = Path(input_path).resolve()
+
+    if not input_path.exists():
+        raise FileNotFoundError(
+            f"Arquivo não encontrado: {input_path}"
+        )
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_docx = None
+
+    if input_path.suffix.lower() == '.doc':
+        temp_docx = convert_doc_to_docx(input_path)
+        input_path = temp_docx
+
+    text_to_insert = (
+        str(input_path)
+        if use_full_path
+        else input_path.name
+    )
+
+    position = position.lower().strip()
+
+    if position not in (
+        'top',
+        'bottom',
+        'left',
+        'right'
+    ):
+        raise ValueError(
+            "Posição inválida. Use: top, bottom, left ou right."
+        )
+
+    CM_TO_PT = 28.3464567
+    margin_pt = margin_cm * CM_TO_PT
+
+    pythoncom.CoInitialize()
+
+    word = None
+    doc = None
+
+    try:
+
+        word = win32com.client.Dispatch(
+            "Word.Application"
+        )
+
+        word.Visible = False
+        word.DisplayAlerts = False
+
+        doc = word.Documents.Open(
+            str(input_path)
+        )
+
+        page_width = doc.PageSetup.PageWidth
+        page_height = doc.PageSetup.PageHeight
+
+        # =====================================================
+        # ESTIMATIVA DO TAMANHO DO TEXTO
+        # =====================================================
+
+        estimated_width = (
+            len(text_to_insert)
+            * font_size
+            * 0.55
+        )
+
+        text_width = max(
+            100,
+            estimated_width
+        )
+
+        text_height = max(
+            font_size * 2.0,
+            20
+        )
+
+        max_text_width = (
+            page_width
+            - (margin_pt * 2)
+        )
+
+        text_width = min(
+            text_width,
+            max_text_width
+        )
+
+        # =====================================================
+        # INSERÇÃO APENAS NA ÚLTIMA SEÇÃO (ÚLTIMA PÁGINA)
+        # =====================================================
+
+        # Obtém a última seção do documento
+        last_section_index = doc.Sections.Count
+        last_section = doc.Sections(last_section_index)
+
+        # Usa apenas a última seção (em vez de percorrer todas)
+        section = last_section
+        header = section.Headers(1)
+
+        # =================================================
+        # POSIÇÃO SUPERIOR
+        # =================================================
+
+        if position == 'top':
+
+            shape = header.Shapes.AddTextEffect(
+                PresetTextEffect=0,
+                Text=text_to_insert,
+                FontName="Arial",
+                FontSize=font_size,
+                FontBold=bold,
+                FontItalic=italic,
+                Left=0,
+                Top=0
+            )
+
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
+
+            shape.Rotation = 0
+
+            shape.Left = (
+                page_width
+                - shape.Width
+            ) / 2
+
+            shape.Top = margin_pt
+
+        # =================================================
+        # POSIÇÃO INFERIOR
+        # =================================================
+
+        elif position == 'bottom':
+
+            shape = header.Shapes.AddTextEffect(
+                PresetTextEffect=0,
+                Text=text_to_insert,
+                FontName="Arial",
+                FontSize=font_size,
+                FontBold=bold,
+                FontItalic=italic,
+                Left=0,
+                Top=0
+            )
+
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
+
+            shape.Rotation = 0
+
+            shape.Left = (
+                page_width
+                - shape.Width
+            ) / 2
+
+            shape.Top = (
+                page_height
+                - margin_pt
+                - shape.Height
+            )
+
+        # =================================================
+        # POSIÇÃO ESQUERDA
+        # =================================================
+
+        elif position == 'left':
+
+            shape = header.Shapes.AddTextEffect(
+                PresetTextEffect=0,
+                Text=text_to_insert,
+                FontName="Arial",
+                FontSize=font_size,
+                FontBold=bold,
+                FontItalic=italic,
+                Left=0,
+                Top=0
+            )
+
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
+
+            shape.Rotation = 270
+
+            shape.Left = margin_pt
+
+            shape.Top = (
+                page_height
+                - shape.Height
+            ) / 2
+
+        # =================================================
+        # POSIÇÃO DIREITA
+        # =================================================
+
+        else:
+
+            shape = header.Shapes.AddTextEffect(
+                PresetTextEffect=0,
+                Text=text_to_insert,
+                FontName="Arial",
+                FontSize=font_size,
+                FontBold=bold,
+                FontItalic=italic,
+                Left=0,
+                Top=0
+            )
+
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
+
+            shape.Rotation = 90
+
+            shape.Left = (
+                page_width
+                - margin_pt
+                - shape.Width
+            )
+
+            shape.Top = (
+                page_height
+                - shape.Height
+            ) / 2
+
+        # =================================================
+        # CONFIGURAÇÕES DO WORDART
+        # =================================================
+
+        shape.LockAnchor = True
+
+        shape.LockAspectRatio = False
+
+        # =================================================
+        # COR DO TEXTO
+        # =================================================
+
+        try:
+
+            hex_color = color.replace(
+                '#',
+                ''
+            )
+
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16)
+            b = int(hex_color[4:6], 16)
+
+            rgb = (
+                r
+                + (g << 8)
+                + (b << 16)
+            )
+
+            shape.Fill.ForeColor.RGB = rgb
+
+            shape.Fill.Visible = True
+
+            shape.Line.Visible = False
+
+        except Exception:
+
+            shape.Fill.ForeColor.RGB = (
+                128
+                + (128 << 8)
+                + (128 << 16)
+            )
+
+            shape.Fill.Visible = True
+
+            shape.Line.Visible = False
+
+        # =================================================
+        # CAMADA
+        # =================================================
+
+        shape.ZOrder(3)
+
+        # =====================================================
+        # SALVAMENTO
+        # =====================================================
+
+        ext = output_path.suffix.lower()
+
+        save_format = (
+            0
+            if ext == '.doc'
+            else 16
+        )
+
+        doc.SaveAs(
+            str(output_path),
+            FileFormat=save_format
+        )
+
+        doc.Close(
+            SaveChanges=False
+        )
+
+        doc = None
+
+        return str(output_path)
+
+    except Exception as e:
+
+        raise RuntimeError(
+            f"Erro ao inserir caminho do arquivo: {str(e)}"
+        )
+
+    finally:
+
+        if doc is not None:
+
+            try:
+
+                doc.Close(
+                    SaveChanges=False
+                )
+
+            except Exception:
+
+                pass
+
+        if word:
+
+            try:
+
+                word.Quit()
+
+            except Exception:
+
+                pass
+
+        pythoncom.CoUninitialize()
+
+        if temp_docx and temp_docx.exists():
+
+            try:
+
+                temp_docx.unlink()
+
+            except Exception:
+
+                pass

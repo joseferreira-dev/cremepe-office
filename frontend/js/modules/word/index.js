@@ -7,6 +7,7 @@ class WordModule {
         this.compareFeature = new DocCompareFeature(this);
         this.extractImagesFeature = new ExtractImagesFeature(this);
         this.watermarkFeature = new WatermarkFeature(this);
+        this.filePathFeature = new FilePathFeature(this);
 
         this.features = [
             { id: 'merge', label: 'Juntar Documentos', render: (container) => this.mergeFeature.render(container) },
@@ -14,6 +15,7 @@ class WordModule {
             { id: 'compare', label: 'Comparar', render: (container) => this.compareFeature.render(container) },
             { id: 'extract-images', label: 'Extrair Imagens', render: (container) => this.extractImagesFeature.render(container) },
             { id: 'watermark', label: 'Marca d\'Água', render: (container) => this.watermarkFeature.render(container) },
+            { id: 'filepath', label: 'Caminho do Arquivo', render: (container) => this.filePathFeature.render(container) },
         ];
     }
 

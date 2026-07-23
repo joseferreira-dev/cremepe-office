@@ -64,9 +64,11 @@
 │   │   │   │   ├── compare.js
 │   │   │   │   ├── convert.js
 │   │   │   │   ├── extract_images.js
+│   │   │   │   ├── filepath.js
 │   │   │   │   ├── index.js
 │   │   │   │   ├── merge.js
-│   │   │   │   └── utils.js
+│   │   │   │   ├── utils.js
+│   │   │   │   └── watermark.js
 │   │   │   ├── excel.js
 │   │   │   ├── home.js
 │   │   │   ├── pdf.js
@@ -805,7 +807,15 @@ class PDFController:
 
 ```
 from typing import List, Optional
-from models.word_processor import merge_documents, convert_document, compare_documents, extract_images
+from models.word_processor import (
+    merge_documents,
+    convert_document,
+    compare_documents,
+    extract_images,
+    add_watermark,
+    preview_watermark_position,
+    insert_file_path
+)
 
 class WordController:
     def merge_documents(self, docx_paths: List[str], output_path: str, insert_page_breaks: bool = True) -> str:
@@ -819,6 +829,59 @@ class WordController:
 
     def extract_images(self, input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
         return extract_images(input_path, output_dir, prefix)
+
+    def add_watermark(
+        self,
+        input_path: str,
+        output_path: str,
+        content_type: str,
+        text: Optional[str] = None,
+        image_path: Optional[str] = None,
+        position: str = 'center',
+        width_cm: float = 5.0,
+        height_cm: float = 5.0,
+        transparency: float = 0.5,
+        margin_left_cm: float = 0.0,
+        margin_top_cm: float = 0.0
+    ) -> str:
+        return add_watermark(
+            input_path, output_path, content_type, text, image_path,
+            position, width_cm, height_cm, transparency,
+            margin_left_cm, margin_top_cm
+        )
+
+    def preview_watermark_position(
+        self,
+        page_width_cm: float = 21.0,
+        page_height_cm: float = 29.7,
+        position: str = 'center',
+        width_cm: float = 5.0,
+        height_cm: float = 5.0,
+        margin_left_cm: float = 0.0,
+        margin_top_cm: float = 0.0
+    ) -> dict:
+        return preview_watermark_position(
+            page_width_cm, page_height_cm, position,
+            width_cm, height_cm, margin_left_cm, margin_top_cm
+        )
+
+    def insert_file_path(
+        self,
+        input_path: str,
+        output_path: str,
+        position: str = 'right',
+        margin_cm: float = 1.0,
+        font_size: int = 12,
+        color: str = '#000000',
+        bold: bool = False,
+        italic: bool = False,
+        transparency: float = 0.5,
+        use_full_path: bool = True
+    ) -> str:
+        return insert_file_path(
+            input_path, output_path, position, margin_cm,
+            font_size, color, bold, italic, transparency, use_full_path
+        )
 ```
 
 
@@ -2249,10 +2312,7 @@ def convert_with_word(input_path: Path, output_path: Path, format_code: int) -> 
 
 # ==================== FUNÇÃO PRINCIPAL DE CONVERSÃO ====================
 def convert_document(input_path: str, output_path: str, output_format: str) -> str:
-    """
-    Converte um documento para o formato especificado.
-    output_format: 'html', 'txt', 'doc', 'pdf'
-    """
+    """Converte um documento para o formato especificado."""
     input_path = Path(input_path).resolve()
     if not input_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
@@ -2260,7 +2320,6 @@ def convert_document(input_path: str, output_path: str, output_format: str) -> s
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Converte .doc para .docx temporário se necessário
     temp_docx = None
     if input_path.suffix.lower() == '.doc':
         temp_docx = convert_doc_to_docx(input_path)
@@ -2288,23 +2347,19 @@ def convert_document(input_path: str, output_path: str, output_format: str) -> s
 
     return result
 
+# ==================== COMPARAÇÃO DE DOCUMENTOS ====================
 def extract_paragraphs(docx_path: Path) -> List[str]:
     """Extrai texto de cada parágrafo de um documento .docx."""
     doc = Document(docx_path)
     paragraphs = []
     for para in doc.paragraphs:
         text = para.text.strip()
-        if text:  # ignora parágrafos vazios
+        if text:
             paragraphs.append(text)
     return paragraphs
 
 def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
-    """
-    Compara dois documentos Word e retorna as diferenças.
-    Retorna um dicionário com:
-        - 'differences': lista de dicionários com tipo ('added', 'removed', 'modified') e detalhes.
-        - 'summary': resumo com contagens.
-    """
+    """Compara dois documentos Word e retorna as diferenças."""
     doc1_path = Path(doc1_path).resolve()
     doc2_path = Path(doc2_path).resolve()
 
@@ -2313,23 +2368,19 @@ def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
     if not doc2_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {doc2_path}")
 
-    # Se for .doc, converter para .docx temporário
     temp_doc1 = None
     temp_doc2 = None
     try:
         if doc1_path.suffix.lower() == '.doc':
-            from models.word_processor import convert_doc_to_docx
             temp_doc1 = convert_doc_to_docx(doc1_path)
             doc1_path = temp_doc1
         if doc2_path.suffix.lower() == '.doc':
-            from models.word_processor import convert_doc_to_docx
             temp_doc2 = convert_doc_to_docx(doc2_path)
             doc2_path = temp_doc2
 
         paragraphs1 = extract_paragraphs(doc1_path)
         paragraphs2 = extract_paragraphs(doc2_path)
 
-        # Usa SequenceMatcher para comparar listas de parágrafos
         matcher = difflib.SequenceMatcher(None, paragraphs1, paragraphs2)
         differences = []
         added_count = 0
@@ -2376,7 +2427,6 @@ def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
             }
         }
     finally:
-        # Limpa arquivos temporários
         if temp_doc1 and temp_doc1.exists():
             try:
                 temp_doc1.unlink()
@@ -2388,12 +2438,22 @@ def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
             except:
                 pass
 
+# ==================== EXTRAIR IMAGENS ====================
+def _get_extension_from_content_type(content_type: str) -> str:
+    ext_map = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/gif': '.gif',
+        'image/bmp': '.bmp',
+        'image/tiff': '.tiff',
+        'image/webp': '.webp',
+        'image/vnd.microsoft.icon': '.ico',
+        'image/svg+xml': '.svg'
+    }
+    return ext_map.get(content_type, '.bin')
+
 def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
-    """
-    Extrai todas as imagens de um documento Word (incluindo cabeçalhos, rodapés, formas e wordarts)
-    e as salva na pasta de destino.
-    Retorna lista de caminhos das imagens extraídas.
-    """
+    """Extrai todas as imagens de um documento Word."""
     input_path = Path(input_path).resolve()
     if not input_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
@@ -2411,7 +2471,6 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
         images = []
         counter = 1
 
-        # 1. Imagens da parte principal do documento
         for rel in doc.part.rels.values():
             if "image" in rel.target_ref:
                 image_blob = rel.target_part.blob
@@ -2425,22 +2484,13 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
                     images.append(str(output_path))
                     counter += 1
 
-        # 2. Imagens em cabeçalhos e rodapés
-        for section in doc.sections:
-            for header in section.header.paragraphs + section.header.tables:
-                if hasattr(header, '_element') and header._element is not None:
-                    header_part = header._element.getroottree().getroot().getroottree()
-                    pass
-
         package = doc.part.package
         for part in package.iter_parts():
-            # Se for uma parte de imagem, extrai
             if 'image' in part.content_type:
                 image_blob = part.blob
                 content_type = part.content_type
                 ext = _get_extension_from_content_type(content_type)
                 if ext:
-                    # Usa o nome da parte como referência
                     part_name = part.partname.split('/')[-1]
                     filename = f"{prefix or input_path.stem}_img_{counter:04d}_{part_name}{ext}"
                     output_path = output_dir / filename
@@ -2453,7 +2503,6 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
             raise ValueError("Nenhuma imagem encontrada no documento.")
 
         return images
-
     finally:
         if temp_docx and temp_docx.exists():
             try:
@@ -2461,19 +2510,538 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
             except:
                 pass
 
-def _get_extension_from_content_type(content_type: str) -> str:
-    """Retorna extensão de arquivo baseada no tipo MIME."""
-    ext_map = {
-        'image/png': '.png',
-        'image/jpeg': '.jpg',
-        'image/gif': '.gif',
-        'image/bmp': '.bmp',
-        'image/tiff': '.tiff',
-        'image/webp': '.webp',
-        'image/vnd.microsoft.icon': '.ico',
-        'image/svg+xml': '.svg'
+# ==================== MARCA D'ÁGUA ====================
+def add_watermark(
+    input_path: str,
+    output_path: str,
+    content_type: str,
+    text: Optional[str] = None,
+    image_path: Optional[str] = None,
+    position: str = 'center',
+    width_cm: float = 5.0,
+    height_cm: float = 5.0,
+    transparency: float = 0.5,
+    margin_left_cm: float = 0.0,
+    margin_top_cm: float = 0.0
+) -> str:
+    """Insere marca d'água (texto ou imagem) com posição exata relativa à página."""
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_docx = None
+    if input_path.suffix.lower() == '.doc':
+        temp_docx = convert_doc_to_docx(input_path)
+        input_path = temp_docx
+
+    pythoncom.CoInitialize()
+    word = None
+    try:
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
+        word.DisplayAlerts = False
+
+        doc = word.Documents.Open(str(input_path))
+
+        page_width = doc.PageSetup.PageWidth
+        page_height = doc.PageSetup.PageHeight
+
+        width_pt = width_cm * 28.3464567
+        height_pt = height_cm * 28.3464567
+
+        margin_left_pt = margin_left_cm * 28.3464567
+        margin_top_pt = margin_top_cm * 28.3464567
+
+        base_positions = {
+            'top-left': (0, 0),
+            'top-center': ((page_width - width_pt) / 2, 0),
+            'top-right': (page_width - width_pt, 0),
+            'center-left': (0, (page_height - height_pt) / 2),
+            'center': ((page_width - width_pt) / 2, (page_height - height_pt) / 2),
+            'center-right': (page_width - width_pt, (page_height - height_pt) / 2),
+            'bottom-left': (0, page_height - height_pt),
+            'bottom-center': ((page_width - width_pt) / 2, page_height - height_pt),
+            'bottom-right': (page_width - width_pt, page_height - height_pt)
+        }
+        left_base, top_base = base_positions.get(position, (0, 0))
+        left = left_base + margin_left_pt
+        top = top_base + margin_top_pt
+
+        for section in doc.Sections:
+            header = section.Headers(1)
+            if content_type == 'text':
+                if not text:
+                    raise ValueError("Texto obrigatório")
+                shape = header.Shapes.AddTextEffect(
+                    PresetTextEffect=0,
+                    Text=text,
+                    FontName="Arial",
+                    FontSize=36,
+                    FontBold=False,
+                    FontItalic=False,
+                    Left=left,
+                    Top=top
+                )
+                shape.Width = width_pt
+                shape.Height = height_pt
+                shape.Fill.Transparency = 1.0 - transparency
+                shape.Fill.ForeColor.RGB = 0
+                shape.Line.Visible = False
+            else:
+                if not image_path or not Path(image_path).exists():
+                    raise FileNotFoundError(f"Imagem não encontrada: {image_path}")
+                shape = header.Shapes.AddPicture(
+                    FileName=str(Path(image_path).resolve()),
+                    LinkToFile=False,
+                    SaveWithDocument=True,
+                    Left=left,
+                    Top=top,
+                    Width=width_pt,
+                    Height=height_pt
+                )
+                shape.Fill.Transparency = 1.0 - transparency
+
+            shape.RelativeHorizontalPosition = 1
+            shape.RelativeVerticalPosition = 1
+            shape.LockAnchor = True
+            shape.ZOrder(3)
+
+        ext = output_path.suffix.lower()
+        save_format = 0 if ext == '.doc' else 16
+        doc.SaveAs(str(output_path), FileFormat=save_format)
+        doc.Close(SaveChanges=False)
+
+        return str(output_path)
+
+    except Exception as e:
+        raise RuntimeError(f"Erro ao inserir marca d'água: {str(e)}")
+    finally:
+        if word:
+            word.Quit()
+        pythoncom.CoUninitialize()
+        if temp_docx and temp_docx.exists():
+            try:
+                temp_docx.unlink()
+            except:
+                pass
+
+def preview_watermark_position(
+    page_width_cm: float = 21.0,
+    page_height_cm: float = 29.7,
+    position: str = 'center',
+    width_cm: float = 5.0,
+    height_cm: float = 5.0,
+    margin_left_cm: float = 0.0,
+    margin_top_cm: float = 0.0
+) -> dict:
+    base_positions = {
+        'top-left': (0, 0),
+        'top-center': ((page_width_cm - width_cm) / 2, 0),
+        'top-right': (page_width_cm - width_cm, 0),
+        'center-left': (0, (page_height_cm - height_cm) / 2),
+        'center': ((page_width_cm - width_cm) / 2, (page_height_cm - height_cm) / 2),
+        'center-right': (page_width_cm - width_cm, (page_height_cm - height_cm) / 2),
+        'bottom-left': (0, page_height_cm - height_cm),
+        'bottom-center': ((page_width_cm - width_cm) / 2, page_height_cm - height_cm),
+        'bottom-right': (page_width_cm - width_cm, page_height_cm - height_cm)
     }
-    return ext_map.get(content_type, '.bin')
+    left_base, top_base = base_positions.get(position, (0, 0))
+    left = left_base + margin_left_cm
+    top = top_base + margin_top_cm
+
+    return {
+        'left': left,
+        'top': top,
+        'width': width_cm,
+        'height': height_cm,
+        'page_width': page_width_cm,
+        'page_height': page_height_cm
+    }
+
+# ==================== CAMINHO DO ARQUIVO (CORRIGIDO) ====================
+def insert_file_path(
+    input_path: str,
+    output_path: str,
+    position: str = 'right',
+    margin_cm: float = 1.0,
+    font_size: int = 8,
+    color: str = '#000000',
+    bold: bool = False,
+    italic: bool = False,
+    transparency: float = 0.5,
+    use_full_path: bool = True
+) -> str:
+    """
+    Insere o caminho do arquivo nas margens do documento Word
+    utilizando WordArt.
+
+    Posições suportadas:
+        - top
+        - bottom
+        - left
+        - right
+    """
+
+    input_path = Path(input_path).resolve()
+
+    if not input_path.exists():
+        raise FileNotFoundError(
+            f"Arquivo não encontrado: {input_path}"
+        )
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_docx = None
+
+    if input_path.suffix.lower() == '.doc':
+        temp_docx = convert_doc_to_docx(input_path)
+        input_path = temp_docx
+
+    text_to_insert = (
+        str(input_path)
+        if use_full_path
+        else input_path.name
+    )
+
+    position = position.lower().strip()
+
+    if position not in (
+        'top',
+        'bottom',
+        'left',
+        'right'
+    ):
+        raise ValueError(
+            "Posição inválida. Use: top, bottom, left ou right."
+        )
+
+    CM_TO_PT = 28.3464567
+    margin_pt = margin_cm * CM_TO_PT
+
+    pythoncom.CoInitialize()
+
+    word = None
+    doc = None
+
+    try:
+
+        word = win32com.client.Dispatch(
+            "Word.Application"
+        )
+
+        word.Visible = False
+        word.DisplayAlerts = False
+
+        doc = word.Documents.Open(
+            str(input_path)
+        )
+
+        page_width = doc.PageSetup.PageWidth
+        page_height = doc.PageSetup.PageHeight
+
+        # =====================================================
+        # ESTIMATIVA DO TAMANHO DO TEXTO
+        # =====================================================
+
+        estimated_width = (
+            len(text_to_insert)
+            * font_size
+            * 0.55
+        )
+
+        text_width = max(
+            100,
+            estimated_width
+        )
+
+        text_height = max(
+            font_size * 2.0,
+            20
+        )
+
+        max_text_width = (
+            page_width
+            - (margin_pt * 2)
+        )
+
+        text_width = min(
+            text_width,
+            max_text_width
+        )
+
+        # =====================================================
+        # INSERÇÃO NAS SEÇÕES
+        # =====================================================
+
+        for section in doc.Sections:
+
+            header = section.Headers(1)
+
+            # =================================================
+            # POSIÇÃO SUPERIOR
+            # =================================================
+
+            if position == 'top':
+
+                shape = header.Shapes.AddTextEffect(
+                    PresetTextEffect=0,
+                    Text=text_to_insert,
+                    FontName="Arial",
+                    FontSize=font_size,
+                    FontBold=bold,
+                    FontItalic=italic,
+                    Left=0,
+                    Top=0
+                )
+
+                shape.RelativeHorizontalPosition = 1
+                shape.RelativeVerticalPosition = 1
+
+                shape.Rotation = 0
+
+                shape.Left = (
+                    page_width
+                    - shape.Width
+                ) / 2
+
+                shape.Top = margin_pt
+
+            # =================================================
+            # POSIÇÃO INFERIOR
+            # =================================================
+
+            elif position == 'bottom':
+
+                shape = header.Shapes.AddTextEffect(
+                    PresetTextEffect=0,
+                    Text=text_to_insert,
+                    FontName="Arial",
+                    FontSize=font_size,
+                    FontBold=bold,
+                    FontItalic=italic,
+                    Left=0,
+                    Top=0
+                )
+
+                shape.RelativeHorizontalPosition = 1
+                shape.RelativeVerticalPosition = 1
+
+                shape.Rotation = 0
+
+                shape.Left = (
+                    page_width
+                    - shape.Width
+                ) / 2
+
+                shape.Top = (
+                    page_height
+                    - margin_pt
+                    - shape.Height
+                )
+
+            # =================================================
+            # POSIÇÃO ESQUERDA
+            # =================================================
+
+            elif position == 'left':
+
+                shape = header.Shapes.AddTextEffect(
+                    PresetTextEffect=0,
+                    Text=text_to_insert,
+                    FontName="Arial",
+                    FontSize=font_size,
+                    FontBold=bold,
+                    FontItalic=italic,
+                    Left=0,
+                    Top=0
+                )
+
+                shape.RelativeHorizontalPosition = 1
+                shape.RelativeVerticalPosition = 1
+
+                shape.Rotation = 270
+
+                # Após a rotação, o Word mantém o ponto
+                # de referência original da caixa.
+                #
+                # Por isso o objeto é deslocado para dentro
+                # da página utilizando sua largura real.
+
+                shape.Left = margin_pt
+
+                shape.Top = (
+                    page_height
+                    - shape.Height
+                ) / 2
+
+            # =================================================
+            # POSIÇÃO DIREITA
+            # =================================================
+
+            else:
+
+                shape = header.Shapes.AddTextEffect(
+                    PresetTextEffect=0,
+                    Text=text_to_insert,
+                    FontName="Arial",
+                    FontSize=font_size,
+                    FontBold=bold,
+                    FontItalic=italic,
+                    Left=0,
+                    Top=0
+                )
+
+                shape.RelativeHorizontalPosition = 1
+                shape.RelativeVerticalPosition = 1
+
+                shape.Rotation = 90
+
+                # A posição direita é calculada utilizando
+                # o limite real da página.
+                #
+                # O objeto é primeiro trazido para dentro
+                # da página e depois alinhado à margem.
+
+                shape.Left = (
+                    page_width
+                    - margin_pt
+                    - shape.Width
+                )
+
+                shape.Top = (
+                    page_height
+                    - shape.Height
+                ) / 2
+
+            # =================================================
+            # CONFIGURAÇÕES DO WORDART
+            # =================================================
+
+            shape.LockAnchor = True
+
+            shape.LockAspectRatio = False
+
+            # =================================================
+            # COR DO TEXTO
+            # =================================================
+
+            try:
+
+                hex_color = color.replace(
+                    '#',
+                    ''
+                )
+
+                # Converte HEX para RGB no formato utilizado pelo Word.
+                # O Word utiliza a ordem BGR internamente.
+                r = int(hex_color[0:2], 16)
+                g = int(hex_color[2:4], 16)
+                b = int(hex_color[4:6], 16)
+
+                rgb = (
+                    r
+                    + (g << 8)
+                    + (b << 16)
+                )
+
+                # Define a cor do preenchimento do WordArt.
+                shape.Fill.ForeColor.RGB = rgb
+
+                # Torna o preenchimento visível.
+                shape.Fill.Visible = True
+
+                # Remove somente o contorno.
+                shape.Line.Visible = False
+
+            except Exception:
+
+                # Cor padrão: cinza
+                shape.Fill.ForeColor.RGB = (
+                    128
+                    + (128 << 8)
+                    + (128 << 16)
+                )
+
+                shape.Fill.Visible = True
+
+                shape.Line.Visible = False
+
+            # =================================================
+            # CAMADA
+            # =================================================
+
+            shape.ZOrder(3)
+
+        # =====================================================
+        # SALVAMENTO
+        # =====================================================
+
+        ext = output_path.suffix.lower()
+
+        save_format = (
+            0
+            if ext == '.doc'
+            else 16
+        )
+
+        doc.SaveAs(
+            str(output_path),
+            FileFormat=save_format
+        )
+
+        doc.Close(
+            SaveChanges=False
+        )
+
+        doc = None
+
+        return str(output_path)
+
+    except Exception as e:
+
+        raise RuntimeError(
+            f"Erro ao inserir caminho do arquivo: {str(e)}"
+        )
+
+    finally:
+
+        if doc is not None:
+
+            try:
+
+                doc.Close(
+                    SaveChanges=False
+                )
+
+            except Exception:
+
+                pass
+
+        if word:
+
+            try:
+
+                word.Quit()
+
+            except Exception:
+
+                pass
+
+        pythoncom.CoUninitialize()
+
+        if temp_docx and temp_docx.exists():
+
+            try:
+
+                temp_docx.unlink()
+
+            except Exception:
+
+                pass
 ```
 
 
@@ -3013,6 +3581,68 @@ def extract_images():
         return jsonify({"success": True, "images": result, "count": len(result)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/watermark', methods=['POST'])
+def add_watermark():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+    try:
+        result = controller.add_watermark(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            content_type=data.get('content_type', 'text'),
+            text=data.get('text'),
+            image_path=data.get('image_path'),
+            position=data.get('position', 'center'),
+            width_cm=data.get('width_cm', 5.0),
+            height_cm=data.get('height_cm', 5.0),
+            transparency=data.get('transparency', 0.5),
+            margin_left_cm=data.get('margin_left_cm', 0.0),
+            margin_top_cm=data.get('margin_top_cm', 0.0)
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/watermark/preview', methods=['POST'])
+def preview_watermark():
+    data = request.json
+    try:
+        result = controller.preview_watermark_position(
+            page_width_cm=data.get('page_width_cm', 21.0),
+            page_height_cm=data.get('page_height_cm', 29.7),
+            position=data.get('position', 'center'),
+            width_cm=data.get('width_cm', 5.0),
+            height_cm=data.get('height_cm', 5.0),
+            margin_left_cm=data.get('margin_left_cm', 0.0),
+            margin_top_cm=data.get('margin_top_cm', 0.0)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/filepath', methods=['POST'])
+def insert_file_path():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+    try:
+        result = controller.insert_file_path(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            position=data.get('position', 'right'),
+            margin_cm=data.get('margin_cm', 1.0),
+            font_size=data.get('font_size', 12),
+            color=data.get('color', '#000000'),
+            bold=data.get('bold', False),
+            italic=data.get('italic', False),
+            transparency=data.get('transparency', 0.5),
+            use_full_path=data.get('use_full_path', True)
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 ```
 
 
@@ -3173,6 +3803,8 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/word/convert.js"></script>
     <script src="js/modules/word/compare.js"></script>
     <script src="js/modules/word/extract_images.js"></script>
+    <script src="js/modules/word/watermark.js"></script>
+    <script src="js/modules/word/filepath.js"></script>
     <script src="js/modules/word/index.js"></script>
     <script src="js/app.js"></script>
 </body>
@@ -3678,6 +4310,9 @@ window.API = {
         convert: (params) => apiRequest('/word/convert', 'POST', params),
         compare: (params) => apiRequest('/word/compare', 'POST', params),
         extractImages: (params) => apiRequest('/word/extract-images', 'POST', params),
+        watermark: (params) => apiRequest('/word/watermark', 'POST', params),
+        watermarkPreview: (params) => apiRequest('/word/watermark/preview', 'POST', params),
+        filepath: (params) => apiRequest('/word/filepath', 'POST', params),
     },
     excel: {
         merge: (params) => apiRequest('/excel/merge', 'POST', params),
@@ -7088,6 +7723,228 @@ class ExtractImagesFeature {
 ```
 
 
+### frontend\js\modules\word\filepath.js
+
+```
+class FilePathFeature {
+    constructor(module) {
+        this.module = module;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Inserir Caminho do Arquivo</h4>
+                <p class="text-muted">Insira o caminho do arquivo como marca d'água no documento.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Documento</h5>
+                    <div class="input-group">
+                        <input type="text" id="fp-input" class="form-control" placeholder="Selecione o documento...">
+                        <button class="btn btn-outline-secondary" id="btn-fp-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <!-- Coluna esquerda -->
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Caminho</h5>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="fp-full-path" checked>
+                                <label class="form-check-label">Usar caminho completo</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="fp-relative-path">
+                                <label class="form-check-label">Usar apenas o nome do arquivo</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Posição</h5>
+                            <div class="row g-2">
+                                <div class="col-md-12">
+                                    <label class="form-label">Posição</label>
+                                    <select id="fp-position" class="form-select">
+                                        <option value="top">Superior (horizontal)</option>
+                                        <option value="bottom">Inferior (horizontal)</option>
+                                        <option value="left">Esquerda (vertical)</option>
+                                        <option value="right" selected>Direita (vertical)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-12">
+                                    <label class="form-label">Distância da borda (cm)</label>
+                                    <input type="number" id="fp-margin" class="form-control" value="1.0" step="0.1" min="0">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna direita -->
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Estilo</h5>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">Tamanho (pt)</label>
+                                    <input type="number" id="fp-font-size" class="form-control" value="12" min="6" step="1">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Cor</label>
+                                    <input type="color" id="fp-color" class="form-control" value="#000000">
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-2">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="fp-bold">
+                                        <label class="form-check-label">Negrito</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="fp-italic">
+                                        <label class="form-check-label">Itálico</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Transparência</h5>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="range" id="fp-transparency" class="form-range flex-grow-1" min="0" max="100" value="50">
+                                <span id="fp-transparency-label" class="fw-bold" style="min-width:45px;">50%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="fp-output" class="form-control" placeholder="Caminho para salvar...">
+                        <button class="btn btn-outline-secondary" id="btn-fp-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-fp-apply"><i class="bi bi-play-fill"></i> Inserir Caminho</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="fp-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="fp-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-fp-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('fp-input').value = result.filePaths[0];
+                        this.suggestOutput();
+                    }
+                });
+            }
+        });
+
+        container.querySelector('#btn-fp-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'Word', extensions: ['docx'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('fp-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        container.querySelector('#fp-transparency').addEventListener('input', (e) => {
+            document.getElementById('fp-transparency-label').textContent = e.target.value + '%';
+        });
+
+        container.querySelector('#btn-fp-apply').addEventListener('click', () => this.applyFilePath());
+        container.querySelector('#fp-input').addEventListener('change', () => this.suggestOutput());
+    }
+
+    suggestOutput() {
+        const input = document.getElementById('fp-input').value.trim();
+        const output = document.getElementById('fp-output');
+        if (input && !output.value) {
+            const base = input.replace(/\.[^.]+$/, '');
+            output.value = `${base}_path.docx`;
+        }
+    }
+
+    async applyFilePath() {
+        const inputPath = document.getElementById('fp-input').value.trim();
+        const outputPath = document.getElementById('fp-output').value.trim();
+        const position = document.getElementById('fp-position').value;
+        const margin = parseFloat(document.getElementById('fp-margin').value) || 1.0;
+        const fontSize = parseInt(document.getElementById('fp-font-size').value) || 12;
+        const color = document.getElementById('fp-color').value;
+        const bold = document.getElementById('fp-bold').checked;
+        const italic = document.getElementById('fp-italic').checked;
+        const transparency = parseInt(document.getElementById('fp-transparency').value) / 100;
+        const useFullPath = document.getElementById('fp-full-path').checked;
+
+        if (!inputPath || !outputPath) {
+            FileUtils.log('Selecione o documento de entrada e defina o de saída.', 'fp-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-fp-apply');
+        btn.disabled = true;
+        FileUtils.clearLog('fp-log');
+        FileUtils.log('Inserindo caminho do arquivo...', 'fp-log');
+
+        try {
+            const result = await window.API.word.filepath({
+                input_path: inputPath,
+                output_path: outputPath,
+                position: position,
+                margin_cm: margin,
+                font_size: fontSize,
+                color: color,
+                bold: bold,
+                italic: italic,
+                transparency: transparency,
+                use_full_path: useFullPath
+            });
+            FileUtils.log(`Caminho inserido em: ${result.output_path}`, 'fp-log');
+            document.getElementById('fp-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'fp-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
 ### frontend\js\modules\word\index.js
 
 ```
@@ -7099,12 +7956,16 @@ class WordModule {
         this.convertFeature = new ConvertFeature(this);
         this.compareFeature = new DocCompareFeature(this);
         this.extractImagesFeature = new ExtractImagesFeature(this);
+        this.watermarkFeature = new WatermarkFeature(this);
+        this.filePathFeature = new FilePathFeature(this);
 
         this.features = [
             { id: 'merge', label: 'Juntar Documentos', render: (container) => this.mergeFeature.render(container) },
             { id: 'convert', label: 'Converter', render: (container) => this.convertFeature.render(container) },
             { id: 'compare', label: 'Comparar', render: (container) => this.compareFeature.render(container) },
             { id: 'extract-images', label: 'Extrair Imagens', render: (container) => this.extractImagesFeature.render(container) },
+            { id: 'watermark', label: 'Marca d\'Água', render: (container) => this.watermarkFeature.render(container) },
+            { id: 'filepath', label: 'Caminho do Arquivo', render: (container) => this.filePathFeature.render(container) },
         ];
     }
 
@@ -7307,6 +8168,397 @@ class MergeFeature {
 const WordUtils = {
     // Utilitários futuros
 };
+```
+
+
+### frontend\js\modules\word\watermark.js
+
+```
+class WatermarkFeature {
+    constructor(module) {
+        this.module = module;
+        this.updateTimeout = null;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Inserir Marca d'Água</h4>
+                <p class="text-muted">Adicione uma marca d'água de texto ou imagem com posição, tamanho e transparência configuráveis.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Documento</h5>
+                    <div class="input-group">
+                        <input type="text" id="wm-input" class="form-control" placeholder="Selecione o documento...">
+                        <button class="btn btn-outline-secondary" id="btn-wm-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <!-- Coluna esquerda: controles -->
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Tipo de marca d'água</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="wm-type" id="wm-type-text" value="text" checked>
+                                        <label class="form-check-label">Texto</label>
+                                    </div>
+                                    <div id="wm-text-group">
+                                        <label class="form-label">Texto</label>
+                                        <input type="text" id="wm-text" class="form-control" value="CONFIDENCIAL">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="wm-type" id="wm-type-image" value="image">
+                                        <label class="form-check-label">Imagem</label>
+                                    </div>
+                                    <div id="wm-image-group" style="display:none;">
+                                        <label class="form-label">Imagem</label>
+                                        <div class="input-group">
+                                            <input type="text" id="wm-image-path" class="form-control" placeholder="Selecione a imagem...">
+                                            <button class="btn btn-outline-secondary" id="btn-wm-image">Selecionar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Posição</h5>
+                            <div class="row g-2">
+                                <div class="col-md-12">
+                                    <label class="form-label">Posição</label>
+                                    <select id="wm-position" class="form-select">
+                                        <option value="top-left">Superior Esquerdo</option>
+                                        <option value="top-center">Superior Central</option>
+                                        <option value="top-right">Superior Direito</option>
+                                        <option value="center-left">Centro Esquerdo</option>
+                                        <option value="center" selected>Centro</option>
+                                        <option value="center-right">Centro Direito</option>
+                                        <option value="bottom-left">Inferior Esquerdo</option>
+                                        <option value="bottom-center">Inferior Central</option>
+                                        <option value="bottom-right">Inferior Direito</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Margem Esq. (cm)</label>
+                                    <input type="number" id="wm-margin-left" class="form-control" value="0" step="0.5">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Margem Sup. (cm)</label>
+                                    <input type="number" id="wm-margin-top" class="form-control" value="0" step="0.5">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Tamanho</h5>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">Largura (cm)</label>
+                                    <input type="number" id="wm-width" class="form-control" value="5" step="0.5" min="1">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Altura (cm)</label>
+                                    <input type="number" id="wm-height" class="form-control" value="5" step="0.5" min="1">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Transparência</h5>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="range" id="wm-transparency" class="form-range flex-grow-1" min="0" max="100" value="50">
+                                <span id="wm-transparency-label" class="fw-bold" style="min-width:45px;">50%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna direita: preview -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">Preview da Posição</h5>
+                            <div style="position:relative; width:100%; max-width:400px; margin:0 auto; border:2px solid #007A51; border-radius:8px; padding:4px; background:#f8f9fa;">
+                                <canvas id="wm-preview-canvas" width="400" height="566" style="width:100%; height:auto; display:block;"></canvas>
+                                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); font-size:12px; color:#6c757d; pointer-events:none;">
+                                    Página
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivo de saída</h5>
+                        <div class="input-group">
+                            <input type="text" id="wm-output" class="form-control" placeholder="Caminho para salvar o documento...">
+                            <button class="btn btn-outline-secondary" id="btn-wm-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-success" id="btn-wm-apply"><i class="bi bi-play-fill"></i> Inserir Marca d'Água</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="wm-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="wm-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+        // Atualiza preview imediatamente
+        this.updatePreview();
+    }
+
+    attachEvents(container) {
+        // Toggle texto/imagem
+        container.querySelectorAll('input[name="wm-type"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                const isText = document.getElementById('wm-type-text').checked;
+                document.getElementById('wm-text-group').style.display = isText ? 'block' : 'none';
+                document.getElementById('wm-image-group').style.display = isText ? 'none' : 'block';
+            });
+        });
+
+        // Selecionar documento
+        container.querySelector('#btn-wm-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('wm-input').value = result.filePaths[0];
+                        this.suggestOutput();
+                    }
+                });
+            }
+        });
+
+        // Selecionar imagem
+        container.querySelector('#btn-wm-image').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('wm-image-path').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        // Selecionar saída
+        container.querySelector('#btn-wm-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'Word', extensions: ['docx'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('wm-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        // Transparência
+        container.querySelector('#wm-transparency').addEventListener('input', (e) => {
+            document.getElementById('wm-transparency-label').textContent = e.target.value + '%';
+            // Não precisa atualizar preview, transparência não afeta posição
+        });
+
+        // Atualiza preview automaticamente ao mudar posição/margens/tamanho
+        ['wm-position', 'wm-margin-left', 'wm-margin-top', 'wm-width', 'wm-height'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', () => this.schedulePreviewUpdate());
+                el.addEventListener('change', () => this.schedulePreviewUpdate());
+            }
+        });
+
+        // Botão aplicar
+        container.querySelector('#btn-wm-apply').addEventListener('click', () => this.applyWatermark());
+
+        // Atualiza sugestão de saída
+        container.querySelector('#wm-input').addEventListener('change', () => this.suggestOutput());
+    }
+
+    suggestOutput() {
+        const input = document.getElementById('wm-input').value.trim();
+        const output = document.getElementById('wm-output');
+        if (input && !output.value) {
+            const base = input.replace(/\.[^.]+$/, '');
+            output.value = `${base}_watermarked.docx`;
+        }
+    }
+
+    schedulePreviewUpdate() {
+        if (this.updateTimeout) {
+            clearTimeout(this.updateTimeout);
+        }
+        this.updateTimeout = setTimeout(() => {
+            this.updatePreview();
+            this.updateTimeout = null;
+        }, 200); // pequeno atraso para evitar muitas chamadas
+    }
+
+    async updatePreview() {
+        const position = document.getElementById('wm-position').value;
+        const width = parseFloat(document.getElementById('wm-width').value) || 5;
+        const height = parseFloat(document.getElementById('wm-height').value) || 5;
+        const marginLeft = parseFloat(document.getElementById('wm-margin-left').value) || 0;
+        const marginTop = parseFloat(document.getElementById('wm-margin-top').value) || 0;
+
+        try {
+            const result = await window.API.word.watermarkPreview({
+                position: position,
+                width_cm: width,
+                height_cm: height,
+                margin_left_cm: marginLeft,
+                margin_top_cm: marginTop
+            });
+            this.drawPreview(result);
+        } catch (err) {
+            console.warn('Erro ao carregar preview:', err);
+            // Fallback com valores padrão
+            this.drawPreview({
+                left: 0,
+                top: 0,
+                width: width,
+                height: height,
+                page_width: 21,
+                page_height: 29.7
+            });
+        }
+    }
+
+    drawPreview(data) {
+        const canvas = document.getElementById('wm-preview-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const w = 400;
+        const h = 566;
+
+        const scaleX = w / data.page_width;
+        const scaleY = h / data.page_height;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // Fundo (página)
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = '#007A51';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(0, 0, w, h);
+
+        // Marca d'água
+        const leftPx = data.left * scaleX;
+        const topPx = data.top * scaleY;
+        const widthPx = data.width * scaleX;
+        const heightPx = data.height * scaleY;
+
+        ctx.fillStyle = 'rgba(0, 122, 81, 0.3)';
+        ctx.fillRect(leftPx, topPx, widthPx, heightPx);
+        ctx.strokeStyle = '#007A51';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(leftPx, topPx, widthPx, heightPx);
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = '#007A51';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Marca d\'Água', leftPx + widthPx / 2, topPx + heightPx / 2);
+
+        // Info
+        ctx.font = '10px Arial';
+        ctx.fillStyle = '#6c757d';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`L: ${data.left.toFixed(1)}cm`, 5, 5);
+        ctx.fillText(`T: ${data.top.toFixed(1)}cm`, 5, 20);
+        ctx.fillText(`W: ${data.width.toFixed(1)}cm`, 5, 35);
+        ctx.fillText(`H: ${data.height.toFixed(1)}cm`, 5, 50);
+    }
+
+    async applyWatermark() {
+        const inputPath = document.getElementById('wm-input').value.trim();
+        const outputPath = document.getElementById('wm-output').value.trim();
+        const isText = document.getElementById('wm-type-text').checked;
+        const text = isText ? document.getElementById('wm-text').value.trim() : undefined;
+        const imagePath = !isText ? document.getElementById('wm-image-path').value.trim() : undefined;
+        const position = document.getElementById('wm-position').value;
+        const width = parseFloat(document.getElementById('wm-width').value) || 5;
+        const height = parseFloat(document.getElementById('wm-height').value) || 5;
+        const transparency = parseInt(document.getElementById('wm-transparency').value) / 100;
+        const marginLeft = parseFloat(document.getElementById('wm-margin-left').value) || 0;
+        const marginTop = parseFloat(document.getElementById('wm-margin-top').value) || 0;
+
+        if (!inputPath || !outputPath) {
+            FileUtils.log('Selecione o documento de entrada e defina o de saída.', 'wm-log');
+            return;
+        }
+
+        if (isText && !text) {
+            FileUtils.log('Digite o texto da marca d\'água.', 'wm-log');
+            return;
+        }
+
+        if (!isText && !imagePath) {
+            FileUtils.log('Selecione uma imagem.', 'wm-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-wm-apply');
+        btn.disabled = true;
+        FileUtils.clearLog('wm-log');
+        FileUtils.log('Inserindo marca d\'água...', 'wm-log');
+
+        try {
+            const params = {
+                input_path: inputPath,
+                output_path: outputPath,
+                content_type: isText ? 'text' : 'image',
+                text: text,
+                image_path: imagePath,
+                position: position,
+                width_cm: width,
+                height_cm: height,
+                transparency: transparency,
+                margin_left_cm: marginLeft,
+                margin_top_cm: marginTop
+            };
+            const result = await window.API.word.watermark(params);
+            FileUtils.log(`Marca d'água inserida em: ${result.output_path}`, 'wm-log');
+            document.getElementById('wm-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'wm-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
 ```
 
 

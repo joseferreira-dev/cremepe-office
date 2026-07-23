@@ -45,6 +45,7 @@ window.API = {
         extractImages: (params) => apiRequest('/word/extract-images', 'POST', params),
         watermark: (params) => apiRequest('/word/watermark', 'POST', params),
         watermarkPreview: (params) => apiRequest('/word/watermark/preview', 'POST', params),
+        filepath: (params) => apiRequest('/word/filepath', 'POST', params),
     },
     excel: {
         merge: (params) => apiRequest('/excel/merge', 'POST', params),
