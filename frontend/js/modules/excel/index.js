@@ -6,6 +6,7 @@ class ExcelModule {
             { id: 'convert', label: 'Conversão em Lote', render: (container) => new ExcelConvertFeature().render(container) },
             { id: 'merge-all', label: 'Combinar Planilhas', render: (container) => new ExcelMergeAllFeature().render(container) },
             { id: 'extract-cells', label: 'Extrair Células', render: (container) => new ExcelExtractCellsFeature().render(container) },
+            { id: 'split', label: 'Dividir por Coluna', render: (container) => new ExcelSplitFeature().render(container) },
         ];
     }
 

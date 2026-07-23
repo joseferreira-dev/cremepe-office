@@ -448,3 +448,116 @@ def extract_cells_from_directory(source_dir, fields, recursive=False, output_fil
         'errors': errors,
         'total_files': len(files)
     }
+
+# ========== DIVIDIR POR COLUNA ==========
+def split_by_column(
+    input_file: str,
+    output_dir: str,
+    column: str,                 # Nome da coluna ou índice (0-based)
+    output_format: str = 'xlsx', # 'xlsx' ou 'csv'
+    include_header: bool = True,
+    recursive: bool = False      # não usado, mas mantido para consistência
+) -> dict:
+    """
+    Divide um arquivo Excel em vários arquivos com base nos valores de uma coluna.
+
+    Args:
+        input_file: Caminho do arquivo de entrada (.xlsx)
+        output_dir: Pasta de saída para os arquivos divididos
+        column: Nome da coluna ou índice (0-based)
+        output_format: 'xlsx' ou 'csv'
+        include_header: Se True, inclui cabeçalho em cada arquivo
+
+    Returns:
+        dict com estatísticas: total_rows, total_groups, output_files, errors
+    """
+    input_path = Path(input_file).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_file}")
+
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Carregar workbook
+    wb = load_workbook(input_path, data_only=True)
+    ws = wb.active
+    if ws is None:
+        raise ValueError("Planilha vazia")
+
+    # Obter cabeçalhos e identificar coluna
+    headers = [cell.value for cell in ws[1]] if include_header else None
+    all_rows = list(ws.iter_rows(values_only=True))
+
+    if not all_rows:
+        raise ValueError("Arquivo sem dados")
+
+    # Determinar o índice da coluna
+    col_index = None
+    if isinstance(column, str):
+        if headers:
+            try:
+                col_index = headers.index(column)
+            except ValueError:
+                raise ValueError(f"Coluna '{column}' não encontrada nos cabeçalhos: {headers}")
+        else:
+            raise ValueError("Arquivo sem cabeçalhos; use índice numérico")
+    else:
+        col_index = int(column)
+        if col_index < 0 or col_index >= len(all_rows[0]):
+            raise ValueError(f"Índice {col_index} inválido (max: {len(all_rows[0])-1})")
+
+    # Agrupar linhas por valor da coluna (ignorando cabeçalho)
+    groups = {}
+    start_row = 1 if include_header else 0
+    header_row = all_rows[0] if include_header else None
+
+    for row in all_rows[start_row:]:
+        if len(row) <= col_index:
+            continue  # linha com colunas insuficientes
+        key = row[col_index]
+        if key is None:
+            key = 'NULL'
+        else:
+            key = str(key).strip()
+            if not key:
+                key = 'EMPTY'
+        # Sanitizar para nome de arquivo
+        safe_key = re.sub(r'[\\/*?:"<>|]', '_', key)
+        if safe_key not in groups:
+            groups[safe_key] = []
+        groups[safe_key].append(row)
+
+    if not groups:
+        raise ValueError("Nenhuma linha encontrada para dividir")
+
+    stats = {
+        'total_rows': len(all_rows) - (1 if include_header else 0),
+        'total_groups': len(groups),
+        'output_files': [],
+        'errors': []
+    }
+
+    # Para cada grupo, criar arquivo
+    ext = '.xlsx' if output_format == 'xlsx' else '.csv'
+    for group_key, rows in groups.items():
+        out_file = output_path / f"{group_key}{ext}"
+
+        if output_format == 'xlsx':
+            wb_out = Workbook()
+            ws_out = wb_out.active
+            if include_header and header_row:
+                ws_out.append(header_row)
+            for row in rows:
+                ws_out.append(row)
+            wb_out.save(out_file)
+        else:  # csv
+            import csv
+            with open(out_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                if include_header and header_row:
+                    writer.writerow(header_row)
+                writer.writerows(rows)
+
+        stats['output_files'].append(str(out_file))
+
+    return stats

@@ -63,3 +63,23 @@ def extract_cells():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@excel_bp.route('/split-by-column', methods=['POST'])
+def split_by_column():
+    data = request.json
+    required = ['input_file', 'output_dir', 'column']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_by_column(
+            input_file=data['input_file'],
+            output_dir=data['output_dir'],
+            column=data['column'],
+            output_format=data.get('output_format', 'xlsx'),
+            include_header=data.get('include_header', True)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

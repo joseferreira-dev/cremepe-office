@@ -1,7 +1,8 @@
 from models.excel_processor import (
     batch_convert,
     extract_cells_from_directory,
-    merge_all_files
+    merge_all_files,
+    split_by_column
 )
 
 class ExcelController:
@@ -15,3 +16,6 @@ class ExcelController:
 
     def extract_cells(self, source_dir, fields, recursive=False, output_file=None):
         return extract_cells_from_directory(source_dir, fields, recursive, output_file)
+    
+    def split_by_column(self, input_file, output_dir, column, output_format='xlsx', include_header=True):
+        return split_by_column(input_file, output_dir, column, output_format, include_header)
