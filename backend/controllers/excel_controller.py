@@ -1,6 +1,6 @@
 from models.excel_processor import (
     batch_convert,
-    extract_cells,
+    extract_cells_from_directory,
     merge_all_files
 )
 
@@ -12,6 +12,6 @@ class ExcelController:
     
     def merge_all(self, source_dir, dest_file, mode='sheets', include_header=True, recursive=False):
         return merge_all_files(source_dir, dest_file, mode, include_header, recursive)
-    
-    def extract_cells(self, source_dir, output_csv, cell_mappings, recursive=False):
-        return extract_cells(source_dir, output_csv, cell_mappings, recursive)
+
+    def extract_cells(self, source_dir, fields, recursive=False, output_file=None):
+        return extract_cells_from_directory(source_dir, fields, recursive, output_file)

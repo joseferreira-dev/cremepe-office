@@ -325,35 +325,39 @@ def merge_all_files(
 
     return stats
 
-# ========== EXTRAIR CÉLULAS ESPECÍFICAS ==========
-# ========== EXTRAIR CÉLULAS ESPECÍFICAS ==========
-def extract_cells(
-    source_dir: str,
-    output_csv: str,
-    cell_mappings: dict,  # ex: {"Título": "A1", "Total": "B2", "Data": "C5"}
-    recursive: bool = False
-) -> dict:
+# ========== EXTRAIR CÉLULAS ==========
+def _evaluate_formula(expression, values):
     """
-    Escaneia todos os arquivos .xlsx de uma pasta e extrai células específicas,
-    gerando um arquivo CSV de resumo.
+    Avalia uma expressão matemática simples usando valores numéricos.
+    Substitui nomes de campos por seus valores e calcula o resultado.
+    """
+    # Substitui nomes de campos pelos valores
+    for key, val in values.items():
+        if isinstance(val, (int, float)):
+            # Substitui o nome do campo pelo valor (garantindo que não seja parte de outra palavra)
+            expression = re.sub(rf'\b{re.escape(key)}\b', str(val), expression)
+    # Remove espaços e avalia
+    try:
+        # Usa eval com segurança restrita (apenas operadores matemáticos)
+        # Permite + - * / ** ( ) . e números
+        result = eval(expression, {"__builtins__": None}, {})
+        return result
+    except Exception:
+        return None
 
-    Args:
-        source_dir: Pasta de origem
-        output_csv: Caminho do arquivo CSV de saída
-        cell_mappings: Dicionário {nome_coluna: referencia_celula}, ex: {"Valor Total": "B2"}
-        recursive: Se True, inclui subpastas
-
-    Returns:
-        dict com estatísticas: processed, errors, output_path
+def extract_cells_from_directory(source_dir, fields, recursive=False, output_file=None):
+    """
+    Escaneia uma pasta de planilhas XLSX e extrai células específicas.
+    fields: lista de dicionários { 'name': str, 'source': str } onde source pode ser:
+        - uma célula: "A1", "B2", etc.
+        - uma fórmula: "Valor1 - Valor2" (referenciando nomes de outros campos)
+    Retorna: lista de dicionários com nome do arquivo + valores extraídos.
+    Se output_file for fornecido, salva como CSV.
     """
     source_path = Path(source_dir).resolve()
     if not source_path.exists():
         raise FileNotFoundError(f"Pasta não encontrada: {source_dir}")
 
-    output_path = Path(output_csv).resolve()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Coletar arquivos .xlsx
     if recursive:
         files = list(source_path.rglob('*.xlsx'))
     else:
@@ -362,55 +366,85 @@ def extract_cells(
     if not files:
         raise ValueError(f"Nenhum arquivo .xlsx encontrado em {source_dir}")
 
-    # Definir cabeçalho do CSV: "Arquivo" + colunas extraídas
-    headers = ['Arquivo'] + list(cell_mappings.keys())
+    # Validar campos
+    for f in fields:
+        if not f.get('name') or not f.get('source'):
+            raise ValueError("Cada campo deve ter 'name' e 'source'")
 
-    # Preparar lista de linhas
-    rows = []
+    results = []
     errors = []
 
     for file_path in files:
-        row_data = {'Arquivo': file_path.name}
         try:
-            wb = load_workbook(file_path, data_only=True)
+            wb = openpyxl.load_workbook(file_path, data_only=True)
             ws = wb.active
-            if ws is None:
-                errors.append(f"{file_path.name}: Planilha vazia")
-                # Preencher com valores vazios
-                for col_name in cell_mappings.keys():
-                    row_data[col_name] = ''
-                rows.append(row_data)
-                continue
+            row_data = {'_file': str(file_path), '_name': file_path.name}
 
-            # Extrair cada célula
-            for col_name, cell_ref in cell_mappings.items():
-                try:
-                    value = ws[cell_ref].value
-                    # Converter para string se não for None
-                    row_data[col_name] = str(value) if value is not None else ''
-                except Exception as e:
-                    row_data[col_name] = ''
-                    errors.append(f"{file_path.name}: Erro ao extrair {cell_ref} ({col_name}) - {str(e)}")
+            # Primeiro: extrair valores de células (para campos que são referências de célula)
+            cell_values = {}
+            for field in fields:
+                source = field['source'].strip()
+                # Verifica se é uma referência de célula (ex: A1, B2...)
+                if re.match(r'^[A-Z]+[0-9]+$', source, re.IGNORECASE):
+                    cell_value = ws[source].value
+                    # Tenta converter para número se possível
+                    try:
+                        cell_value = float(cell_value) if isinstance(cell_value, (int, float)) else cell_value
+                    except:
+                        pass
+                    cell_values[field['name']] = cell_value
+                # else: é fórmula, será avaliada depois
 
-            rows.append(row_data)
+            # Segundo: avaliar fórmulas (campos que não são células)
+            for field in fields:
+                source = field['source'].strip()
+                if not re.match(r'^[A-Z]+[0-9]+$', source, re.IGNORECASE):
+                    # É fórmula - substitui nomes pelos valores
+                    # Pega todos os nomes de campos que podem ser referenciados
+                    expr = source
+                    # Substitui nomes pelos valores numéricos
+                    for name, val in cell_values.items():
+                        if isinstance(val, (int, float)):
+                            expr = re.sub(rf'\b{re.escape(name)}\b', str(val), expr)
+                    # Avalia a expressão
+                    try:
+                        # Avalia com segurança
+                        result_val = eval(expr, {"__builtins__": None}, {})
+                        # Se o resultado é numérico, formata como número
+                        if isinstance(result_val, (int, float)):
+                            cell_values[field['name']] = result_val
+                        else:
+                            cell_values[field['name']] = result_val
+                    except Exception as e:
+                        cell_values[field['name']] = None
+                        errors.append(f"{file_path.name}: Erro na fórmula '{field['name']}': {str(e)}")
+
+            # Monta linha de resultados
+            result_row = {'Arquivo': file_path.name}
+            for field in fields:
+                result_row[field['name']] = cell_values.get(field['name'])
+            results.append(result_row)
 
         except Exception as e:
             errors.append(f"{file_path.name}: {str(e)}")
-            # Adicionar linha vazia mesmo assim
-            for col_name in cell_mappings.keys():
-                row_data[col_name] = ''
-            rows.append(row_data)
 
-    # Escrever CSV
-    with open(output_path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=headers)
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
+    # Se output_file for fornecido, salva como CSV
+    if output_file:
+        if results:
+            with open(output_file, 'w', newline='', encoding='utf-8-sig') as f:
+                fieldnames = ['Arquivo'] + [f['name'] for f in fields]
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(results)
+        else:
+            # Nenhum resultado, criar arquivo vazio com cabeçalho
+            with open(output_file, 'w', newline='', encoding='utf-8-sig') as f:
+                fieldnames = ['Arquivo'] + [f['name'] for f in fields]
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
 
-    stats = {
-        'processed': len(rows),
+    return {
+        'results': results,
         'errors': errors,
-        'output_path': str(output_path)
+        'total_files': len(files)
     }
-    return stats
