@@ -64,3 +64,43 @@ def extract_images():
         return jsonify({"success": True, "images": result, "count": len(result)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/watermark', methods=['POST'])
+def add_watermark():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+    try:
+        result = controller.add_watermark(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            content_type=data.get('content_type', 'text'),
+            text=data.get('text'),
+            image_path=data.get('image_path'),
+            position=data.get('position', 'center'),
+            width_cm=data.get('width_cm', 5.0),
+            height_cm=data.get('height_cm', 5.0),
+            transparency=data.get('transparency', 0.5),
+            margin_left_cm=data.get('margin_left_cm', 0.0),
+            margin_top_cm=data.get('margin_top_cm', 0.0)
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/watermark/preview', methods=['POST'])
+def preview_watermark():
+    data = request.json
+    try:
+        result = controller.preview_watermark_position(
+            page_width_cm=data.get('page_width_cm', 21.0),
+            page_height_cm=data.get('page_height_cm', 29.7),
+            position=data.get('position', 'center'),
+            width_cm=data.get('width_cm', 5.0),
+            height_cm=data.get('height_cm', 5.0),
+            margin_left_cm=data.get('margin_left_cm', 0.0),
+            margin_top_cm=data.get('margin_top_cm', 0.0)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

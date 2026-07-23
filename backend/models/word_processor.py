@@ -99,7 +99,6 @@ def convert_document(input_path: str, output_path: str, output_format: str) -> s
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Converte .doc para .docx temporário se necessário
     temp_docx = None
     if input_path.suffix.lower() == '.doc':
         temp_docx = convert_doc_to_docx(input_path)
@@ -127,23 +126,19 @@ def convert_document(input_path: str, output_path: str, output_format: str) -> s
 
     return result
 
+# ==================== COMPARAÇÃO DE DOCUMENTOS ====================
 def extract_paragraphs(docx_path: Path) -> List[str]:
     """Extrai texto de cada parágrafo de um documento .docx."""
     doc = Document(docx_path)
     paragraphs = []
     for para in doc.paragraphs:
         text = para.text.strip()
-        if text:  # ignora parágrafos vazios
+        if text:
             paragraphs.append(text)
     return paragraphs
 
 def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
-    """
-    Compara dois documentos Word e retorna as diferenças.
-    Retorna um dicionário com:
-        - 'differences': lista de dicionários com tipo ('added', 'removed', 'modified') e detalhes.
-        - 'summary': resumo com contagens.
-    """
+    """Compara dois documentos Word e retorna as diferenças."""
     doc1_path = Path(doc1_path).resolve()
     doc2_path = Path(doc2_path).resolve()
 
@@ -152,23 +147,19 @@ def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
     if not doc2_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {doc2_path}")
 
-    # Se for .doc, converter para .docx temporário
     temp_doc1 = None
     temp_doc2 = None
     try:
         if doc1_path.suffix.lower() == '.doc':
-            from models.word_processor import convert_doc_to_docx
             temp_doc1 = convert_doc_to_docx(doc1_path)
             doc1_path = temp_doc1
         if doc2_path.suffix.lower() == '.doc':
-            from models.word_processor import convert_doc_to_docx
             temp_doc2 = convert_doc_to_docx(doc2_path)
             doc2_path = temp_doc2
 
         paragraphs1 = extract_paragraphs(doc1_path)
         paragraphs2 = extract_paragraphs(doc2_path)
 
-        # Usa SequenceMatcher para comparar listas de parágrafos
         matcher = difflib.SequenceMatcher(None, paragraphs1, paragraphs2)
         differences = []
         added_count = 0
@@ -215,7 +206,6 @@ def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
             }
         }
     finally:
-        # Limpa arquivos temporários
         if temp_doc1 and temp_doc1.exists():
             try:
                 temp_doc1.unlink()
@@ -227,12 +217,22 @@ def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
             except:
                 pass
 
+# ==================== EXTRAIR IMAGENS ====================
+def _get_extension_from_content_type(content_type: str) -> str:
+    ext_map = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/gif': '.gif',
+        'image/bmp': '.bmp',
+        'image/tiff': '.tiff',
+        'image/webp': '.webp',
+        'image/vnd.microsoft.icon': '.ico',
+        'image/svg+xml': '.svg'
+    }
+    return ext_map.get(content_type, '.bin')
+
 def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
-    """
-    Extrai todas as imagens de um documento Word (incluindo cabeçalhos, rodapés, formas e wordarts)
-    e as salva na pasta de destino.
-    Retorna lista de caminhos das imagens extraídas.
-    """
+    """Extrai todas as imagens de um documento Word."""
     input_path = Path(input_path).resolve()
     if not input_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
@@ -250,7 +250,6 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
         images = []
         counter = 1
 
-        # 1. Imagens da parte principal do documento
         for rel in doc.part.rels.values():
             if "image" in rel.target_ref:
                 image_blob = rel.target_part.blob
@@ -264,22 +263,13 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
                     images.append(str(output_path))
                     counter += 1
 
-        # 2. Imagens em cabeçalhos e rodapés
-        for section in doc.sections:
-            for header in section.header.paragraphs + section.header.tables:
-                if hasattr(header, '_element') and header._element is not None:
-                    header_part = header._element.getroottree().getroot().getroottree()
-                    pass
-
         package = doc.part.package
         for part in package.iter_parts():
-            # Se for uma parte de imagem, extrai
             if 'image' in part.content_type:
                 image_blob = part.blob
                 content_type = part.content_type
                 ext = _get_extension_from_content_type(content_type)
                 if ext:
-                    # Usa o nome da parte como referência
                     part_name = part.partname.split('/')[-1]
                     filename = f"{prefix or input_path.stem}_img_{counter:04d}_{part_name}{ext}"
                     output_path = output_dir / filename
@@ -292,7 +282,6 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
             raise ValueError("Nenhuma imagem encontrada no documento.")
 
         return images
-
     finally:
         if temp_docx and temp_docx.exists():
             try:
@@ -300,16 +289,167 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
             except:
                 pass
 
-def _get_extension_from_content_type(content_type: str) -> str:
-    """Retorna extensão de arquivo baseada no tipo MIME."""
-    ext_map = {
-        'image/png': '.png',
-        'image/jpeg': '.jpg',
-        'image/gif': '.gif',
-        'image/bmp': '.bmp',
-        'image/tiff': '.tiff',
-        'image/webp': '.webp',
-        'image/vnd.microsoft.icon': '.ico',
-        'image/svg+xml': '.svg'
+# ==================== MARCA D'ÁGUA ====================
+def add_watermark(
+    input_path: str,
+    output_path: str,
+    content_type: str,
+    text: Optional[str] = None,
+    image_path: Optional[str] = None,
+    position: str = 'center',
+    width_cm: float = 5.0,
+    height_cm: float = 5.0,
+    transparency: float = 0.5,
+    margin_left_cm: float = 0.0,
+    margin_top_cm: float = 0.0
+) -> str:
+    """
+    Insere marca d'água (texto ou imagem) com posição exata relativa à página.
+    """
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    temp_docx = None
+    if input_path.suffix.lower() == '.doc':
+        temp_docx = convert_doc_to_docx(input_path)
+        input_path = temp_docx
+
+    pythoncom.CoInitialize()
+    word = None
+    try:
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
+        word.DisplayAlerts = False
+
+        doc = word.Documents.Open(str(input_path))
+
+        # Dimensões da página em pontos
+        page_width = doc.PageSetup.PageWidth
+        page_height = doc.PageSetup.PageHeight
+
+        # Tamanho em pontos (1 cm = 28.3464567 pontos)
+        width_pt = width_cm * 28.3464567
+        height_pt = height_cm * 28.3464567
+
+        # Margens adicionais em pontos
+        margin_left_pt = margin_left_cm * 28.3464567
+        margin_top_pt = margin_top_cm * 28.3464567
+
+        # Coordenadas base relativas à página
+        base_positions = {
+            'top-left': (0, 0),
+            'top-center': ((page_width - width_pt) / 2, 0),
+            'top-right': (page_width - width_pt, 0),
+            'center-left': (0, (page_height - height_pt) / 2),
+            'center': ((page_width - width_pt) / 2, (page_height - height_pt) / 2),
+            'center-right': (page_width - width_pt, (page_height - height_pt) / 2),
+            'bottom-left': (0, page_height - height_pt),
+            'bottom-center': ((page_width - width_pt) / 2, page_height - height_pt),
+            'bottom-right': (page_width - width_pt, page_height - height_pt)
+        }
+        left_base, top_base = base_positions.get(position, (0, 0))
+        left = left_base + margin_left_pt
+        top = top_base + margin_top_pt
+
+        # Acessa o cabeçalho primário de cada seção
+        for section in doc.Sections:
+            header = section.Headers(1)  # wdHeaderFooterPrimary
+
+            # Cria a forma diretamente no cabeçalho
+            if content_type == 'text':
+                if not text:
+                    raise ValueError("Texto obrigatório para marca d'água de texto")
+                shape = header.Shapes.AddTextEffect(
+                    PresetTextEffect=0,
+                    Text=text,
+                    FontName="Arial",
+                    FontSize=36,
+                    FontBold=False,
+                    FontItalic=False,
+                    Left=left,
+                    Top=top
+                )
+                shape.Width = width_pt
+                shape.Height = height_pt
+                shape.Fill.Transparency = 1.0 - transparency
+                shape.Fill.ForeColor.RGB = 0  # preto
+                shape.Line.Visible = False
+            else:  # image
+                if not image_path or not Path(image_path).exists():
+                    raise FileNotFoundError(f"Imagem não encontrada: {image_path}")
+                shape = header.Shapes.AddPicture(
+                    FileName=str(Path(image_path).resolve()),
+                    LinkToFile=False,
+                    SaveWithDocument=True,
+                    Left=left,
+                    Top=top,
+                    Width=width_pt,
+                    Height=height_pt
+                )
+                shape.Fill.Transparency = 1.0 - transparency
+
+            # Define posição relativa à página
+            shape.RelativeHorizontalPosition = 1  # wdRelativeHorizontalPositionPage
+            shape.RelativeVerticalPosition = 1    # wdRelativeVerticalPositionPage
+            shape.LockAnchor = True               # impede deslocamento
+            shape.ZOrder(3)                       # wdSendBehindText
+
+        # Salva o documento
+        ext = output_path.suffix.lower()
+        save_format = 0 if ext == '.doc' else 16
+        doc.SaveAs(str(output_path), FileFormat=save_format)
+        doc.Close(SaveChanges=False)
+
+        return str(output_path)
+
+    except Exception as e:
+        raise RuntimeError(f"Erro ao inserir marca d'água: {str(e)}")
+    finally:
+        if word:
+            word.Quit()
+        pythoncom.CoUninitialize()
+        if temp_docx and temp_docx.exists():
+            try:
+                temp_docx.unlink()
+            except:
+                pass
+
+def preview_watermark_position(
+    page_width_cm: float = 21.0,
+    page_height_cm: float = 29.7,
+    position: str = 'center',
+    width_cm: float = 5.0,
+    height_cm: float = 5.0,
+    margin_left_cm: float = 0.0,
+    margin_top_cm: float = 0.0
+) -> dict:
+    """
+    Retorna as coordenadas (em cm) da marca d'água para preview visual.
+    """
+    base_positions = {
+        'top-left': (0, 0),
+        'top-center': ((page_width_cm - width_cm) / 2, 0),
+        'top-right': (page_width_cm - width_cm, 0),
+        'center-left': (0, (page_height_cm - height_cm) / 2),
+        'center': ((page_width_cm - width_cm) / 2, (page_height_cm - height_cm) / 2),
+        'center-right': (page_width_cm - width_cm, (page_height_cm - height_cm) / 2),
+        'bottom-left': (0, page_height_cm - height_cm),
+        'bottom-center': ((page_width_cm - width_cm) / 2, page_height_cm - height_cm),
+        'bottom-right': (page_width_cm - width_cm, page_height_cm - height_cm)
     }
-    return ext_map.get(content_type, '.bin')
+    left_base, top_base = base_positions.get(position, (0, 0))
+    left = left_base + margin_left_cm
+    top = top_base + margin_top_cm
+
+    return {
+        'left': left,
+        'top': top,
+        'width': width_cm,
+        'height': height_cm,
+        'page_width': page_width_cm,
+        'page_height': page_height_cm
+    }

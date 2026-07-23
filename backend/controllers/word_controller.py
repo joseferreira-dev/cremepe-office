@@ -1,5 +1,5 @@
 from typing import List, Optional
-from models.word_processor import merge_documents, convert_document, compare_documents, extract_images
+from models.word_processor import merge_documents, convert_document, compare_documents, extract_images, add_watermark, preview_watermark_position
 
 class WordController:
     def merge_documents(self, docx_paths: List[str], output_path: str, insert_page_breaks: bool = True) -> str:
@@ -13,3 +13,38 @@ class WordController:
 
     def extract_images(self, input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
         return extract_images(input_path, output_dir, prefix)
+    
+    def add_watermark(
+        self,
+        input_path: str,
+        output_path: str,
+        content_type: str,
+        text: Optional[str] = None,
+        image_path: Optional[str] = None,
+        position: str = 'center',
+        width_cm: float = 5.0,
+        height_cm: float = 5.0,
+        transparency: float = 0.5,
+        margin_left_cm: float = 0.0,
+        margin_top_cm: float = 0.0
+    ) -> str:
+        return add_watermark(
+            input_path, output_path, content_type, text, image_path,
+            position, width_cm, height_cm, transparency,
+            margin_left_cm, margin_top_cm
+        )
+
+    def preview_watermark_position(
+        self,
+        page_width_cm: float = 21.0,
+        page_height_cm: float = 29.7,
+        position: str = 'center',
+        width_cm: float = 5.0,
+        height_cm: float = 5.0,
+        margin_left_cm: float = 0.0,
+        margin_top_cm: float = 0.0
+    ) -> dict:
+        return preview_watermark_position(
+            page_width_cm, page_height_cm, position,
+            width_cm, height_cm, margin_left_cm, margin_top_cm
+        )

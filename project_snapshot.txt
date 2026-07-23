@@ -60,11 +60,17 @@
 │   │   │   │   ├── report.js
 │   │   │   │   ├── split.js
 │   │   │   │   └── utils.js
+│   │   │   ├── word/
+│   │   │   │   ├── compare.js
+│   │   │   │   ├── convert.js
+│   │   │   │   ├── extract_images.js
+│   │   │   │   ├── index.js
+│   │   │   │   ├── merge.js
+│   │   │   │   └── utils.js
 │   │   │   ├── excel.js
 │   │   │   ├── home.js
 │   │   │   ├── pdf.js
-│   │   │   ├── settings.js
-│   │   │   └── word.js
+│   │   │   └── settings.js
 │   │   ├── api.js
 │   │   └── app.js
 │   ├── index.html
@@ -144,6 +150,9 @@ py7zr==1.1.3
 rarfile==4.3
 pyzipper==0.4.0
 cryptography==49.0.0
+pywin32==312
+docxcompose==2.2.0
+html2text==2025.4.15
 ```
 
 
@@ -795,14 +804,21 @@ class PDFController:
 ### backend\controllers\word_controller.py
 
 ```
-from models.word_processor import convert_docx_to_pdf, extract_text_from_docx
+from typing import List, Optional
+from models.word_processor import merge_documents, convert_document, compare_documents, extract_images
 
 class WordController:
-    def convert_to_pdf(self, docx_path, output_path=None):
-        return convert_docx_to_pdf(docx_path, output_path)
+    def merge_documents(self, docx_paths: List[str], output_path: str, insert_page_breaks: bool = True) -> str:
+        return merge_documents(docx_paths, output_path, insert_page_breaks)
 
-    def extract_text(self, docx_path):
-        return extract_text_from_docx(docx_path)
+    def convert_document(self, input_path: str, output_path: str, output_format: str) -> str:
+        return convert_document(input_path, output_path, output_format)
+
+    def compare_documents(self, doc1_path: str, doc2_path: str) -> dict:
+        return compare_documents(doc1_path, doc2_path)
+
+    def extract_images(self, input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
+        return extract_images(input_path, output_dir, prefix)
 ```
 
 
@@ -2144,56 +2160,320 @@ def split_pdf(pdf_path, output_dir, pages_per_file=1):
 
 ```
 import os
+import re
+import time
+import tempfile
+import difflib
 from pathlib import Path
+from typing import List, Dict, Optional, Tuple
+import pythoncom
+import win32com.client
 from docx import Document
-import subprocess
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
+from docxcompose.composer import Composer
 
-def convert_docx_to_pdf(docx_path, output_path=None):
+# ==================== CONVERSÃO .doc -> .docx ====================
+def convert_doc_to_docx(doc_path: Path) -> Path:
+    """Converte .doc para .docx usando Word COM."""
+    if not doc_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {doc_path}")
+    temp_dir = Path(tempfile.gettempdir())
+    docx_path = temp_dir / f"{doc_path.stem}_converted.docx"
+    pythoncom.CoInitialize()
+    word = None
+    try:
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
+        word.DisplayAlerts = False
+        doc = word.Documents.Open(str(doc_path))
+        doc.SaveAs(str(docx_path), FileFormat=16)  # wdFormatDocumentDefault
+        doc.Close(SaveChanges=False)
+    except Exception as e:
+        raise RuntimeError(f"Erro ao converter .doc para .docx: {str(e)}")
+    finally:
+        if word:
+            word.Quit()
+        pythoncom.CoUninitialize()
+    return docx_path
+
+# ==================== MERGE ====================
+def merge_documents(docx_paths: List[str], output_path: str, insert_page_breaks: bool = True) -> str:
+    """Junta documentos usando docxcompose."""
+    if not docx_paths:
+        raise ValueError("Lista de documentos vazia")
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_files = []
+    docx_files = []
+    try:
+        for path in docx_paths:
+            src_path = Path(path).resolve()
+            if not src_path.exists():
+                raise FileNotFoundError(f"Arquivo não encontrado: {src_path}")
+            if src_path.suffix.lower() == '.doc':
+                docx_temp = convert_doc_to_docx(src_path)
+                temp_files.append(docx_temp)
+                docx_files.append(str(docx_temp))
+            else:
+                docx_files.append(str(src_path))
+        composer = Composer(docx_files[0])
+        for i, doc_path in enumerate(docx_files[1:], start=1):
+            composer.append(doc_path, page_break=insert_page_breaks)
+        composer.save(str(output_path))
+        return str(output_path)
+    finally:
+        for temp_file in temp_files:
+            try:
+                if temp_file.exists():
+                    temp_file.unlink()
+            except:
+                pass
+
+# ==================== CONVERSÃO COM WORD (HTML, TXT, DOC, PDF) ====================
+def convert_with_word(input_path: Path, output_path: Path, format_code: int) -> None:
+    """Converte usando Word COM."""
+    pythoncom.CoInitialize()
+    word = None
+    try:
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
+        word.DisplayAlerts = False
+        doc = word.Documents.Open(str(input_path))
+        doc.SaveAs(str(output_path), FileFormat=format_code)
+        doc.Close(SaveChanges=False)
+    except Exception as e:
+        raise RuntimeError(f"Erro na conversão com Word: {str(e)}")
+    finally:
+        if word:
+            word.Quit()
+        pythoncom.CoUninitialize()
+
+# ==================== FUNÇÃO PRINCIPAL DE CONVERSÃO ====================
+def convert_document(input_path: str, output_path: str, output_format: str) -> str:
     """
-    Converte um arquivo .docx para PDF.
-    Se output_path não for fornecido, salva no mesmo diretório com extensão .pdf.
+    Converte um documento para o formato especificado.
+    output_format: 'html', 'txt', 'doc', 'pdf'
     """
-    docx_path = Path(docx_path)
-    if not docx_path.exists():
-        raise FileNotFoundError(f"Arquivo não encontrado: {docx_path}")
-    
-    if output_path is None:
-        output_path = docx_path.with_suffix('.pdf')
-    else:
-        output_path = Path(output_path)
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    doc = Document(docx_path)
-    # Extrai texto de todos os parágrafos
-    text = "\n".join([p.text for p in doc.paragraphs])
+    # Converte .doc para .docx temporário se necessário
+    temp_docx = None
+    if input_path.suffix.lower() == '.doc':
+        temp_docx = convert_doc_to_docx(input_path)
+        input_path = temp_docx
 
-    c = canvas.Canvas(str(output_path), pagesize=A4)
-    width, height = A4
-    # Configura fonte
-    c.setFont("Helvetica", 12)
-    # Escreve o texto linha a linha
-    y = height - 20
-    for line in text.split('\n'):
-        if y < 20:
-            c.showPage()
-            y = height - 20
-        c.drawString(20, y, line[:100])  # Limita para não estourar
-        y -= 15
-    c.save()
-    return str(output_path)
+    try:
+        format_map = {
+            'html': 10,   # wdFormatHTML
+            'txt': 2,     # wdFormatText
+            'doc': 0,     # wdFormatDocument
+            'pdf': 17     # wdFormatPDF
+        }
+        if output_format not in format_map:
+            raise ValueError(f"Formato não suportado: {output_format}")
 
-def extract_text_from_docx(docx_path):
-    """
-    Extrai e retorna todo o texto de um arquivo .docx.
-    """
-    docx_path = Path(docx_path)
-    if not docx_path.exists():
-        raise FileNotFoundError(f"Arquivo não encontrado: {docx_path}")
+        convert_with_word(input_path, output_path, format_map[output_format])
+        result = str(output_path)
+
+    finally:
+        if temp_docx and temp_docx.exists():
+            try:
+                temp_docx.unlink()
+            except:
+                pass
+
+    return result
+
+def extract_paragraphs(docx_path: Path) -> List[str]:
+    """Extrai texto de cada parágrafo de um documento .docx."""
     doc = Document(docx_path)
-    return "\n".join([p.text for p in doc.paragraphs])
+    paragraphs = []
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text:  # ignora parágrafos vazios
+            paragraphs.append(text)
+    return paragraphs
+
+def compare_documents(doc1_path: str, doc2_path: str) -> Dict:
+    """
+    Compara dois documentos Word e retorna as diferenças.
+    Retorna um dicionário com:
+        - 'differences': lista de dicionários com tipo ('added', 'removed', 'modified') e detalhes.
+        - 'summary': resumo com contagens.
+    """
+    doc1_path = Path(doc1_path).resolve()
+    doc2_path = Path(doc2_path).resolve()
+
+    if not doc1_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {doc1_path}")
+    if not doc2_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {doc2_path}")
+
+    # Se for .doc, converter para .docx temporário
+    temp_doc1 = None
+    temp_doc2 = None
+    try:
+        if doc1_path.suffix.lower() == '.doc':
+            from models.word_processor import convert_doc_to_docx
+            temp_doc1 = convert_doc_to_docx(doc1_path)
+            doc1_path = temp_doc1
+        if doc2_path.suffix.lower() == '.doc':
+            from models.word_processor import convert_doc_to_docx
+            temp_doc2 = convert_doc_to_docx(doc2_path)
+            doc2_path = temp_doc2
+
+        paragraphs1 = extract_paragraphs(doc1_path)
+        paragraphs2 = extract_paragraphs(doc2_path)
+
+        # Usa SequenceMatcher para comparar listas de parágrafos
+        matcher = difflib.SequenceMatcher(None, paragraphs1, paragraphs2)
+        differences = []
+        added_count = 0
+        removed_count = 0
+        modified_count = 0
+
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == 'equal':
+                continue
+            elif tag == 'delete':
+                removed = paragraphs1[i1:i2]
+                differences.append({
+                    'type': 'removed',
+                    'text': '\n'.join(removed),
+                    'count': len(removed)
+                })
+                removed_count += len(removed)
+            elif tag == 'insert':
+                added = paragraphs2[j1:j2]
+                differences.append({
+                    'type': 'added',
+                    'text': '\n'.join(added),
+                    'count': len(added)
+                })
+                added_count += len(added)
+            elif tag == 'replace':
+                removed = paragraphs1[i1:i2]
+                added = paragraphs2[j1:j2]
+                differences.append({
+                    'type': 'modified',
+                    'old_text': '\n'.join(removed),
+                    'new_text': '\n'.join(added),
+                    'count': max(len(removed), len(added))
+                })
+                modified_count += max(len(removed), len(added))
+
+        return {
+            'differences': differences,
+            'summary': {
+                'added': added_count,
+                'removed': removed_count,
+                'modified': modified_count,
+                'total_differences': len(differences)
+            }
+        }
+    finally:
+        # Limpa arquivos temporários
+        if temp_doc1 and temp_doc1.exists():
+            try:
+                temp_doc1.unlink()
+            except:
+                pass
+        if temp_doc2 and temp_doc2.exists():
+            try:
+                temp_doc2.unlink()
+            except:
+                pass
+
+def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = None) -> List[str]:
+    """
+    Extrai todas as imagens de um documento Word (incluindo cabeçalhos, rodapés, formas e wordarts)
+    e as salva na pasta de destino.
+    Retorna lista de caminhos das imagens extraídas.
+    """
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_dir = Path(output_dir).resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    temp_docx = None
+    if input_path.suffix.lower() == '.doc':
+        temp_docx = convert_doc_to_docx(input_path)
+        input_path = temp_docx
+
+    try:
+        doc = Document(input_path)
+        images = []
+        counter = 1
+
+        # 1. Imagens da parte principal do documento
+        for rel in doc.part.rels.values():
+            if "image" in rel.target_ref:
+                image_blob = rel.target_part.blob
+                content_type = rel.target_part.content_type
+                ext = _get_extension_from_content_type(content_type)
+                if ext:
+                    filename = f"{prefix or input_path.stem}_img_{counter:04d}{ext}"
+                    output_path = output_dir / filename
+                    with open(output_path, 'wb') as f:
+                        f.write(image_blob)
+                    images.append(str(output_path))
+                    counter += 1
+
+        # 2. Imagens em cabeçalhos e rodapés
+        for section in doc.sections:
+            for header in section.header.paragraphs + section.header.tables:
+                if hasattr(header, '_element') and header._element is not None:
+                    header_part = header._element.getroottree().getroot().getroottree()
+                    pass
+
+        package = doc.part.package
+        for part in package.iter_parts():
+            # Se for uma parte de imagem, extrai
+            if 'image' in part.content_type:
+                image_blob = part.blob
+                content_type = part.content_type
+                ext = _get_extension_from_content_type(content_type)
+                if ext:
+                    # Usa o nome da parte como referência
+                    part_name = part.partname.split('/')[-1]
+                    filename = f"{prefix or input_path.stem}_img_{counter:04d}_{part_name}{ext}"
+                    output_path = output_dir / filename
+                    with open(output_path, 'wb') as f:
+                        f.write(image_blob)
+                    images.append(str(output_path))
+                    counter += 1
+
+        if not images:
+            raise ValueError("Nenhuma imagem encontrada no documento.")
+
+        return images
+
+    finally:
+        if temp_docx and temp_docx.exists():
+            try:
+                temp_docx.unlink()
+            except:
+                pass
+
+def _get_extension_from_content_type(content_type: str) -> str:
+    """Retorna extensão de arquivo baseada no tipo MIME."""
+    ext_map = {
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/gif': '.gif',
+        'image/bmp': '.bmp',
+        'image/tiff': '.tiff',
+        'image/webp': '.webp',
+        'image/vnd.microsoft.icon': '.ico',
+        'image/svg+xml': '.svg'
+    }
+    return ext_map.get(content_type, '.bin')
 ```
 
 
@@ -2673,26 +2953,64 @@ from controllers.word_controller import WordController
 word_bp = Blueprint('word', __name__)
 controller = WordController()
 
-@word_bp.route('/convert-to-pdf', methods=['POST'])
-def convert_to_pdf():
+@word_bp.route('/merge', methods=['POST'])
+def merge_documents():
     data = request.json
-    if not data.get('docx_path'):
-        return jsonify({"error": "Campo obrigatório: docx_path"}), 400
+    if not data.get('docx_paths') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: docx_paths, output_path"}), 400
     try:
-        output = data.get('output_path')
-        result = controller.convert_to_pdf(data['docx_path'], output)
+        insert_page_breaks = data.get('insert_page_breaks', True)
+        result = controller.merge_documents(
+            docx_paths=data['docx_paths'],
+            output_path=data['output_path'],
+            insert_page_breaks=insert_page_breaks
+        )
         return jsonify({"success": True, "output_path": result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@word_bp.route('/extract-text', methods=['POST'])
-def extract_text():
+@word_bp.route('/convert', methods=['POST'])
+def convert_document():
     data = request.json
-    if not data.get('docx_path'):
-        return jsonify({"error": "Campo obrigatório: docx_path"}), 400
+    if not data.get('input_path') or not data.get('output_path') or not data.get('output_format'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path, output_format"}), 400
     try:
-        result = controller.extract_text(data['docx_path'])
-        return jsonify({"success": True, "text": result}), 200
+        result = controller.convert_document(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            output_format=data['output_format']
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/compare', methods=['POST'])
+def compare_documents():
+    data = request.json
+    if not data.get('doc1_path') or not data.get('doc2_path'):
+        return jsonify({"error": "Campos obrigatórios: doc1_path, doc2_path"}), 400
+    try:
+        result = controller.compare_documents(
+            doc1_path=data['doc1_path'],
+            doc2_path=data['doc2_path']
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@word_bp.route('/extract-images', methods=['POST'])
+def extract_images():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_dir'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_dir"}), 400
+    try:
+        prefix = data.get('prefix')
+        result = controller.extract_images(
+            input_path=data['input_path'],
+            output_dir=data['output_dir'],
+            prefix=prefix
+        )
+        return jsonify({"success": True, "images": result, "count": len(result)}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 ```
@@ -2848,9 +3166,14 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/file/split.js"></script>
     <script src="js/modules/home.js"></script>
     <script src="js/modules/pdf.js"></script>
-    <script src="js/modules/word.js"></script>
     <script src="js/modules/excel.js"></script>
     <script src="js/modules/settings.js"></script>
+    <script src="js/modules/word/utils.js"></script>
+    <script src="js/modules/word/merge.js"></script>
+    <script src="js/modules/word/convert.js"></script>
+    <script src="js/modules/word/compare.js"></script>
+    <script src="js/modules/word/extract_images.js"></script>
+    <script src="js/modules/word/index.js"></script>
     <script src="js/app.js"></script>
 </body>
 
@@ -3351,8 +3674,10 @@ window.API = {
         split: (params) => apiRequest('/pdf/split', 'POST', params),
     },
     word: {
-        convertToPdf: (params) => apiRequest('/word/convert-to-pdf', 'POST', params),
-        extractText: (params) => apiRequest('/word/extract-text', 'POST', params),
+        merge: (params) => apiRequest('/word/merge', 'POST', params),
+        convert: (params) => apiRequest('/word/convert', 'POST', params),
+        compare: (params) => apiRequest('/word/compare', 'POST', params),
+        extractImages: (params) => apiRequest('/word/extract-images', 'POST', params),
     },
     excel: {
         merge: (params) => apiRequest('/excel/merge', 'POST', params),
@@ -3503,7 +3828,7 @@ class ExcelModule {
             </div>
             <button class="btn btn-success" id="btn-merge-excel">Mesclar</button>
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="excel-log">Log de operações vazio</div>
             </div>
         `;
@@ -3572,7 +3897,7 @@ class ExcelModule {
             </div>
             <button class="btn btn-success" id="btn-read-excel">Ler</button>
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="read-log">Log de operações vazio</div>
             </div>
             <div class="mt-2">
@@ -3640,7 +3965,7 @@ class ExcelModule {
             </div>
             <button class="btn btn-success" id="btn-write-excel">Escrever</button>
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="write-log">Log de operações vazio</div>
             </div>
         `;
@@ -3966,192 +4291,6 @@ window.SettingsPage = SettingsPage;
 ```
 
 
-### frontend\js\modules\word.js
-
-```
-class WordModule {
-    constructor(container) {
-        this.container = container;
-        this.currentFeature = 'convert';
-        this.features = [
-            { id: 'convert', label: 'Converter para PDF', render: this.renderConvert.bind(this) },
-            { id: 'extract', label: 'Extrair Texto', render: this.renderExtract.bind(this) },
-        ];
-    }
-
-    render() {
-        this.container.innerHTML = `
-            <div class="page active">
-                <h2 class="module-title"><i class="bi bi-file-earmark-word me-2"></i>Documentos</h2>
-                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
-                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
-                        <h3>Funcionalidades</h3>
-                        <ul class="feature-list">
-                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
-                        </ul>
-                    </div>
-                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
-                </div>
-            </div>
-        `;
-        this.container.querySelectorAll('.feature-list li').forEach(item => {
-            item.addEventListener('click', () => {
-                const feature = item.dataset.feature;
-                this.selectFeature(feature);
-            });
-        });
-        this.renderCurrentFeature();
-    }
-
-    selectFeature(featureId) {
-        this.currentFeature = featureId;
-        this.container.querySelectorAll('.feature-list li').forEach(li => {
-            li.classList.toggle('active', li.dataset.feature === featureId);
-        });
-        this.renderCurrentFeature();
-    }
-
-    renderCurrentFeature() {
-        const feature = this.features.find(f => f.id === this.currentFeature);
-        if (feature) feature.render();
-    }
-
-    renderConvert() {
-        const content = document.getElementById('feature-content');
-        content.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-arrow-left-right me-2"></i>Converter DOCX para PDF</h4>
-                <p class="text-muted">Converta documentos Word para o formato PDF.</p>
-            </div>
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="mb-2">
-                        <label class="form-label">Arquivo DOCX</label>
-                        <div class="input-group">
-                            <input type="text" id="docx-input" class="form-control" placeholder="Selecione o arquivo .docx">
-                            <button class="btn btn-outline-secondary" id="btn-docx-select">Selecionar</button>
-                        </div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label">Salvar PDF como (opcional)</label>
-                        <div class="input-group">
-                            <input type="text" id="docx-output" class="form-control" placeholder="Caminho de saída">
-                            <button class="btn btn-outline-secondary" id="btn-docx-output">Selecionar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <button class="btn btn-success" id="btn-convert-docx">Converter</button>
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
-                <div class="log-area" id="word-log">Log de operações vazio</div>
-            </div>
-        `;
-
-        document.getElementById('btn-docx-select').addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Word', extensions: ['docx'] }] })
-                    .then(result => {
-                        if (!result.canceled) document.getElementById('docx-input').value = result.filePaths[0];
-                    });
-            }
-        });
-
-        document.getElementById('btn-docx-output').addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({ filters: [{ name: 'PDF', extensions: ['pdf'] }] })
-                    .then(result => {
-                        if (!result.canceled && result.filePath) {
-                            document.getElementById('docx-output').value = result.filePath;
-                        }
-                    });
-            }
-        });
-
-        document.getElementById('btn-convert-docx').addEventListener('click', async () => {
-            const docxPath = document.getElementById('docx-input').value.trim();
-            const outputPath = document.getElementById('docx-output').value.trim() || undefined;
-            if (!docxPath) {
-                this.log('Selecione um arquivo DOCX.', 'word-log');
-                return;
-            }
-            try {
-                const result = await window.API.word.convertToPdf({ docx_path: docxPath, output_path: outputPath });
-                this.log(`Convertido para PDF: ${result.output_path}`, 'word-log');
-            } catch (err) {
-                this.log(`Erro: ${err.message}`, 'word-log');
-            }
-        });
-    }
-
-    renderExtract() {
-        const content = document.getElementById('feature-content');
-        content.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-file-text me-2"></i>Extrair Texto de DOCX</h4>
-                <p class="text-muted">Extraia todo o texto de um documento Word.</p>
-            </div>
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="mb-2">
-                        <label class="form-label">Arquivo DOCX</label>
-                        <div class="input-group">
-                            <input type="text" id="extract-input" class="form-control" placeholder="Selecione o arquivo .docx">
-                            <button class="btn btn-outline-secondary" id="btn-extract-select">Selecionar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <button class="btn btn-success" id="btn-extract-text">Extrair</button>
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
-                <div class="log-area" id="extract-log">Log de operações vazio</div>
-            </div>
-            <div class="mt-2">
-                <label class="fw-bold text-success">Texto Extraído</label>
-                <textarea id="extracted-text" class="form-control" rows="8" readonly></textarea>
-            </div>
-        `;
-
-        document.getElementById('btn-extract-select').addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Word', extensions: ['docx'] }] })
-                    .then(result => {
-                        if (!result.canceled) document.getElementById('extract-input').value = result.filePaths[0];
-                    });
-            }
-        });
-
-        document.getElementById('btn-extract-text').addEventListener('click', async () => {
-            const docxPath = document.getElementById('extract-input').value.trim();
-            if (!docxPath) {
-                this.log('Selecione um arquivo DOCX.', 'extract-log');
-                return;
-            }
-            try {
-                const result = await window.API.word.extractText({ docx_path: docxPath });
-                document.getElementById('extracted-text').value = result.text;
-                this.log('Texto extraído com sucesso.', 'extract-log');
-            } catch (err) {
-                this.log(`Erro: ${err.message}`, 'extract-log');
-            }
-        });
-    }
-
-    log(message, logId) {
-        const logArea = document.getElementById(logId);
-        if (logArea) {
-            const p = document.createElement('p');
-            p.textContent = message;
-            logArea.appendChild(p);
-            logArea.scrollTop = logArea.scrollHeight;
-        }
-    }
-}
-window.WordModule = WordModule;
-```
-
-
 ### frontend\js\modules\file\archive.js
 
 ```
@@ -4291,7 +4430,7 @@ class ArchiveFeature {
             <div class="progress mt-2"><div class="progress-bar" id="archive-progress" style="width:0%"></div></div>
 
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="archive-log">Log de operações vazio</div>
             </div>
         `;
@@ -4551,7 +4690,7 @@ class AttributesFeature {
             <div class="progress mt-2"><div class="progress-bar" id="attr-progress" style="width:0%"></div></div>
 
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="attr-log">Log de operações vazio</div>
             </div>
         `;
@@ -4962,7 +5101,7 @@ class CompareFeature {
             </div>
 
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="compare-log">Log de operações vazio</div>
             </div>
         `;
@@ -5175,7 +5314,7 @@ class DuplicatesFeature {
             </div>
 
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="duplicates-log">Log de operações vazio</div>
             </div>
         `;
@@ -5316,7 +5455,7 @@ class FileModule {
     render() {
         this.container.innerHTML = `
             <div class="page active">
-                <h2 class="module-title">Arquivos e Pastas</h2>
+                <h2 class="module-title"><i class="bi bi-folder2-open me-2"></i>Arquivos e Pastas</h2>
                 <div class="d-flex gap-3" style="height: calc(100% - 60px);">
                     <div class="module-sidebar flex-shrink-0" style="width: 240px;">
                         <h3>Funcionalidades</h3>
@@ -6126,7 +6265,7 @@ class ReportFeature {
             </div>
 
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="report-log">Log de operações vazio</div>
             </div>
         `;
@@ -6302,7 +6441,7 @@ class SplitFeature {
             <div class="progress mt-2"><div class="progress-bar" id="split-progress" style="width:0%"></div></div>
 
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="split-log">Log de operações vazio</div>
             </div>
         `;
@@ -6519,6 +6658,654 @@ const FileUtils = {
             alert('Selecione o local para salvar.');
         }
     },
+};
+```
+
+
+### frontend\js\modules\word\compare.js
+
+```
+class DocCompareFeature {
+    constructor(module) {
+        this.module = module;
+        this.result = null;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Comparar Documentos</h4>
+                <p class="text-muted">Compare dois documentos Word e veja as diferenças.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Documento 1 (base)</h5>
+                    <div class="input-group">
+                        <input type="text" id="compare-doc1" class="form-control" placeholder="Selecione o documento...">
+                        <button class="btn btn-outline-secondary" id="btn-compare-doc1">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Documento 2 (comparação)</h5>
+                    <div class="input-group">
+                        <input type="text" id="compare-doc2" class="form-control" placeholder="Selecione o documento...">
+                        <button class="btn btn-outline-secondary" id="btn-compare-doc2">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-compare"><i class="bi bi-play-fill"></i> Comparar</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="compare-progress" style="width:0%"></div></div>
+
+            <div id="compare-result" style="display:none;" class="mt-3">
+                <div class="row g-2 mb-2">
+                    <div class="col-4"><span class="badge bg-danger">Removidos: <span id="removed-count">0</span></span></div>
+                    <div class="col-4"><span class="badge bg-success">Adicionados: <span id="added-count">0</span></span></div>
+                    <div class="col-4"><span class="badge bg-warning">Modificados: <span id="modified-count">0</span></span></div>
+                </div>
+                <div id="compare-details" style="max-height:400px; overflow:auto; border:1px solid #dee2e6; border-radius:0.375rem; padding:8px; font-size:0.9rem;">
+                    <!-- Detalhes serão preenchidos -->
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="compare-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-compare-doc1').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('compare-doc1').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        container.querySelector('#btn-compare-doc2').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('compare-doc2').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        container.querySelector('#btn-compare').addEventListener('click', () => this.compareDocuments());
+    }
+
+    async compareDocuments() {
+        const doc1 = document.getElementById('compare-doc1').value.trim();
+        const doc2 = document.getElementById('compare-doc2').value.trim();
+
+        if (!doc1 || !doc2) {
+            FileUtils.log('Selecione ambos os documentos.', 'compare-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-compare');
+        btn.disabled = true;
+        FileUtils.clearLog('compare-log');
+        FileUtils.log('Comparando documentos...', 'compare-log');
+
+        try {
+            const result = await window.API.word.compare({
+                doc1_path: doc1,
+                doc2_path: doc2
+            });
+
+            document.getElementById('removed-count').textContent = result.summary.removed;
+            document.getElementById('added-count').textContent = result.summary.added;
+            document.getElementById('modified-count').textContent = result.summary.modified;
+
+            const detailsDiv = document.getElementById('compare-details');
+            let html = '';
+            result.differences.forEach((diff, idx) => {
+                if (diff.type === 'removed') {
+                    html += `<div class="border-bottom py-1"><span class="badge bg-danger me-2">Removido</span><span style="background:#ffcccc;">${diff.text}</span></div>`;
+                } else if (diff.type === 'added') {
+                    html += `<div class="border-bottom py-1"><span class="badge bg-success me-2">Adicionado</span><span style="background:#ccffcc;">${diff.text}</span></div>`;
+                } else if (diff.type === 'modified') {
+                    html += `<div class="border-bottom py-1"><span class="badge bg-warning me-2">Modificado</span><span style="background:#ffffcc;">${diff.old_text}</span> → <span style="background:#ccffcc;">${diff.new_text}</span></div>`;
+                }
+            });
+            if (!html) {
+                html = '<p class="text-muted">Nenhuma diferença encontrada.</p>';
+            }
+            detailsDiv.innerHTML = html;
+
+            document.getElementById('compare-result').style.display = 'block';
+            FileUtils.log('Comparação concluída.', 'compare-log');
+            document.getElementById('compare-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'compare-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\word\convert.js
+
+```
+class ConvertFeature {
+    constructor(module) {
+        this.module = module;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Converter Documento</h4>
+                <p class="text-muted">Converta documentos Word para HTML, TXT, DOC ou PDF.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="convert-input" class="form-control" placeholder="Selecione o documento...">
+                        <button class="btn btn-outline-secondary" id="btn-convert-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Formato de saída</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convert-format" id="convert-format-html" value="html" checked>
+                                <label class="form-check-label">HTML</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convert-format" id="convert-format-txt" value="txt">
+                                <label class="form-check-label">TXT</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convert-format" id="convert-format-doc" value="doc">
+                                <label class="form-check-label">DOC</label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convert-format" id="convert-format-pdf" value="pdf">
+                                <label class="form-check-label">PDF</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="convert-output" class="form-control" placeholder="Caminho para salvar o arquivo convertido...">
+                        <button class="btn btn-outline-secondary" id="btn-convert-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-convert"><i class="bi bi-play-fill"></i> Converter</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="convert-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="convert-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-convert-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('convert-input').value = result.filePaths[0];
+                        this.suggestOutputPath();
+                    }
+                });
+            }
+        });
+
+        container.querySelector('#btn-convert-output').addEventListener('click', () => {
+            const format = document.querySelector('input[name="convert-format"]:checked').value;
+            const ext = format;
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: format.toUpperCase(), extensions: [ext] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('convert-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        container.querySelectorAll('input[name="convert-format"]').forEach(radio => {
+            radio.addEventListener('change', () => this.suggestOutputPath());
+        });
+
+        container.querySelector('#btn-convert').addEventListener('click', () => this.convertDocument());
+    }
+
+    suggestOutputPath() {
+        const input = document.getElementById('convert-input').value.trim();
+        const format = document.querySelector('input[name="convert-format"]:checked').value;
+        if (input) {
+            const baseName = input.replace(/\.[^.]+$/, '');
+            const output = document.getElementById('convert-output');
+            if (!output.value) {
+                output.value = `${baseName}.${format}`;
+            }
+        }
+    }
+
+    async convertDocument() {
+        const inputPath = document.getElementById('convert-input').value.trim();
+        const outputPath = document.getElementById('convert-output').value.trim();
+        const format = document.querySelector('input[name="convert-format"]:checked').value;
+
+        if (!inputPath || !outputPath) {
+            FileUtils.log('Selecione o arquivo de entrada e defina o destino.', 'convert-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-convert');
+        btn.disabled = true;
+        FileUtils.clearLog('convert-log');
+        FileUtils.log(`Convertendo para ${format.toUpperCase()}...`, 'convert-log');
+
+        try {
+            const result = await window.API.word.convert({
+                input_path: inputPath,
+                output_path: outputPath,
+                output_format: format
+            });
+            FileUtils.log(`Convertido para: ${result.output_path}`, 'convert-log');
+            document.getElementById('convert-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'convert-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\word\extract_images.js
+
+```
+class ExtractImagesFeature {
+    constructor(module) {
+        this.module = module;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Extrair Imagens</h4>
+                <p class="text-muted">Extraia todas as imagens embutidas em um documento Word e salve-as como arquivos individuais.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Documento</h5>
+                    <div class="input-group">
+                        <input type="text" id="extract-input" class="form-control" placeholder="Selecione o documento...">
+                        <button class="btn btn-outline-secondary" id="btn-extract-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Destino</h5>
+                    <div class="input-group">
+                        <input type="text" id="extract-output" class="form-control" placeholder="Pasta para salvar as imagens...">
+                        <button class="btn btn-outline-secondary" id="btn-extract-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Prefixo para os arquivos (opcional)</label>
+                        <input type="text" id="extract-prefix" class="form-control" placeholder="Deixe vazio para usar o nome do documento">
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-extract"><i class="bi bi-play-fill"></i> Extrair</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="extract-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="extract-log">Log de operações vazio</div>
+            </div>
+
+            <div id="extract-result" style="display:none;" class="mt-3">
+                <label class="fw-bold text-success">Imagens extraídas</label>
+                <div id="extract-list" class="border rounded p-2" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-extract-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('extract-input').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        container.querySelector('#btn-extract-output').addEventListener('click', () => {
+            FileUtils.selectDirectory('extract-output');
+        });
+
+        container.querySelector('#btn-extract').addEventListener('click', () => this.extractImages());
+    }
+
+    async extractImages() {
+        const inputPath = document.getElementById('extract-input').value.trim();
+        const outputDir = document.getElementById('extract-output').value.trim();
+        const prefix = document.getElementById('extract-prefix').value.trim() || undefined;
+
+        if (!inputPath || !outputDir) {
+            FileUtils.log('Selecione o documento e a pasta de destino.', 'extract-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-extract');
+        btn.disabled = true;
+        FileUtils.clearLog('extract-log');
+        FileUtils.log('Extraindo imagens...', 'extract-log');
+
+        try {
+            const result = await window.API.word.extractImages({
+                input_path: inputPath,
+                output_dir: outputDir,
+                prefix: prefix
+            });
+            FileUtils.log(`Extraídas ${result.count} imagens.`, 'extract-log');
+            document.getElementById('extract-progress').style.width = '100%';
+
+            const resultDiv = document.getElementById('extract-result');
+            resultDiv.style.display = 'block';
+            const listDiv = document.getElementById('extract-list');
+            listDiv.innerHTML = result.images.map(img => `<div><i class="bi bi-image me-1"></i> ${img}</div>`).join('');
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'extract-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\word\index.js
+
+```
+class WordModule {
+    constructor(container) {
+        this.container = container;
+        this.currentFeature = 'merge';
+        this.mergeFeature = new MergeFeature(this);
+        this.convertFeature = new ConvertFeature(this);
+        this.compareFeature = new DocCompareFeature(this);
+        this.extractImagesFeature = new ExtractImagesFeature(this);
+
+        this.features = [
+            { id: 'merge', label: 'Juntar Documentos', render: (container) => this.mergeFeature.render(container) },
+            { id: 'convert', label: 'Converter', render: (container) => this.convertFeature.render(container) },
+            { id: 'compare', label: 'Comparar', render: (container) => this.compareFeature.render(container) },
+            { id: 'extract-images', label: 'Extrair Imagens', render: (container) => this.extractImagesFeature.render(container) },
+        ];
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h2 class="module-title"><i class="bi bi-file-earmark-word me-2"></i>Documentos</h2>
+                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
+                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
+                        <h3>Funcionalidades</h3>
+                        <ul class="feature-list">
+                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
+                </div>
+            </div>
+        `;
+
+        this.container.querySelectorAll('.feature-list li').forEach(item => {
+            item.addEventListener('click', () => {
+                const feature = item.dataset.feature;
+                this.selectFeature(feature);
+            });
+        });
+
+        this.renderCurrentFeature();
+    }
+
+    selectFeature(featureId) {
+        this.currentFeature = featureId;
+        this.container.querySelectorAll('.feature-list li').forEach(li => {
+            li.classList.toggle('active', li.dataset.feature === featureId);
+        });
+        this.renderCurrentFeature();
+    }
+
+    renderCurrentFeature() {
+        const feature = this.features.find(f => f.id === this.currentFeature);
+        if (feature) {
+            const content = document.getElementById('feature-content');
+            content.innerHTML = '';
+            feature.render(content);
+        }
+    }
+}
+
+window.WordModule = WordModule;
+```
+
+
+### frontend\js\modules\word\merge.js
+
+```
+class MergeFeature {
+    constructor(module) {
+        this.module = module;
+        this.docxPaths = [];
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Juntar Documentos</h4>
+                <p class="text-muted">Combine vários documentos DOC ou DOCX em um único arquivo, mantendo formatação, imagens e quebras de página.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Documentos para juntar</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Selecione arquivos Word</label>
+                        <div class="input-group">
+                            <input type="text" id="merge-docx-list" class="form-control" placeholder="Caminhos separados por vírgula">
+                            <button class="btn btn-outline-secondary" id="btn-add-docx">Adicionar</button>
+                        </div>
+                    </div>
+                    <div id="docx-list" style="max-height:150px; overflow:auto; font-size:0.9rem;"></div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="merge-output" class="form-control" placeholder="Caminho para salvar o documento final">
+                        <button class="btn btn-outline-secondary" id="btn-merge-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="merge-page-breaks" checked>
+                        <label class="form-check-label">Inserir quebra de página entre documentos</label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-merge"><i class="bi bi-play-fill"></i> Juntar</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="merge-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="merge-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents(container);
+    }
+
+    attachEvents(container) {
+        container.querySelector('#btn-add-docx').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile', 'multiSelections'],
+                    filters: [
+                        { name: 'Word', extensions: ['docx', 'doc'] }
+                    ]
+                })
+                    .then(result => {
+                        if (!result.canceled) {
+                            const current = document.getElementById('merge-docx-list').value;
+                            const newPaths = result.filePaths.join(', ');
+                            document.getElementById('merge-docx-list').value = current ? current + ', ' + newPaths : newPaths;
+                            this.updateDocxList();
+                        }
+                    });
+            }
+        });
+
+        container.querySelector('#btn-merge-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [
+                        { name: 'Word', extensions: ['docx'] }
+                    ]
+                })
+                    .then(result => {
+                        if (!result.canceled && result.filePath) {
+                            document.getElementById('merge-output').value = result.filePath;
+                        }
+                    });
+            }
+        });
+
+        container.querySelector('#btn-merge').addEventListener('click', () => this.mergeDocuments());
+    }
+
+    updateDocxList() {
+        const val = document.getElementById('merge-docx-list').value;
+        const paths = val.split(',').map(s => s.trim()).filter(Boolean);
+        const listDiv = document.getElementById('docx-list');
+        if (paths.length === 0) {
+            listDiv.innerHTML = '<p class="text-muted">Nenhum documento selecionado.</p>';
+        } else {
+            listDiv.innerHTML = paths.map(p => `<div><i class="bi bi-file-earmark-word me-1"></i> ${p}</div>`).join('');
+        }
+    }
+
+    async mergeDocuments() {
+        const docxPaths = document.getElementById('merge-docx-list').value.split(',').map(s => s.trim()).filter(Boolean);
+        const outputPath = document.getElementById('merge-output').value.trim();
+        const insertPageBreaks = document.getElementById('merge-page-breaks').checked;
+
+        if (!docxPaths.length || !outputPath) {
+            FileUtils.log('Selecione os documentos e defina o destino.', 'merge-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-merge');
+        btn.disabled = true;
+        FileUtils.clearLog('merge-log');
+        FileUtils.log(`Juntando ${docxPaths.length} documentos...`, 'merge-log');
+
+        try {
+            const result = await window.API.word.merge({
+                docx_paths: docxPaths,
+                output_path: outputPath,
+                insert_page_breaks: insertPageBreaks
+            });
+            FileUtils.log(`Documentos juntados em: ${result.output_path}`, 'merge-log');
+            document.getElementById('merge-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'merge-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+```
+
+
+### frontend\js\modules\word\utils.js
+
+```
+const WordUtils = {
+    // Utilitários futuros
 };
 ```
 

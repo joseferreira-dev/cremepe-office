@@ -43,6 +43,8 @@ window.API = {
         convert: (params) => apiRequest('/word/convert', 'POST', params),
         compare: (params) => apiRequest('/word/compare', 'POST', params),
         extractImages: (params) => apiRequest('/word/extract-images', 'POST', params),
+        watermark: (params) => apiRequest('/word/watermark', 'POST', params),
+        watermarkPreview: (params) => apiRequest('/word/watermark/preview', 'POST', params),
     },
     excel: {
         merge: (params) => apiRequest('/excel/merge', 'POST', params),
