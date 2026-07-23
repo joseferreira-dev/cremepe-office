@@ -50,6 +50,7 @@ window.API = {
     excel: {
         convertBatch: (params) => apiRequest('/excel/convert-batch', 'POST', params),
         mergeAll: (params) => apiRequest('/excel/merge-all', 'POST', params),
+        extractCells: (params) => apiRequest('/excel/extract-cells', 'POST', params),
     },
     health: () => apiRequest('/health'),
 };

@@ -44,3 +44,22 @@ def merge_all():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@excel_bp.route('/extract-cells', methods=['POST'])
+def extract_cells():
+    data = request.json
+    required = ['source_dir', 'output_csv', 'cell_mappings']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.extract_cells(
+            source_dir=data['source_dir'],
+            output_csv=data['output_csv'],
+            cell_mappings=data['cell_mappings'],
+            recursive=data.get('recursive', False)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

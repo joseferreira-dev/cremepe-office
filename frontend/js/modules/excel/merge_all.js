@@ -2,7 +2,7 @@ class ExcelMergeAllFeature {
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-files me-2"></i>Juntar Tudo em Um</h4>
+                <h4 class="text-success fw-normal">Combinar Planilhas</h4>
                 <p class="text-muted">Consolide todos os arquivos XLSX de uma pasta em um único arquivo mestre.</p>
             </div>
 

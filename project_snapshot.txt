@@ -49,7 +49,9 @@
 │   │   ├── modules/
 │   │   │   ├── excel/
 │   │   │   │   ├── convert.js
+│   │   │   │   ├── extract_cells.js
 │   │   │   │   ├── index.js
+│   │   │   │   ├── merge_all.js
 │   │   │   │   └── utils.js
 │   │   │   ├── file/
 │   │   │   │   ├── archive.js
@@ -219,13 +221,23 @@ ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".bmp", ".gif"]
 ### backend\controllers\excel_controller.py
 
 ```
-from models.excel_processor import batch_convert
+from models.excel_processor import (
+    batch_convert,
+    extract_specific_cells,
+    merge_all_files
+)
 
 class ExcelController:
     def convert_batch(self, source_dir, dest_dir, input_format, output_format,
                       recursive=False, overwrite=False):
         return batch_convert(source_dir, dest_dir, input_format, output_format,
                              recursive, overwrite)
+    
+    def merge_all(self, source_dir, dest_file, mode='sheets', include_header=True, recursive=False):
+        return merge_all_files(source_dir, dest_file, mode, include_header, recursive)
+    
+    def extract_cells(self, source_dir, output_file, cell_mappings, recursive=False):
+        return extract_specific_cells(source_dir, output_file, cell_mappings, recursive)
 ```
 
 
@@ -898,9 +910,10 @@ class WordController:
 import os
 import csv
 from pathlib import Path
+import re
 import openpyxl
 import xlwt
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 
 # ========== UTILITÁRIOS ==========
 def _get_base_name(file_path):
@@ -1073,6 +1086,234 @@ def batch_convert(source_dir, dest_dir, input_format, output_format, recursive=F
             results['errors'].append({'file': str(file_path), 'error': str(e)})
 
     return results
+
+# ========== MESCLAR TUDO EM UM ==========
+def _sanitize_sheet_name(name: str, max_len=31) -> str:
+    """Sanitiza o nome da aba para ser válido no Excel."""
+    # Remove caracteres inválidos: \ / ? * [ ]
+    name = re.sub(r'[\\/*?:\[\]]', '', name)
+    # Remove espaços extras e limita tamanho
+    name = name.strip()[:max_len]
+    if not name:
+        name = "Sheet"
+    return name
+
+def merge_all_files(
+    source_dir: str,
+    dest_file: str,
+    mode: str = 'sheets',          # 'sheets' ou 'stack'
+    include_header: bool = True,   # só usado em 'stack'
+    recursive: bool = False
+) -> dict:
+    """
+    Consolida todos os arquivos .xlsx de uma pasta em um único arquivo.
+
+    Args:
+        source_dir: Pasta de origem
+        dest_file: Caminho do arquivo de saída (.xlsx)
+        mode: 'sheets' (cada arquivo em uma aba) ou 'stack' (empilhar linhas)
+        include_header: Se True e mode='stack', usa cabeçalho do primeiro arquivo
+        recursive: Se True, inclui subpastas
+
+    Returns:
+        dict com estatísticas: processed, total_rows, total_sheets, errors
+    """
+    source_path = Path(source_dir).resolve()
+    if not source_path.exists():
+        raise FileNotFoundError(f"Pasta não encontrada: {source_dir}")
+
+    dest_path = Path(dest_file).resolve()
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Coletar arquivos .xlsx
+    if recursive:
+        files = list(source_path.rglob('*.xlsx'))
+    else:
+        files = list(source_path.glob('*.xlsx'))
+
+    if not files:
+        raise ValueError(f"Nenhum arquivo .xlsx encontrado em {source_dir}")
+
+    stats = {
+        'processed': 0,
+        'total_rows': 0,
+        'total_sheets': 0,
+        'errors': []
+    }
+
+    if mode == 'sheets':
+        # Criar um novo workbook
+        wb_out = Workbook()
+        # Remover a aba padrão (será substituída)
+        default_sheet = wb_out.active
+        wb_out.remove(default_sheet)
+
+        for file_path in files:
+            try:
+                wb_in = load_workbook(file_path, data_only=True)
+                # Usar a primeira planilha ativa
+                ws_in = wb_in.active
+                if ws_in is None:
+                    stats['errors'].append(f"{file_path.name}: Planilha vazia")
+                    continue
+
+                # Nome da aba: nome do arquivo sem extensão, sanitizado
+                sheet_name = _sanitize_sheet_name(file_path.stem)
+                # Garantir nome único
+                if sheet_name in wb_out.sheetnames:
+                    counter = 2
+                    base = sheet_name
+                    while f"{base}_{counter}" in wb_out.sheetnames:
+                        counter += 1
+                    sheet_name = f"{base}_{counter}"
+
+                ws_out = wb_out.create_sheet(title=sheet_name)
+
+                # Copiar dados
+                for row in ws_in.iter_rows(values_only=True):
+                    ws_out.append(row)
+
+                stats['processed'] += 1
+                stats['total_sheets'] += 1
+                stats['total_rows'] += ws_in.max_row - 1  # desconsidera cabeçalho? não, contamos tudo
+
+            except Exception as e:
+                stats['errors'].append(f"{file_path.name}: {str(e)}")
+
+        # Salvar
+        wb_out.save(dest_path)
+
+    else:  # mode == 'stack'
+        wb_out = Workbook()
+        ws_out = wb_out.active
+        ws_out.title = "Consolidado"
+
+        first_file = True
+        total_rows = 0
+
+        for file_path in files:
+            try:
+                wb_in = load_workbook(file_path, data_only=True)
+                ws_in = wb_in.active
+                if ws_in is None:
+                    stats['errors'].append(f"{file_path.name}: Planilha vazia")
+                    continue
+
+                # Determinar linhas a copiar
+                rows_to_copy = list(ws_in.iter_rows(values_only=True))
+
+                if not rows_to_copy:
+                    continue
+
+                if include_header:
+                    if first_file:
+                        # Copiar cabeçalho do primeiro arquivo
+                        header_row = rows_to_copy[0]
+                        ws_out.append(header_row)
+                        data_rows = rows_to_copy[1:]
+                        first_file = False
+                    else:
+                        # Pular cabeçalho dos demais
+                        data_rows = rows_to_copy[1:]
+                else:
+                    # Sem cabeçalho: copiar todas as linhas
+                    data_rows = rows_to_copy
+
+                # Copiar linhas de dados
+                for row in data_rows:
+                    ws_out.append(row)
+
+                stats['processed'] += 1
+                stats['total_rows'] += len(data_rows)
+
+            except Exception as e:
+                stats['errors'].append(f"{file_path.name}: {str(e)}")
+
+        wb_out.save(dest_path)
+
+    return stats
+
+# ========== EXTRAIR CÉLULAS ESPECÍFICAS ==========
+def extract_specific_cells(
+    source_dir: str,
+    output_file: str,
+    cell_mappings: dict,
+    recursive: bool = False,
+    file_pattern: str = '*.xlsx'
+) -> dict:
+    """
+    Escaneia uma pasta de planilhas e extrai células específicas de cada arquivo,
+    gerando um relatório em formato .xlsx com uma linha por arquivo.
+
+    Args:
+        source_dir: Pasta de origem
+        output_file: Caminho do arquivo .xlsx de saída
+        cell_mappings: Dicionário com nome da coluna -> referência da célula (ex: 'A1')
+        recursive: Se True, inclui subpastas
+        file_pattern: Padrão de arquivos (ex: '*.xlsx')
+
+    Returns:
+        dict com estatísticas: processed, total_rows, errors
+    """
+    source_path = Path(source_dir).resolve()
+    if not source_path.exists():
+        raise FileNotFoundError(f"Pasta não encontrada: {source_dir}")
+
+    output_path = Path(output_file).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Coletar arquivos
+    if recursive:
+        files = list(source_path.rglob(file_pattern))
+    else:
+        files = list(source_path.glob(file_pattern))
+
+    if not files:
+        raise ValueError(f"Nenhum arquivo {file_pattern} encontrado em {source_dir}")
+
+    stats = {'processed': 0, 'total_rows': 0, 'errors': []}
+
+    # Criar workbook de saída
+    wb_out = Workbook()
+    ws_out = wb_out.active
+    ws_out.title = "Extração"
+
+    # Cabeçalho: colunas fixas + as colunas mapeadas
+    headers = ['Arquivo', 'Caminho'] + list(cell_mappings.keys())
+    ws_out.append(headers)
+
+    for file_path in files:
+        try:
+            wb_in = load_workbook(file_path, data_only=True)
+            ws_in = wb_in.active
+            if ws_in is None:
+                stats['errors'].append(f"{file_path.name}: Planilha vazia")
+                continue
+
+            row_data = [file_path.name, str(file_path)]
+            for col_name, cell_ref in cell_mappings.items():
+                # Obter valor da célula
+                cell_value = ws_in[cell_ref].value if cell_ref in ws_in else None
+                # Converter para string para evitar erros de tipo
+                if cell_value is None:
+                    cell_value = ''
+                elif isinstance(cell_value, (int, float, bool)):
+                    cell_value = cell_value
+                else:
+                    cell_value = str(cell_value)
+                row_data.append(cell_value)
+
+            ws_out.append(row_data)
+            stats['processed'] += 1
+            stats['total_rows'] += 1
+
+        except Exception as e:
+            stats['errors'].append(f"{file_path.name}: {str(e)}")
+
+    # Salvar como .xlsx
+    wb_out.save(output_path)
+
+    return stats
 ```
 
 
@@ -3161,6 +3402,45 @@ def convert_batch():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@excel_bp.route('/merge-all', methods=['POST'])
+def merge_all():
+    data = request.json
+    required = ['source_dir', 'dest_file']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.merge_all(
+            source_dir=data['source_dir'],
+            dest_file=data['dest_file'],
+            mode=data.get('mode', 'sheets'),
+            include_header=data.get('include_header', True),
+            recursive=data.get('recursive', False)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@excel_bp.route('/extract-cells', methods=['POST'])
+def extract_cells():
+    data = request.json
+    required = ['source_dir', 'output_file', 'cell_mappings']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.extract_cells(
+            source_dir=data['source_dir'],
+            output_file=data['output_file'],
+            cell_mappings=data['cell_mappings'],
+            recursive=data.get('recursive', False)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 ```
 
 
@@ -3873,6 +4153,8 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/word/index.js"></script>
     <script src="js/modules/excel/utils.js"></script>
     <script src="js/modules/excel/convert.js"></script>
+    <script src="js/modules/excel/merge_all.js"></script>
+    <script src="js/modules/excel/extract_cells.js"></script>
     <script src="js/modules/excel/index.js"></script>
     <script src="js/app.js"></script>
 </body>
@@ -4384,6 +4666,8 @@ window.API = {
     },
     excel: {
         convertBatch: (params) => apiRequest('/excel/convert-batch', 'POST', params),
+        mergeAll: (params) => apiRequest('/excel/merge-all', 'POST', params),
+        extractCells: (params) => apiRequest('/excel/extract-cells', 'POST', params),
     },
     health: () => apiRequest('/health'),
 };
@@ -4731,15 +5015,11 @@ window.SettingsPage = SettingsPage;
 ### frontend\js\modules\excel\convert.js
 
 ```
-class ConvertFeature {
-    constructor(container) {
-        this.container = container;
-    }
-
-    render() {
-        this.container.innerHTML = `
+class ExcelConvertFeature {
+    render(container) {
+        container.innerHTML = `
             <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-arrow-left-right me-2"></i>Conversão em Lote</h4>
+                <h4 class="text-success fw-normal">Conversão em Lote</h4>
                 <p class="text-muted">Converta vários arquivos XLSX ou CSV para outros formatos de uma só vez.</p>
             </div>
 
@@ -4879,8 +5159,197 @@ class ConvertFeature {
     }
 }
 
-// Exporta a classe para uso no módulo principal
-window.ConvertFeature = ConvertFeature;
+window.ExcelConvertFeature = ExcelConvertFeature;
+```
+
+
+### frontend\js\modules\excel\extract_cells.js
+
+```
+class ExcelExtractFeature {
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Extrair Células</h4>
+                <p class="text-muted">Escaneie uma pasta de planilhas e extraia células específicas (ex: B2, A1) gerando um relatório consolidado.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pastas</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta de origem (com os arquivos .xlsx)</label>
+                        <div class="input-group">
+                            <input type="text" id="extract-source-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-extract-source">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Arquivo de destino (.xlsx)</label>
+                        <div class="input-group">
+                            <input type="text" id="extract-dest-file" class="form-control" placeholder="Caminho do arquivo de saída...">
+                            <button class="btn btn-outline-secondary" id="btn-extract-dest">Salvar como</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Mapeamento de Células</h5>
+                    <p class="text-muted">Defina os nomes das colunas e as células que deseja extrair (ex: A1, B2, C5).</p>
+                    <div id="cell-mappings-container">
+                        <div class="row g-2 mb-2">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control cell-mapping-col" placeholder="Nome da coluna (ex: Título)">
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" class="form-control cell-mapping-ref" placeholder="Célula (ex: A1)">
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-danger btn-remove-mapping" disabled><i class="bi bi-x"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-outline-success btn-sm" id="btn-add-mapping"><i class="bi bi-plus-circle"></i> Adicionar Célula</button>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="extract-recursive">
+                        <label class="form-check-label">Incluir subpastas</label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-extract"><i class="bi bi-play-fill"></i> Extrair</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="extract-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="extract-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-extract-source').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('extract-source-dir');
+        });
+
+        document.getElementById('btn-extract-dest').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        // Garantir extensão .xlsx
+                        let filePath = result.filePath;
+                        if (!filePath.toLowerCase().endsWith('.xlsx')) {
+                            filePath += '.xlsx';
+                        }
+                        document.getElementById('extract-dest-file').value = filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-add-mapping').addEventListener('click', () => {
+            const container = document.getElementById('cell-mappings-container');
+            const row = document.createElement('div');
+            row.className = 'row g-2 mb-2';
+            row.innerHTML = `
+                <div class="col-md-6">
+                    <input type="text" class="form-control cell-mapping-col" placeholder="Nome da coluna (ex: Título)">
+                </div>
+                <div class="col-md-4">
+                    <input type="text" class="form-control cell-mapping-ref" placeholder="Célula (ex: A1)">
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-danger btn-remove-mapping"><i class="bi bi-x"></i></button>
+                </div>
+            `;
+            container.appendChild(row);
+            // Habilitar botões de remoção
+            document.querySelectorAll('.btn-remove-mapping').forEach(btn => btn.disabled = false);
+            // Adicionar evento para o novo botão
+            row.querySelector('.btn-remove-mapping').addEventListener('click', function () {
+                row.remove();
+                if (document.querySelectorAll('.btn-remove-mapping').length === 1) {
+                    document.querySelector('.btn-remove-mapping').disabled = true;
+                }
+            });
+        });
+
+        document.getElementById('btn-extract').addEventListener('click', () => this.extractCells());
+    }
+
+    getMappings() {
+        const columns = document.querySelectorAll('.cell-mapping-col');
+        const refs = document.querySelectorAll('.cell-mapping-ref');
+        const mappings = {};
+        for (let i = 0; i < columns.length; i++) {
+            const col = columns[i].value.trim();
+            const ref = refs[i].value.trim().toUpperCase();
+            if (col && ref) {
+                mappings[col] = ref;
+            }
+        }
+        return mappings;
+    }
+
+    async extractCells() {
+        const sourceDir = document.getElementById('extract-source-dir').value.trim();
+        const destFile = document.getElementById('extract-dest-file').value.trim();
+        const recursive = document.getElementById('extract-recursive').checked;
+        const mappings = this.getMappings();
+
+        if (!sourceDir || !destFile) {
+            FileUtils.log('Selecione a pasta de origem e o arquivo de destino.', 'extract-log');
+            return;
+        }
+        if (Object.keys(mappings).length === 0) {
+            FileUtils.log('Adicione pelo menos um mapeamento de célula.', 'extract-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-extract');
+        btn.disabled = true;
+        FileUtils.clearLog('extract-log');
+        FileUtils.log(`Extraindo células de ${sourceDir}...`, 'extract-log');
+
+        try {
+            const result = await window.API.excel.extractCells({
+                source_dir: sourceDir,
+                output_file: destFile,
+                cell_mappings: mappings,
+                recursive: recursive
+            });
+
+            const { processed, total_rows, errors } = result;
+            FileUtils.log(`Concluído! ${processed} arquivos processados, ${total_rows} linhas extraídas.`, 'extract-log');
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'extract-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'extract-log'));
+            }
+            document.getElementById('extract-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'extract-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.ExcelExtractFeature = ExcelExtractFeature;
 ```
 
 
@@ -4892,7 +5361,9 @@ class ExcelModule {
         this.container = container;
         this.currentFeature = 'convert';
         this.features = [
-            { id: 'convert', label: 'Conversão em Lote', render: (container) => new ConvertFeature(container).render() },
+            { id: 'convert', label: 'Conversão em Lote', render: (container) => new ExcelConvertFeature().render(container) },
+            { id: 'merge-all', label: 'Combinar Planilhas', render: (container) => new ExcelMergeAllFeature().render(container) },
+            { id: 'extract-cells', label: 'Extrair Células', render: (container) => new ExcelExtractFeature().render(container) },
         ];
     }
 
@@ -4941,6 +5412,163 @@ class ExcelModule {
 }
 
 window.ExcelModule = ExcelModule;
+```
+
+
+### frontend\js\modules\excel\merge_all.js
+
+```
+class ExcelMergeAllFeature {
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Combinar Planilhas</h4>
+                <p class="text-muted">Consolide todos os arquivos XLSX de uma pasta em um único arquivo mestre.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pastas</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta de origem (com os arquivos .xlsx)</label>
+                        <div class="input-group">
+                            <input type="text" id="merge-source-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-merge-source">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Arquivo de destino (.xlsx)</label>
+                        <div class="input-group">
+                            <input type="text" id="merge-dest-file" class="form-control" placeholder="Caminho do arquivo de saída...">
+                            <button class="btn btn-outline-secondary" id="btn-merge-dest">Salvar como</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Modo de mesclagem</label>
+                        <select id="merge-mode" class="form-select">
+                            <option value="sheets">Cada arquivo em uma aba separada</option>
+                            <option value="stack">Empilhar todas as linhas em uma única aba</option>
+                        </select>
+                    </div>
+                    <div id="merge-header-option" class="mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="merge-include-header" checked>
+                            <label class="form-check-label">Incluir cabeçalho (apenas do primeiro arquivo)</label>
+                        </div>
+                        <small class="text-muted">Se desmarcado, todas as linhas (incluindo cabeçalhos) serão tratadas como dados.</small>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="merge-recursive">
+                        <label class="form-check-label">Incluir subpastas</label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-merge-all"><i class="bi bi-play-fill"></i> Mesclar</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="merge-all-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="merge-all-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        // Mostrar/ocultar opção de cabeçalho conforme modo
+        document.getElementById('merge-mode').addEventListener('change', (e) => {
+            const showHeader = e.target.value === 'stack';
+            document.getElementById('merge-header-option').style.display = showHeader ? 'block' : 'none';
+        });
+        // Inicializar estado
+        document.getElementById('merge-header-option').style.display =
+            document.getElementById('merge-mode').value === 'stack' ? 'block' : 'none';
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-merge-source').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('merge-source-dir');
+        });
+
+        document.getElementById('btn-merge-dest').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('merge-dest-file').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-merge-all').addEventListener('click', () => this.mergeAll());
+    }
+
+    async mergeAll() {
+        const sourceDir = document.getElementById('merge-source-dir').value.trim();
+        const destFile = document.getElementById('merge-dest-file').value.trim();
+        const mode = document.getElementById('merge-mode').value;
+        const includeHeader = document.getElementById('merge-include-header').checked;
+        const recursive = document.getElementById('merge-recursive').checked;
+
+        if (!sourceDir || !destFile) {
+            FileUtils.log('Selecione a pasta de origem e o arquivo de destino.', 'merge-all-log');
+            return;
+        }
+
+        // Verifica se o destino está dentro da origem (para evitar recursão infinita)
+        const normalizedSource = sourceDir.replace(/\\/g, '/');
+        const normalizedDest = destFile.replace(/\\/g, '/');
+        const destDir = normalizedDest.substring(0, normalizedDest.lastIndexOf('/'));
+        if (destDir === normalizedSource) {
+            FileUtils.log('O arquivo de destino não pode estar dentro da pasta de origem.', 'merge-all-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-merge-all');
+        btn.disabled = true;
+        FileUtils.clearLog('merge-all-log');
+        FileUtils.log(`Iniciando mesclagem (modo: ${mode})...`, 'merge-all-log');
+
+        try {
+            const result = await window.API.excel.mergeAll({
+                source_dir: sourceDir,
+                dest_file: destFile,
+                mode: mode,
+                include_header: includeHeader,
+                recursive: recursive
+            });
+
+            const { processed, total_rows, total_sheets, errors } = result;
+            if (mode === 'sheets') {
+                FileUtils.log(`Concluído! ${processed} arquivos processados, ${total_sheets} abas criadas.`, 'merge-all-log');
+            } else {
+                FileUtils.log(`Concluído! ${processed} arquivos processados, ${total_rows} linhas consolidadas.`, 'merge-all-log');
+            }
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'merge-all-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'merge-all-log'));
+            }
+            document.getElementById('merge-all-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'merge-all-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.ExcelMergeAllFeature = ExcelMergeAllFeature;
 ```
 
 

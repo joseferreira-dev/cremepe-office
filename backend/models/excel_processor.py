@@ -5,6 +5,7 @@ import re
 import openpyxl
 import xlwt
 from openpyxl import Workbook, load_workbook
+from datetime import datetime
 
 # ========== UTILITÁRIOS ==========
 def _get_base_name(file_path):
@@ -322,4 +323,94 @@ def merge_all_files(
 
         wb_out.save(dest_path)
 
+    return stats
+
+# ========== EXTRAIR CÉLULAS ESPECÍFICAS ==========
+# ========== EXTRAIR CÉLULAS ESPECÍFICAS ==========
+def extract_cells(
+    source_dir: str,
+    output_csv: str,
+    cell_mappings: dict,  # ex: {"Título": "A1", "Total": "B2", "Data": "C5"}
+    recursive: bool = False
+) -> dict:
+    """
+    Escaneia todos os arquivos .xlsx de uma pasta e extrai células específicas,
+    gerando um arquivo CSV de resumo.
+
+    Args:
+        source_dir: Pasta de origem
+        output_csv: Caminho do arquivo CSV de saída
+        cell_mappings: Dicionário {nome_coluna: referencia_celula}, ex: {"Valor Total": "B2"}
+        recursive: Se True, inclui subpastas
+
+    Returns:
+        dict com estatísticas: processed, errors, output_path
+    """
+    source_path = Path(source_dir).resolve()
+    if not source_path.exists():
+        raise FileNotFoundError(f"Pasta não encontrada: {source_dir}")
+
+    output_path = Path(output_csv).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Coletar arquivos .xlsx
+    if recursive:
+        files = list(source_path.rglob('*.xlsx'))
+    else:
+        files = list(source_path.glob('*.xlsx'))
+
+    if not files:
+        raise ValueError(f"Nenhum arquivo .xlsx encontrado em {source_dir}")
+
+    # Definir cabeçalho do CSV: "Arquivo" + colunas extraídas
+    headers = ['Arquivo'] + list(cell_mappings.keys())
+
+    # Preparar lista de linhas
+    rows = []
+    errors = []
+
+    for file_path in files:
+        row_data = {'Arquivo': file_path.name}
+        try:
+            wb = load_workbook(file_path, data_only=True)
+            ws = wb.active
+            if ws is None:
+                errors.append(f"{file_path.name}: Planilha vazia")
+                # Preencher com valores vazios
+                for col_name in cell_mappings.keys():
+                    row_data[col_name] = ''
+                rows.append(row_data)
+                continue
+
+            # Extrair cada célula
+            for col_name, cell_ref in cell_mappings.items():
+                try:
+                    value = ws[cell_ref].value
+                    # Converter para string se não for None
+                    row_data[col_name] = str(value) if value is not None else ''
+                except Exception as e:
+                    row_data[col_name] = ''
+                    errors.append(f"{file_path.name}: Erro ao extrair {cell_ref} ({col_name}) - {str(e)}")
+
+            rows.append(row_data)
+
+        except Exception as e:
+            errors.append(f"{file_path.name}: {str(e)}")
+            # Adicionar linha vazia mesmo assim
+            for col_name in cell_mappings.keys():
+                row_data[col_name] = ''
+            rows.append(row_data)
+
+    # Escrever CSV
+    with open(output_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+    stats = {
+        'processed': len(rows),
+        'errors': errors,
+        'output_path': str(output_path)
+    }
     return stats
