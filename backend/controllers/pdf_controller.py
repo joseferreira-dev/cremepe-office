@@ -1,4 +1,5 @@
 from models.pdf_processor import (
+    convert_pdf_to_word,
     extract_all_pages,
     extract_selected_pages,
     merge, merge_by_size,
@@ -36,3 +37,6 @@ class PDFController:
 
     def reorder_pages(self, pdf_path, output_path, new_order_str):
         return reorder_pages(pdf_path, output_path, new_order_str)
+
+    def convert_to_word(self, pdf_path, output_path):
+        return convert_pdf_to_word(pdf_path, output_path)

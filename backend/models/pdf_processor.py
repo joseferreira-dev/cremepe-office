@@ -829,3 +829,24 @@ def reorder_pages(
         stats['errors'].append(f"Erro ao salvar arquivo reordenado: {str(e)}")
 
     return stats
+
+def convert_pdf_to_word(pdf_path: str, output_path: str) -> str:
+    """
+    Converte um arquivo PDF para Word (.docx) usando pdf2docx.
+    """
+    from pdf2docx import Converter
+
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        cv = Converter(str(pdf_path))
+        cv.convert(str(output_path), start=0, end=None)
+        cv.close()
+        return str(output_path)
+    except Exception as e:
+        raise RuntimeError(f"Erro ao converter PDF para Word: {str(e)}")

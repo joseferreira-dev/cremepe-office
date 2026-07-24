@@ -10,6 +10,7 @@ class PDFModule {
             { id: 'extract-pages', label: 'Extrair Páginas', render: (container) => new PDFExtractPagesFeature().render(container) },
             { id: 'remove-pages', label: 'Remover Páginas', render: (container) => new PDFRemovePagesFeature().render(container) },
             { id: 'reorder', label: 'Reordenar Páginas', render: (container) => new PDFReorderFeature().render(container) },
+            { id: 'convert-to-word', label: 'Converter para Word', render: (container) => new PDFConvertToWordFeature().render(container) },
         ];
     }
 

@@ -173,3 +173,20 @@ def reorder_pages():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/convert-to-word', methods=['POST'])
+def convert_to_word():
+    data = request.json
+    required = ['pdf_path', 'output_path']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.convert_to_word(
+            pdf_path=data['pdf_path'],
+            output_path=data['output_path']
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
