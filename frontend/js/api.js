@@ -36,6 +36,7 @@ window.API = {
     },
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),
+        mergeBySize: (params) => apiRequest('/pdf/merge-by-size', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),

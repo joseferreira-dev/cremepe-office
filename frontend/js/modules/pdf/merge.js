@@ -8,7 +8,7 @@ class PDFMergeFeature {
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
-                <h4 class="text-success fw-normal">Combinar PDFs</h4>
+                <h4 class="text-success fw-normal">Combinar</h4>
                 <p class="text-muted">Combine vários PDFs em um único documento. Arraste para reordenar.</p>
             </div>
 

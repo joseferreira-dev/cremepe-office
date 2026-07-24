@@ -3,7 +3,8 @@ class PDFModule {
         this.container = container;
         this.currentFeature = 'merge';
         this.features = [
-            { id: 'merge', label: 'Combinar PDFs', render: (container) => new PDFMergeFeature().render(container) },
+            { id: 'merge', label: 'Combinar', render: (container) => new PDFMergeFeature().render(container) },
+            { id: 'merge-by-size', label: 'Combinar por Tamanho', render: (container) => new PDFMergeBySizeFeature().render(container) },
         ];
     }
 
