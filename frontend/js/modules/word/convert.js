@@ -67,7 +67,7 @@ class ConvertFeature {
             <div class="progress mt-2"><div class="progress-bar" id="convert-progress" style="width:0%"></div></div>
 
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="convert-log">Log de operações vazio</div>
             </div>
         `;

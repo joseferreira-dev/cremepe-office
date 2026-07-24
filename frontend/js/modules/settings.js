@@ -54,7 +54,7 @@ class SettingsPage {
                 </div>
 
                 <div class="text-muted small mb-3">
-                    <i class="bi bi-info-circle me-1"></i> CREMEPE Office v0.1.0 — Atualizado em 17/07/2026
+                    <i class="bi bi-info-circle me-1"></i> CREMEPE Office v1.0.0 — Atualizado em 17/07/2026
                 </div>
 
                 <div class="d-flex gap-2 justify-content-end">

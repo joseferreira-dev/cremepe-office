@@ -45,6 +45,14 @@ body {
     border-left: 4px solid #8ccfb7;
 }
 
+#sidebar-logo {
+    max-width: 100%;
+    height: auto;
+    max-height: 180px;
+    display: block;
+    margin: 20px auto;
+}
+
 #logo {
     font-size: 1.4rem;
     letter-spacing: 0.5px;

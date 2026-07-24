@@ -88,7 +88,7 @@ class PDFProtectFeature {
             </div>
 
             <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
                 <div class="log-area" id="protect-log">Log de operações vazio</div>
             </div>
         `;
