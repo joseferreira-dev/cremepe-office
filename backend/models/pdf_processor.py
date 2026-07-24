@@ -1118,16 +1118,12 @@ def convert_pdf_to_images(
 def compress_pdf(
     input_path: str,
     output_path: str,
-    compression_level: str = 'medium',  # 'low', 'medium', 'high'
+    compression_level: str = 'medium',
     jpeg_quality: int = 85,
     remove_metadata: bool = False,
     downscale_images: bool = True
 ) -> dict:
-    """
-    Comprime um PDF com reamostragem de imagens e compressão JPEG.
-    Retorna estatísticas: tamanho original, final, proporção.
-    """
-    import fitz
+    import pikepdf
     from pathlib import Path
     import io
     from PIL import Image
@@ -1139,31 +1135,27 @@ def compress_pdf(
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Configurações por nível de compressão
+    # Se o caminho de saída for igual ao de entrada, adiciona sufixo para evitar sobrescrever
+    if input_path == output_path:
+        output_path = input_path.parent / f"{input_path.stem}_compressed{input_path.suffix}"
+        # Atualiza a mensagem de log no frontend? O frontend mostrará o caminho alterado.
+        # Podemos retornar o caminho final.
+
     level_config = {
         'low': {
             'dpi_target': 150,
-            'garbage': 1,
-            'deflate': True,
-            'clean': False,
-            'deflate_images': False,
-            'deflate_fonts': False,
+            'compress_streams': True,
+            'object_stream_mode': pikepdf.ObjectStreamMode.disable,
         },
         'medium': {
             'dpi_target': 100,
-            'garbage': 3,
-            'deflate': True,
-            'clean': True,
-            'deflate_images': True,
-            'deflate_fonts': True,
+            'compress_streams': True,
+            'object_stream_mode': pikepdf.ObjectStreamMode.preserve,
         },
         'high': {
             'dpi_target': 72,
-            'garbage': 4,
-            'deflate': True,
-            'clean': True,
-            'deflate_images': True,
-            'deflate_fonts': True,
+            'compress_streams': True,
+            'object_stream_mode': pikepdf.ObjectStreamMode.generate,
         }
     }
 
@@ -1173,56 +1165,39 @@ def compress_pdf(
     original_size = input_path.stat().st_size
 
     try:
-        doc = fitz.open(input_path)
+        pdf = pikepdf.Pdf.open(input_path, allow_overwriting_input=True)
 
-        # Remover metadados se solicitado
         if remove_metadata:
-            doc.metadata = {}
+            pdf.docinfo = None
+            if '/Metadata' in pdf.Root:
+                del pdf.Root.Metadata
 
-        # Reamostragem de imagens
         if downscale_images and dpi_target:
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                image_list = page.get_images()
-                for img_info in image_list:
-                    xref = img_info[0]
+            for page in pdf.pages:
+                for name, raw_stream in page.images.items():
                     try:
-                        base_image = doc.extract_image(xref)
-                        image_bytes = base_image["image"]
-                        # Usar PIL para processar a imagem
-                        pil_img = Image.open(io.BytesIO(image_bytes))
-                        # Converte para RGB se necessário (JPEG não suporta alpha)
-                        if pil_img.mode in ('RGBA', 'LA', 'P'):
-                            pil_img = pil_img.convert('RGB')
-                        # Calcular fator de escala baseado no DPI alvo (assumindo DPI original 300)
-                        # Usamos um fator fixo para simplificar, ou podemos estimar o DPI a partir das dimensões em pontos
-                        # Vamos usar escala baseada na proporção: new_size = old_size * (dpi_target / 300)
+                        pil_image = raw_stream.as_pil_image()
                         scale_factor = dpi_target / 300.0
                         if scale_factor < 1:
-                            new_width = int(pil_img.width * scale_factor)
-                            new_height = int(pil_img.height * scale_factor)
+                            new_width = int(pil_image.width * scale_factor)
+                            new_height = int(pil_image.height * scale_factor)
                             if new_width > 0 and new_height > 0:
-                                pil_img = pil_img.resize((new_width, new_height), Image.LANCZOS)
-                        # Recompressão para JPEG com qualidade definida
+                                pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
                         img_buffer = io.BytesIO()
-                        pil_img.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
-                        new_image_bytes = img_buffer.getvalue()
-                        # Substituir a imagem no PDF
-                        doc.update_stream(xref, new_image_bytes)
-                    except Exception as e:
-                        # Se falhar em uma imagem, continua com as demais
+                        if pil_image.mode in ('RGBA', 'LA', 'P'):
+                            pil_image = pil_image.convert('RGB')
+                        pil_image.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
+                        page.images[name] = pikepdf.Stream(pdf, img_buffer.getvalue())
+                    except Exception:
                         continue
 
-        # Salvar com opções de compressão
-        doc.save(
+        pdf.save(
             output_path,
-            garbage=config['garbage'],
-            deflate=config['deflate'],
-            clean=config['clean'],
-            deflate_images=config['deflate_images'],
-            deflate_fonts=config['deflate_fonts'],
+            compress_streams=config['compress_streams'],
+            stream_decode_level=pikepdf.StreamDecodeLevel.specialized,
+            object_stream_mode=config['object_stream_mode'],
         )
-        doc.close()
+        pdf.close()
 
         final_size = output_path.stat().st_size
         ratio = (final_size / original_size) if original_size > 0 else 1.0
