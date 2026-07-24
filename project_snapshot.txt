@@ -52,6 +52,8 @@
 │   │   │   │   ├── extract_cells.js
 │   │   │   │   ├── index.js
 │   │   │   │   ├── merge_all.js
+│   │   │   │   ├── split_by_column.js
+│   │   │   │   ├── split_sheets.js
 │   │   │   │   └── utils.js
 │   │   │   ├── file/
 │   │   │   │   ├── archive.js
@@ -223,8 +225,10 @@ ALLOWED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".bmp", ".gif"]
 ```
 from models.excel_processor import (
     batch_convert,
-    extract_specific_cells,
-    merge_all_files
+    extract_cells_from_directory,
+    merge_all_files,
+    split_by_column,
+    split_sheets_to_files
 )
 
 class ExcelController:
@@ -235,9 +239,15 @@ class ExcelController:
     
     def merge_all(self, source_dir, dest_file, mode='sheets', include_header=True, recursive=False):
         return merge_all_files(source_dir, dest_file, mode, include_header, recursive)
+
+    def extract_cells(self, source_dir, fields, recursive=False, output_file=None):
+        return extract_cells_from_directory(source_dir, fields, recursive, output_file)
     
-    def extract_cells(self, source_dir, output_file, cell_mappings, recursive=False):
-        return extract_specific_cells(source_dir, output_file, cell_mappings, recursive)
+    def split_by_column(self, input_file, output_dir, column, output_format='xlsx', include_header=True):
+        return split_by_column(input_file, output_dir, column, output_format, include_header)
+    
+    def split_sheets(self, input_file, output_dir, output_format='xlsx'):
+        return split_sheets_to_files(input_file, output_dir, output_format)
 ```
 
 
@@ -914,6 +924,7 @@ import re
 import openpyxl
 import xlwt
 from openpyxl import Workbook, load_workbook
+from datetime import datetime
 
 # ========== UTILITÁRIOS ==========
 def _get_base_name(file_path):
@@ -1233,86 +1244,296 @@ def merge_all_files(
 
     return stats
 
-# ========== EXTRAIR CÉLULAS ESPECÍFICAS ==========
-def extract_specific_cells(
-    source_dir: str,
-    output_file: str,
-    cell_mappings: dict,
-    recursive: bool = False,
-    file_pattern: str = '*.xlsx'
-) -> dict:
+# ========== EXTRAIR CÉLULAS ==========
+def _evaluate_formula(expression, values):
     """
-    Escaneia uma pasta de planilhas e extrai células específicas de cada arquivo,
-    gerando um relatório em formato .xlsx com uma linha por arquivo.
+    Avalia uma expressão matemática simples usando valores numéricos.
+    Substitui nomes de campos por seus valores e calcula o resultado.
+    """
+    # Substitui nomes de campos pelos valores
+    for key, val in values.items():
+        if isinstance(val, (int, float)):
+            # Substitui o nome do campo pelo valor (garantindo que não seja parte de outra palavra)
+            expression = re.sub(rf'\b{re.escape(key)}\b', str(val), expression)
+    # Remove espaços e avalia
+    try:
+        # Usa eval com segurança restrita (apenas operadores matemáticos)
+        # Permite + - * / ** ( ) . e números
+        result = eval(expression, {"__builtins__": None}, {})
+        return result
+    except Exception:
+        return None
 
-    Args:
-        source_dir: Pasta de origem
-        output_file: Caminho do arquivo .xlsx de saída
-        cell_mappings: Dicionário com nome da coluna -> referência da célula (ex: 'A1')
-        recursive: Se True, inclui subpastas
-        file_pattern: Padrão de arquivos (ex: '*.xlsx')
-
-    Returns:
-        dict com estatísticas: processed, total_rows, errors
+def extract_cells_from_directory(source_dir, fields, recursive=False, output_file=None):
+    """
+    Escaneia uma pasta de planilhas XLSX e extrai células específicas.
+    fields: lista de dicionários { 'name': str, 'source': str } onde source pode ser:
+        - uma célula: "A1", "B2", etc.
+        - uma fórmula: "Valor1 - Valor2" (referenciando nomes de outros campos)
+    Retorna: lista de dicionários com nome do arquivo + valores extraídos.
+    Se output_file for fornecido, salva como CSV.
     """
     source_path = Path(source_dir).resolve()
     if not source_path.exists():
         raise FileNotFoundError(f"Pasta não encontrada: {source_dir}")
 
-    output_path = Path(output_file).resolve()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Coletar arquivos
     if recursive:
-        files = list(source_path.rglob(file_pattern))
+        files = list(source_path.rglob('*.xlsx'))
     else:
-        files = list(source_path.glob(file_pattern))
+        files = list(source_path.glob('*.xlsx'))
 
     if not files:
-        raise ValueError(f"Nenhum arquivo {file_pattern} encontrado em {source_dir}")
+        raise ValueError(f"Nenhum arquivo .xlsx encontrado em {source_dir}")
 
-    stats = {'processed': 0, 'total_rows': 0, 'errors': []}
+    # Validar campos
+    for f in fields:
+        if not f.get('name') or not f.get('source'):
+            raise ValueError("Cada campo deve ter 'name' e 'source'")
 
-    # Criar workbook de saída
-    wb_out = Workbook()
-    ws_out = wb_out.active
-    ws_out.title = "Extração"
-
-    # Cabeçalho: colunas fixas + as colunas mapeadas
-    headers = ['Arquivo', 'Caminho'] + list(cell_mappings.keys())
-    ws_out.append(headers)
+    results = []
+    errors = []
 
     for file_path in files:
         try:
-            wb_in = load_workbook(file_path, data_only=True)
-            ws_in = wb_in.active
-            if ws_in is None:
-                stats['errors'].append(f"{file_path.name}: Planilha vazia")
-                continue
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            ws = wb.active
+            row_data = {'_file': str(file_path), '_name': file_path.name}
 
-            row_data = [file_path.name, str(file_path)]
-            for col_name, cell_ref in cell_mappings.items():
-                # Obter valor da célula
-                cell_value = ws_in[cell_ref].value if cell_ref in ws_in else None
-                # Converter para string para evitar erros de tipo
-                if cell_value is None:
-                    cell_value = ''
-                elif isinstance(cell_value, (int, float, bool)):
-                    cell_value = cell_value
-                else:
-                    cell_value = str(cell_value)
-                row_data.append(cell_value)
+            # Primeiro: extrair valores de células (para campos que são referências de célula)
+            cell_values = {}
+            for field in fields:
+                source = field['source'].strip()
+                # Verifica se é uma referência de célula (ex: A1, B2...)
+                if re.match(r'^[A-Z]+[0-9]+$', source, re.IGNORECASE):
+                    cell_value = ws[source].value
+                    # Tenta converter para número se possível
+                    try:
+                        cell_value = float(cell_value) if isinstance(cell_value, (int, float)) else cell_value
+                    except:
+                        pass
+                    cell_values[field['name']] = cell_value
+                # else: é fórmula, será avaliada depois
 
-            ws_out.append(row_data)
-            stats['processed'] += 1
-            stats['total_rows'] += 1
+            # Segundo: avaliar fórmulas (campos que não são células)
+            for field in fields:
+                source = field['source'].strip()
+                if not re.match(r'^[A-Z]+[0-9]+$', source, re.IGNORECASE):
+                    # É fórmula - substitui nomes pelos valores
+                    # Pega todos os nomes de campos que podem ser referenciados
+                    expr = source
+                    # Substitui nomes pelos valores numéricos
+                    for name, val in cell_values.items():
+                        if isinstance(val, (int, float)):
+                            expr = re.sub(rf'\b{re.escape(name)}\b', str(val), expr)
+                    # Avalia a expressão
+                    try:
+                        # Avalia com segurança
+                        result_val = eval(expr, {"__builtins__": None}, {})
+                        # Se o resultado é numérico, formata como número
+                        if isinstance(result_val, (int, float)):
+                            cell_values[field['name']] = result_val
+                        else:
+                            cell_values[field['name']] = result_val
+                    except Exception as e:
+                        cell_values[field['name']] = None
+                        errors.append(f"{file_path.name}: Erro na fórmula '{field['name']}': {str(e)}")
+
+            # Monta linha de resultados
+            result_row = {'Arquivo': file_path.name}
+            for field in fields:
+                result_row[field['name']] = cell_values.get(field['name'])
+            results.append(result_row)
 
         except Exception as e:
-            stats['errors'].append(f"{file_path.name}: {str(e)}")
+            errors.append(f"{file_path.name}: {str(e)}")
 
-    # Salvar como .xlsx
-    wb_out.save(output_path)
+    # Se output_file for fornecido, salva como CSV
+    if output_file:
+        if results:
+            with open(output_file, 'w', newline='', encoding='utf-8-sig') as f:
+                fieldnames = ['Arquivo'] + [f['name'] for f in fields]
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(results)
+        else:
+            # Nenhum resultado, criar arquivo vazio com cabeçalho
+            with open(output_file, 'w', newline='', encoding='utf-8-sig') as f:
+                fieldnames = ['Arquivo'] + [f['name'] for f in fields]
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
 
+    return {
+        'results': results,
+        'errors': errors,
+        'total_files': len(files)
+    }
+
+# ========== DIVIDIR POR COLUNA ==========
+def split_by_column(
+    input_file: str,
+    output_dir: str,
+    column: str,                 # Nome da coluna ou índice (0-based)
+    output_format: str = 'xlsx', # 'xlsx' ou 'csv'
+    include_header: bool = True,
+    recursive: bool = False      # não usado, mas mantido para consistência
+) -> dict:
+    """
+    Divide um arquivo Excel em vários arquivos com base nos valores de uma coluna.
+
+    Args:
+        input_file: Caminho do arquivo de entrada (.xlsx)
+        output_dir: Pasta de saída para os arquivos divididos
+        column: Nome da coluna ou índice (0-based)
+        output_format: 'xlsx' ou 'csv'
+        include_header: Se True, inclui cabeçalho em cada arquivo
+
+    Returns:
+        dict com estatísticas: total_rows, total_groups, output_files, errors
+    """
+    input_path = Path(input_file).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_file}")
+
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # Carregar workbook
+    wb = load_workbook(input_path, data_only=True)
+    ws = wb.active
+    if ws is None:
+        raise ValueError("Planilha vazia")
+
+    # Obter cabeçalhos e identificar coluna
+    headers = [cell.value for cell in ws[1]] if include_header else None
+    all_rows = list(ws.iter_rows(values_only=True))
+
+    if not all_rows:
+        raise ValueError("Arquivo sem dados")
+
+    # Determinar o índice da coluna
+    col_index = None
+    if isinstance(column, str):
+        if headers:
+            try:
+                col_index = headers.index(column)
+            except ValueError:
+                raise ValueError(f"Coluna '{column}' não encontrada nos cabeçalhos: {headers}")
+        else:
+            raise ValueError("Arquivo sem cabeçalhos; use índice numérico")
+    else:
+        col_index = int(column)
+        if col_index < 0 or col_index >= len(all_rows[0]):
+            raise ValueError(f"Índice {col_index} inválido (max: {len(all_rows[0])-1})")
+
+    # Agrupar linhas por valor da coluna (ignorando cabeçalho)
+    groups = {}
+    start_row = 1 if include_header else 0
+    header_row = all_rows[0] if include_header else None
+
+    for row in all_rows[start_row:]:
+        if len(row) <= col_index:
+            continue  # linha com colunas insuficientes
+        key = row[col_index]
+        if key is None:
+            key = 'NULL'
+        else:
+            key = str(key).strip()
+            if not key:
+                key = 'EMPTY'
+        # Sanitizar para nome de arquivo
+        safe_key = re.sub(r'[\\/*?:"<>|]', '_', key)
+        if safe_key not in groups:
+            groups[safe_key] = []
+        groups[safe_key].append(row)
+
+    if not groups:
+        raise ValueError("Nenhuma linha encontrada para dividir")
+
+    stats = {
+        'total_rows': len(all_rows) - (1 if include_header else 0),
+        'total_groups': len(groups),
+        'output_files': [],
+        'errors': []
+    }
+
+    # Para cada grupo, criar arquivo
+    ext = '.xlsx' if output_format == 'xlsx' else '.csv'
+    for group_key, rows in groups.items():
+        out_file = output_path / f"{group_key}{ext}"
+
+        if output_format == 'xlsx':
+            wb_out = Workbook()
+            ws_out = wb_out.active
+            if include_header and header_row:
+                ws_out.append(header_row)
+            for row in rows:
+                ws_out.append(row)
+            wb_out.save(out_file)
+        else:  # csv
+            import csv
+            with open(out_file, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                if include_header and header_row:
+                    writer.writerow(header_row)
+                writer.writerows(rows)
+
+        stats['output_files'].append(str(out_file))
+
+    return stats
+
+# ========== EXTRAIR ABAS PARA ARQUIVOS INDIVIDUAIS ==========
+def split_sheets_to_files(input_file: str, output_dir: str, output_format: str = 'xlsx') -> dict:
+    """
+    Divide um arquivo Excel em múltiplos arquivos, um por aba.
+    
+    Args:
+        input_file: caminho do arquivo .xlsx
+        output_dir: pasta de destino
+        output_format: 'xlsx' ou 'csv'
+    
+    Returns:
+        dict com estatísticas: processed, files, errors
+    """
+    input_path = Path(input_file).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_file}")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    wb = load_workbook(input_path, data_only=True)
+    stats = {'processed': 0, 'files': [], 'errors': []}
+    
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        # Nome do arquivo de saída (sanitizado)
+        base_name = _sanitize_sheet_name(sheet_name, max_len=50)
+        
+        if output_format == 'csv':
+            out_file = output_path / f"{base_name}.csv"
+            try:
+                with open(out_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    for row in ws.iter_rows(values_only=True):
+                        writer.writerow(row)
+                stats['processed'] += 1
+                stats['files'].append(str(out_file))
+            except Exception as e:
+                stats['errors'].append(f"{sheet_name}: {str(e)}")
+        else:  # xlsx
+            out_file = output_path / f"{base_name}.xlsx"
+            try:
+                wb_out = Workbook()
+                ws_out = wb_out.active
+                ws_out.title = sheet_name  # mantém o nome original
+                for row in ws.iter_rows(values_only=True):
+                    ws_out.append(row)
+                wb_out.save(out_file)
+                stats['processed'] += 1
+                stats['files'].append(str(out_file))
+            except Exception as e:
+                stats['errors'].append(f"{sheet_name}: {str(e)}")
+    
     return stats
 ```
 
@@ -3426,17 +3647,55 @@ def merge_all():
 @excel_bp.route('/extract-cells', methods=['POST'])
 def extract_cells():
     data = request.json
-    required = ['source_dir', 'output_file', 'cell_mappings']
+    if not data.get('source_dir'):
+        return jsonify({"error": "Campo obrigatório: source_dir"}), 400
+    if not data.get('fields') or not isinstance(data['fields'], list):
+        return jsonify({"error": "Campo 'fields' deve ser uma lista"}), 400
+
+    try:
+        result = controller.extract_cells(
+            source_dir=data['source_dir'],
+            fields=data['fields'],
+            recursive=data.get('recursive', False),
+            output_file=data.get('output_file')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@excel_bp.route('/split-by-column', methods=['POST'])
+def split_by_column():
+    data = request.json
+    required = ['input_file', 'output_dir', 'column']
     for field in required:
         if not data.get(field):
             return jsonify({"error": f"Campo obrigatório: {field}"}), 400
 
     try:
-        result = controller.extract_cells(
-            source_dir=data['source_dir'],
-            output_file=data['output_file'],
-            cell_mappings=data['cell_mappings'],
-            recursive=data.get('recursive', False)
+        result = controller.split_by_column(
+            input_file=data['input_file'],
+            output_dir=data['output_dir'],
+            column=data['column'],
+            output_format=data.get('output_format', 'xlsx'),
+            include_header=data.get('include_header', True)
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@excel_bp.route('/split-sheets', methods=['POST'])
+def split_sheets():
+    data = request.json
+    required = ['input_file', 'output_dir']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_sheets(
+            input_file=data['input_file'],
+            output_dir=data['output_dir'],
+            output_format=data.get('output_format', 'xlsx')
         )
         return jsonify({"success": True, **result}), 200
     except Exception as e:
@@ -4155,6 +4414,8 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/excel/convert.js"></script>
     <script src="js/modules/excel/merge_all.js"></script>
     <script src="js/modules/excel/extract_cells.js"></script>
+    <script src="js/modules/excel/split_by_column.js"></script>
+    <script src="js/modules/excel/split_sheets.js"></script>
     <script src="js/modules/excel/index.js"></script>
     <script src="js/app.js"></script>
 </body>
@@ -4668,6 +4929,8 @@ window.API = {
         convertBatch: (params) => apiRequest('/excel/convert-batch', 'POST', params),
         mergeAll: (params) => apiRequest('/excel/merge-all', 'POST', params),
         extractCells: (params) => apiRequest('/excel/extract-cells', 'POST', params),
+        splitByColumn: (params) => apiRequest('/excel/split-by-column', 'POST', params),
+        splitSheets: (params) => apiRequest('/excel/split-sheets', 'POST', params),
     },
     health: () => apiRequest('/health'),
 };
@@ -5166,29 +5429,35 @@ window.ExcelConvertFeature = ExcelConvertFeature;
 ### frontend\js\modules\excel\extract_cells.js
 
 ```
-class ExcelExtractFeature {
+class ExcelExtractCellsFeature {
+    constructor() {
+        this.fields = [];
+        this.cellCounter = 1;
+        this.previewResults = null;
+    }
+
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
                 <h4 class="text-success fw-normal">Extrair Células</h4>
-                <p class="text-muted">Escaneie uma pasta de planilhas e extraia células específicas (ex: B2, A1) gerando um relatório consolidado.</p>
+                <p class="text-muted">Escaneie uma pasta de planilhas e extraia valores de células específicas, com suporte a fórmulas matemáticas.</p>
             </div>
 
             <div class="card mb-3">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Pastas</h5>
+                    <h5 class="card-title text-success">Pasta e destino</h5>
                     <div class="mb-2">
-                        <label class="form-label">Pasta de origem (com os arquivos .xlsx)</label>
+                        <label class="form-label">Pasta de origem</label>
                         <div class="input-group">
                             <input type="text" id="extract-source-dir" class="form-control" placeholder="Selecione a pasta...">
                             <button class="btn btn-outline-secondary" id="btn-extract-source">Selecionar</button>
                         </div>
                     </div>
                     <div class="mb-2">
-                        <label class="form-label">Arquivo de destino (.xlsx)</label>
+                        <label class="form-label">Arquivo CSV de saída (opcional)</label>
                         <div class="input-group">
-                            <input type="text" id="extract-dest-file" class="form-control" placeholder="Caminho do arquivo de saída...">
-                            <button class="btn btn-outline-secondary" id="btn-extract-dest">Salvar como</button>
+                            <input type="text" id="extract-output-csv" class="form-control" placeholder="Deixe vazio para apenas visualizar">
+                            <button class="btn btn-outline-secondary" id="btn-extract-output">Salvar como</button>
                         </div>
                     </div>
                 </div>
@@ -5196,22 +5465,15 @@ class ExcelExtractFeature {
 
             <div class="card mb-3">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Mapeamento de Células</h5>
-                    <p class="text-muted">Defina os nomes das colunas e as células que deseja extrair (ex: A1, B2, C5).</p>
-                    <div id="cell-mappings-container">
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-6">
-                                <input type="text" class="form-control cell-mapping-col" placeholder="Nome da coluna (ex: Título)">
-                            </div>
-                            <div class="col-md-4">
-                                <input type="text" class="form-control cell-mapping-ref" placeholder="Célula (ex: A1)">
-                            </div>
-                            <div class="col-md-2">
-                                <button class="btn btn-outline-danger btn-remove-mapping" disabled><i class="bi bi-x"></i></button>
-                            </div>
-                        </div>
+                    <h5 class="card-title text-success">Campos a extrair</h5>
+                    <div id="fields-container">
+                        <!-- Campos serão adicionados aqui -->
                     </div>
-                    <button class="btn btn-outline-success btn-sm" id="btn-add-mapping"><i class="bi bi-plus-circle"></i> Adicionar Célula</button>
+                    <div class="mt-2">
+                        <button class="btn btn-outline-success btn-sm" id="add-field-btn">
+                            <i class="bi bi-plus-circle"></i> Adicionar Campo
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -5225,9 +5487,14 @@ class ExcelExtractFeature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-extract"><i class="bi bi-play-fill"></i> Extrair</button>
+            <button class="btn btn-success" id="btn-extract-run"><i class="bi bi-play-fill"></i> Extrair</button>
 
             <div class="progress mt-2"><div class="progress-bar" id="extract-progress" style="width:0%"></div></div>
+
+            <div id="extract-preview" style="display:none;" class="mt-3">
+                <label class="fw-bold text-success">Pré-visualização (<span id="extract-count">0</span> arquivos)</label>
+                <div id="extract-table-container" style="max-height:400px; overflow:auto; border:1px solid #dee2e6; border-radius:0.375rem;"></div>
+            </div>
 
             <div class="mt-3">
                 <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
@@ -5236,6 +5503,7 @@ class ExcelExtractFeature {
         `;
 
         this.attachEvents();
+        this.addField(); // Adiciona um campo padrão
     }
 
     attachEvents() {
@@ -5244,112 +5512,176 @@ class ExcelExtractFeature {
             FileUtils.selectDirectory('extract-source-dir');
         });
 
-        document.getElementById('btn-extract-dest').addEventListener('click', (e) => {
+        document.getElementById('btn-extract-output').addEventListener('click', (e) => {
             e.stopPropagation();
             if (window.electronAPI && window.electronAPI.showSaveDialog) {
                 window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+                    filters: [{ name: 'CSV', extensions: ['csv'] }]
                 }).then(result => {
                     if (!result.canceled && result.filePath) {
-                        // Garantir extensão .xlsx
-                        let filePath = result.filePath;
-                        if (!filePath.toLowerCase().endsWith('.xlsx')) {
-                            filePath += '.xlsx';
-                        }
-                        document.getElementById('extract-dest-file').value = filePath;
+                        document.getElementById('extract-output-csv').value = result.filePath;
                     }
                 });
             }
         });
 
-        document.getElementById('btn-add-mapping').addEventListener('click', () => {
-            const container = document.getElementById('cell-mappings-container');
-            const row = document.createElement('div');
-            row.className = 'row g-2 mb-2';
-            row.innerHTML = `
-                <div class="col-md-6">
-                    <input type="text" class="form-control cell-mapping-col" placeholder="Nome da coluna (ex: Título)">
-                </div>
-                <div class="col-md-4">
-                    <input type="text" class="form-control cell-mapping-ref" placeholder="Célula (ex: A1)">
-                </div>
-                <div class="col-md-2">
-                    <button class="btn btn-outline-danger btn-remove-mapping"><i class="bi bi-x"></i></button>
-                </div>
-            `;
-            container.appendChild(row);
-            // Habilitar botões de remoção
-            document.querySelectorAll('.btn-remove-mapping').forEach(btn => btn.disabled = false);
-            // Adicionar evento para o novo botão
-            row.querySelector('.btn-remove-mapping').addEventListener('click', function () {
-                row.remove();
-                if (document.querySelectorAll('.btn-remove-mapping').length === 1) {
-                    document.querySelector('.btn-remove-mapping').disabled = true;
-                }
-            });
+        document.getElementById('add-field-btn').addEventListener('click', () => this.addField());
+        document.getElementById('btn-extract-run').addEventListener('click', () => this.runExtract());
+    }
+
+    addField() {
+        const container = document.getElementById('fields-container');
+        const fieldId = `field-${Date.now()}`;
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 align-items-center';
+        row.id = fieldId;
+        row.innerHTML = `
+            <div class="col-md-3">
+                <input type="text" class="form-control field-name" placeholder="Nome do campo (ex: Valor)" value="Campo${this.cellCounter}">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select field-type">
+                    <option value="cell">Célula</option>
+                    <option value="formula">Fórmula</option>
+                </select>
+            </div>
+            <div class="col-md-5 field-source-container">
+                <input type="text" class="form-control field-source" placeholder="Ex: A4" value="A${this.cellCounter}">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-danger btn-sm remove-field-btn"><i class="bi bi-trash"></i></button>
+            </div>
+        `;
+
+        // Evento para trocar entre célula e fórmula
+        row.querySelector('.field-type').addEventListener('change', (e) => {
+            const sourceInput = row.querySelector('.field-source');
+            const isFormula = e.target.value === 'formula';
+            sourceInput.placeholder = isFormula ? 'Ex: Valor - Pago' : 'Ex: A4';
+            sourceInput.value = isFormula ? '' : 'A1';
         });
 
-        document.getElementById('btn-extract').addEventListener('click', () => this.extractCells());
+        // Evento para remover
+        row.querySelector('.remove-field-btn').addEventListener('click', () => {
+            if (container.children.length > 1) {
+                row.remove();
+            } else {
+                FileUtils.log('Mantenha pelo menos um campo.', 'extract-log');
+            }
+        });
+
+        container.appendChild(row);
+        this.cellCounter++;
     }
 
-    getMappings() {
-        const columns = document.querySelectorAll('.cell-mapping-col');
-        const refs = document.querySelectorAll('.cell-mapping-ref');
-        const mappings = {};
-        for (let i = 0; i < columns.length; i++) {
-            const col = columns[i].value.trim();
-            const ref = refs[i].value.trim().toUpperCase();
-            if (col && ref) {
-                mappings[col] = ref;
+    getFields() {
+        const fields = [];
+        document.querySelectorAll('#fields-container .row').forEach(row => {
+            const name = row.querySelector('.field-name').value.trim();
+            const source = row.querySelector('.field-source').value.trim();
+            const type = row.querySelector('.field-type').value;
+            if (name && source) {
+                fields.push({ name, source, type });
+            }
+        });
+        return fields;
+    }
+
+    async runExtract() {
+        const sourceDir = document.getElementById('extract-source-dir').value.trim();
+        const outputFile = document.getElementById('extract-output-csv').value.trim() || undefined;
+        const recursive = document.getElementById('extract-recursive').checked;
+        const fields = this.getFields();
+
+        if (!sourceDir) {
+            FileUtils.log('Selecione a pasta de origem.', 'extract-log');
+            return;
+        }
+        if (fields.length === 0) {
+            FileUtils.log('Adicione pelo menos um campo.', 'extract-log');
+            return;
+        }
+
+        // Valida campos
+        for (let f of fields) {
+            if (f.type === 'cell' && !/^[A-Z]+[0-9]+$/i.test(f.source)) {
+                FileUtils.log(`Campo "${f.name}" tem referência inválida (ex: A1).`, 'extract-log');
+                return;
             }
         }
-        return mappings;
-    }
 
-    async extractCells() {
-        const sourceDir = document.getElementById('extract-source-dir').value.trim();
-        const destFile = document.getElementById('extract-dest-file').value.trim();
-        const recursive = document.getElementById('extract-recursive').checked;
-        const mappings = this.getMappings();
-
-        if (!sourceDir || !destFile) {
-            FileUtils.log('Selecione a pasta de origem e o arquivo de destino.', 'extract-log');
-            return;
-        }
-        if (Object.keys(mappings).length === 0) {
-            FileUtils.log('Adicione pelo menos um mapeamento de célula.', 'extract-log');
-            return;
-        }
-
-        const btn = document.getElementById('btn-extract');
+        const btn = document.getElementById('btn-extract-run');
         btn.disabled = true;
         FileUtils.clearLog('extract-log');
-        FileUtils.log(`Extraindo células de ${sourceDir}...`, 'extract-log');
+        FileUtils.log(`Extraindo dados...`, 'extract-log');
 
         try {
             const result = await window.API.excel.extractCells({
                 source_dir: sourceDir,
-                output_file: destFile,
-                cell_mappings: mappings,
-                recursive: recursive
+                fields: fields.map(f => ({ name: f.name, source: f.source })),
+                recursive: recursive,
+                output_file: outputFile
             });
 
-            const { processed, total_rows, errors } = result;
-            FileUtils.log(`Concluído! ${processed} arquivos processados, ${total_rows} linhas extraídas.`, 'extract-log');
+            const { results, errors, total_files } = result;
+
             if (errors.length) {
                 FileUtils.log(`Erros: ${errors.length}`, 'extract-log');
                 errors.forEach(e => FileUtils.log(`  ${e}`, 'extract-log'));
             }
+
+            if (results.length === 0) {
+                FileUtils.log('Nenhum dado extraído.', 'extract-log');
+            } else {
+                FileUtils.log(`${results.length} arquivos processados.`, 'extract-log');
+                // Mostrar pré-visualização
+                this.showPreview(results, fields);
+            }
+
+            if (outputFile) {
+                FileUtils.log(`Relatório salvo em: ${outputFile}`, 'extract-log');
+            }
+
             document.getElementById('extract-progress').style.width = '100%';
+
         } catch (err) {
             FileUtils.log(`Erro: ${err.message}`, 'extract-log');
         } finally {
             btn.disabled = false;
         }
     }
+
+    showPreview(results, fields) {
+        const previewDiv = document.getElementById('extract-preview');
+        previewDiv.style.display = 'block';
+        document.getElementById('extract-count').textContent = results.length;
+
+        const tableContainer = document.getElementById('extract-table-container');
+        if (!results.length) {
+            tableContainer.innerHTML = '<p class="text-muted">Nenhum resultado.</p>';
+            return;
+        }
+
+        // Monta tabela
+        const headers = ['Arquivo', ...fields.map(f => f.name)];
+        let html = '<table class="table table-sm table-striped mb-0"><thead><tr>';
+        headers.forEach(h => html += `<th>${h}</th>`);
+        html += '</tr></thead><tbody>';
+        results.forEach(row => {
+            html += '<tr>';
+            headers.forEach(h => {
+                let val = row[h] !== undefined ? row[h] : '';
+                if (typeof val === 'number') val = val.toFixed(2);
+                html += `<td>${val}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        tableContainer.innerHTML = html;
+    }
 }
 
-window.ExcelExtractFeature = ExcelExtractFeature;
+window.ExcelExtractCellsFeature = ExcelExtractCellsFeature;
 ```
 
 
@@ -5363,7 +5695,9 @@ class ExcelModule {
         this.features = [
             { id: 'convert', label: 'Conversão em Lote', render: (container) => new ExcelConvertFeature().render(container) },
             { id: 'merge-all', label: 'Combinar Planilhas', render: (container) => new ExcelMergeAllFeature().render(container) },
-            { id: 'extract-cells', label: 'Extrair Células', render: (container) => new ExcelExtractFeature().render(container) },
+            { id: 'extract-cells', label: 'Extrair Células', render: (container) => new ExcelExtractCellsFeature().render(container) },
+            { id: 'split', label: 'Dividir por Coluna', render: (container) => new ExcelSplitFeature().render(container) },
+            { id: 'split-sheets', label: 'Extrair Abas', render: (container) => new ExcelSplitSheetsFeature().render(container) },
         ];
     }
 
@@ -5569,6 +5903,325 @@ class ExcelMergeAllFeature {
 }
 
 window.ExcelMergeAllFeature = ExcelMergeAllFeature;
+```
+
+
+### frontend\js\modules\excel\split_by_column.js
+
+```
+class ExcelSplitFeature {
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Dividir por Coluna</h4>
+                <p class="text-muted">Divida um arquivo grande em vários arquivos com base nos valores de uma coluna específica.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="split-input-file" class="form-control" placeholder="Selecione o arquivo XLSX...">
+                        <button class="btn btn-outline-secondary" id="btn-split-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pasta de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="split-output-dir" class="form-control" placeholder="Selecione a pasta de destino...">
+                        <button class="btn btn-outline-secondary" id="btn-split-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Configuração</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Coluna chave (nome ou índice 0-based)</label>
+                        <div class="input-group">
+                            <input type="text" id="split-column" class="form-control" placeholder="Ex: 'Estado' ou 0, 1, 2...">
+                            <button class="btn btn-outline-secondary" id="btn-split-preview">Visualizar colunas</button>
+                        </div>
+                        <small class="text-muted">Digite o nome da coluna ou o índice (começando em 0). Ex: "Estado" ou "3".</small>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Formato de saída</label>
+                        <select id="split-format" class="form-select">
+                            <option value="xlsx">XLSX</option>
+                            <option value="csv">CSV</option>
+                        </select>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="split-include-header" checked>
+                        <label class="form-check-label">Incluir cabeçalho em cada arquivo</label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-split-execute"><i class="bi bi-play-fill"></i> Dividir</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="split-progress" style="width:0%"></div></div>
+
+            <div id="split-preview-area" style="display:none;" class="mt-3">
+                <label class="fw-bold text-success">Pré-visualização</label>
+                <div id="split-preview-list" class="border rounded p-2" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+            </div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="split-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-split-input').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('split-input-file').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-split-output').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('split-output-dir');
+        });
+
+        document.getElementById('btn-split-preview').addEventListener('click', () => this.previewColumns());
+
+        document.getElementById('btn-split-execute').addEventListener('click', () => this.executeSplit());
+    }
+
+    async previewColumns() {
+        const inputFile = document.getElementById('split-input-file').value.trim();
+        if (!inputFile) {
+            FileUtils.log('Selecione o arquivo de entrada.', 'split-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-split-preview');
+        btn.disabled = true;
+        FileUtils.clearLog('split-log');
+        FileUtils.log('Carregando cabeçalhos...', 'split-log');
+
+        try {
+            // Usamos a rota existente de leitura (read) para obter cabeçalhos
+            const result = await window.API.excel.read({ file_path: inputFile });
+            if (!result.data || result.data.length === 0) {
+                FileUtils.log('Arquivo sem dados.', 'split-log');
+                return;
+            }
+            const headers = Object.keys(result.data[0]);
+            const previewArea = document.getElementById('split-preview-area');
+            previewArea.style.display = 'block';
+            const listDiv = document.getElementById('split-preview-list');
+            listDiv.innerHTML = `
+                <strong>Colunas disponíveis (${headers.length}):</strong><br>
+                ${headers.map((h, i) => `<span class="badge bg-secondary me-1">${i}: ${h}</span>`).join('')}
+                <br><small class="text-muted">Use o nome ou o índice para a coluna chave.</small>
+            `;
+            FileUtils.log('Cabeçalhos carregados.', 'split-log');
+        } catch (err) {
+            FileUtils.log(`Erro ao ler arquivo: ${err.message}`, 'split-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async executeSplit() {
+        const inputFile = document.getElementById('split-input-file').value.trim();
+        const outputDir = document.getElementById('split-output-dir').value.trim();
+        const column = document.getElementById('split-column').value.trim();
+        const format = document.getElementById('split-format').value;
+        const includeHeader = document.getElementById('split-include-header').checked;
+
+        if (!inputFile || !outputDir || !column) {
+            FileUtils.log('Preencha todos os campos.', 'split-log');
+            return;
+        }
+
+        // Se column for número, converter para int
+        let columnParam = column;
+        if (!isNaN(column) && column.trim() !== '') {
+            columnParam = parseInt(column, 10);
+        }
+
+        const btn = document.getElementById('btn-split-execute');
+        btn.disabled = true;
+        FileUtils.clearLog('split-log');
+        FileUtils.log(`Dividindo por coluna "${column}"...`, 'split-log');
+
+        try {
+            const result = await window.API.excel.splitByColumn({
+                input_file: inputFile,
+                output_dir: outputDir,
+                column: columnParam,
+                output_format: format,
+                include_header: includeHeader
+            });
+
+            const { total_rows, total_groups, output_files, errors } = result;
+            FileUtils.log(`Concluído! ${total_rows} linhas divididas em ${total_groups} arquivos.`, 'split-log');
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'split-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'split-log'));
+            }
+            if (output_files.length) {
+                FileUtils.log(`Arquivos gerados:\n${output_files.join('\n')}`, 'split-log');
+            }
+            document.getElementById('split-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'split-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.ExcelSplitFeature = ExcelSplitFeature;
+```
+
+
+### frontend\js\modules\excel\split_sheets.js
+
+```
+class ExcelSplitSheetsFeature {
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Extrair Abas</h4>
+                <p class="text-muted">Extraia cada aba de um arquivo Excel para um arquivo separado (XLSX ou CSV).</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="split-sheets-input" class="form-control" placeholder="Selecione o arquivo .xlsx...">
+                        <button class="btn btn-outline-secondary" id="btn-split-sheets-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pasta de destino</h5>
+                    <div class="input-group">
+                        <input type="text" id="split-sheets-output" class="form-control" placeholder="Selecione a pasta de destino...">
+                        <button class="btn btn-outline-secondary" id="btn-split-sheets-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Formato de saída</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="split-sheets-format" id="split-format-xlsx" value="xlsx" checked>
+                                <label class="form-check-label">XLSX</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="split-sheets-format" id="split-format-csv" value="csv">
+                                <label class="form-check-label">CSV</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-split-sheets"><i class="bi bi-play-fill"></i> Extrair Abas</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="split-sheets-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="split-sheets-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-split-sheets-input').addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('split-sheets-input').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-split-sheets-output').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('split-sheets-output');
+        });
+
+        document.getElementById('btn-split-sheets').addEventListener('click', () => this.splitSheets());
+    }
+
+    async splitSheets() {
+        const inputFile = document.getElementById('split-sheets-input').value.trim();
+        const outputDir = document.getElementById('split-sheets-output').value.trim();
+        const formatRadio = document.querySelector('input[name="split-sheets-format"]:checked');
+        const outputFormat = formatRadio ? formatRadio.value : 'xlsx';
+
+        if (!inputFile || !outputDir) {
+            FileUtils.log('Selecione o arquivo e a pasta de destino.', 'split-sheets-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-split-sheets');
+        btn.disabled = true;
+        FileUtils.clearLog('split-sheets-log');
+        FileUtils.log(`Extraindo abas para ${outputFormat.toUpperCase()}...`, 'split-sheets-log');
+
+        try {
+            const result = await window.API.excel.splitSheets({
+                input_file: inputFile,
+                output_dir: outputDir,
+                output_format: outputFormat
+            });
+
+            const { processed, files, errors } = result;
+            FileUtils.log(`Concluído! ${processed} abas extraídas.`, 'split-sheets-log');
+            files.forEach(f => FileUtils.log(`  ${f}`, 'split-sheets-log'));
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'split-sheets-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'split-sheets-log'));
+            }
+            document.getElementById('split-sheets-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'split-sheets-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.ExcelSplitSheetsFeature = ExcelSplitSheetsFeature;
 ```
 
 

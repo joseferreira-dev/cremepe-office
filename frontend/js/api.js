@@ -36,7 +36,6 @@ window.API = {
     },
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),
-        split: (params) => apiRequest('/pdf/split', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),
