@@ -2,6 +2,7 @@ from models.pdf_processor import (
     extract_all_pages,
     extract_selected_pages,
     merge, merge_by_size,
+    remove_pages,
     split_by_size,
     split_custom,
     split_fixed
@@ -28,3 +29,6 @@ class PDFController:
     
     def extract_selected_pages(self, pdf_path, output_dir, pages_selection, prefix='', combine=False, combine_name=None):
         return extract_selected_pages(pdf_path, output_dir, pages_selection, prefix, combine, combine_name)
+
+    def remove_pages(self, pdf_path, output_path, pages_to_remove_str, save_removed=False, removed_output_path=None):
+        return remove_pages(pdf_path, output_path, pages_to_remove_str, save_removed, removed_output_path)

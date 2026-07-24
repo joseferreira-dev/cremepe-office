@@ -8,6 +8,7 @@ class PDFModule {
             { id: 'split', label: 'Dividir', render: (container) => new PDFSplitFeature().render(container) },
             { id: 'split-by-size', label: 'Dividir por Tamanho', render: (container) => new PDFSplitBySizeFeature().render(container) },
             { id: 'extract-pages', label: 'Extrair Páginas', render: (container) => new PDFExtractPagesFeature().render(container) },
+            { id: 'remove-pages', label: 'Remover Páginas', render: (container) => new PDFRemovePagesFeature().render(container) },
         ];
     }
 

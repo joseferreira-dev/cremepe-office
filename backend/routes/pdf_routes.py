@@ -135,3 +135,23 @@ def extract_selected_pages():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/remove-pages', methods=['POST'])
+def remove_pages():
+    data = request.json
+    required = ['pdf_path', 'output_path', 'pages_to_remove_str']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.remove_pages(
+            pdf_path=data['pdf_path'],
+            output_path=data['output_path'],
+            pages_to_remove_str=data['pages_to_remove_str'],
+            save_removed=data.get('save_removed', False),
+            removed_output_path=data.get('removed_output_path')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

@@ -463,7 +463,7 @@ def split_by_size(
 
     return stats
 
-def _parse_page_selection(page_str: str, total_pages: int) -> list:
+def _parse_extract_selection(page_str: str, total_pages: int) -> list:
     """
     Converte uma string de seleção de páginas como "1,3,5-7" em uma lista de números de página (1-based).
     """
@@ -577,7 +577,7 @@ def extract_selected_pages(
         raise ValueError("O PDF não contém páginas.")
     
     # Parse da seleção
-    page_numbers = _parse_page_selection(pages_selection, total_pages)
+    page_numbers = _parse_extract_selection(pages_selection, total_pages)
     
     if not page_numbers:
         raise ValueError("Nenhuma página selecionada para extrair.")
@@ -623,4 +623,117 @@ def extract_selected_pages(
             combined_writer.write(f)
         stats['combined_file'] = str(combined_file)
     
+    return stats
+
+def _parse_remove_selection(selection_str: str, total_pages: int) -> list:
+    """
+    Converte uma string de seleção de páginas em uma lista de números (1-based).
+    Suporta: "1,3,5", "1-10", "1-5, 10-15", "1,3-5,10"
+    """
+    pages = set()
+    parts = [p.strip() for p in selection_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            start_str, end_str = part.split('-', 1)
+            try:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            except ValueError:
+                raise ValueError(f"Intervalo inválido: {part}")
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(f"Intervalo {start}-{end} inválido (total: {total_pages} páginas)")
+            for p in range(start, end + 1):
+                pages.add(p)
+        else:
+            try:
+                p = int(part.strip())
+            except ValueError:
+                raise ValueError(f"Página inválida: {part}")
+            if p < 1 or p > total_pages:
+                raise ValueError(f"Página {p} inválida (total: {total_pages} páginas)")
+            pages.add(p)
+    return sorted(pages)
+
+def remove_pages(
+    pdf_path: str,
+    output_path: str,
+    pages_to_remove_str: str,
+    save_removed: bool = False,
+    removed_output_path: str = None
+) -> dict:
+    """
+    Remove páginas específicas de um PDF.
+
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_path: Caminho do PDF de saída (sem as páginas removidas)
+        pages_to_remove_str: String com páginas a remover (ex: "1,3,5" ou "1-10" ou "1,3-5,10")
+        save_removed: Se True, salva as páginas removidas em um arquivo separado
+        removed_output_path: Caminho para salvar as páginas removidas (se None e save_removed=True, usa "removed_pages.pdf" no mesmo diretório)
+
+    Returns:
+        dict com estatísticas: total_pages, remaining_pages, removed_pages, output_file, removed_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+
+    try:
+        pages_to_remove = _parse_remove_selection(pages_to_remove_str, total_pages)
+    except ValueError as e:
+        raise ValueError(f"Erro na seleção de páginas: {str(e)}")
+
+    pages_to_remove_set = set(pages_to_remove)
+    pages_to_keep = [i for i in range(1, total_pages + 1) if i not in pages_to_remove_set]
+
+    if not pages_to_keep:
+        raise ValueError("Nenhuma página restante após a remoção.")
+
+    stats = {
+        'total_pages': total_pages,
+        'remaining_pages': len(pages_to_keep),
+        'removed_pages': len(pages_to_remove),
+        'output_file': None,
+        'removed_file': None,
+        'errors': []
+    }
+
+    # Gerar arquivo sem as páginas removidas
+    try:
+        writer = PdfWriter()
+        for page_num in pages_to_keep:
+            writer.add_page(reader.pages[page_num - 1])
+        with open(output_path, 'wb') as f:
+            writer.write(f)
+        stats['output_file'] = str(output_path)
+    except Exception as e:
+        stats['errors'].append(f"Erro ao salvar arquivo final: {str(e)}")
+
+    # Salvar páginas removidas separadamente, se solicitado
+    if save_removed and pages_to_remove:
+        try:
+            if removed_output_path is None:
+                removed_output_path = output_path.parent / "removed_pages.pdf"
+            else:
+                removed_output_path = Path(removed_output_path).resolve()
+                removed_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            writer_removed = PdfWriter()
+            for page_num in pages_to_remove:
+                writer_removed.add_page(reader.pages[page_num - 1])
+            with open(removed_output_path, 'wb') as f:
+                writer_removed.write(f)
+            stats['removed_file'] = str(removed_output_path)
+        except Exception as e:
+            stats['errors'].append(f"Erro ao salvar páginas removidas: {str(e)}")
+
     return stats
