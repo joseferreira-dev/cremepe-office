@@ -12,6 +12,7 @@ class PDFModule {
             { id: 'reorder', label: 'Reordenar Páginas', render: (container) => new PDFReorderFeature().render(container) },
             { id: 'convert-to-word', label: 'Converter para Word', render: (container) => new PDFConvertToWordFeature().render(container) },
             { id: 'convert-to-image', label: 'Converter para Imagem', render: (container) => new PDFConvertToImageFeature().render(container) },
+            { id: 'compress', label: 'Comprimir', render: (container) => new PDFCompressFeature().render(container) },
         ];
     }
 

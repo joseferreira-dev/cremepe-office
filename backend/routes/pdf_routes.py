@@ -235,3 +235,33 @@ def pdf_to_images():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/compress', methods=['POST'])
+def compress_pdf():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+
+    compression_level = data.get('compression_level', 'medium')
+    if compression_level not in ('low', 'medium', 'high'):
+        return jsonify({"error": "Nível de compressão inválido. Use 'low', 'medium' ou 'high'"}), 400
+
+    jpeg_quality = int(data.get('jpeg_quality', 85))
+    if jpeg_quality < 1 or jpeg_quality > 100:
+        return jsonify({"error": "Qualidade JPEG deve estar entre 1 e 100"}), 400
+
+    remove_metadata = data.get('remove_metadata', False)
+    downscale_images = data.get('downscale_images', True)
+
+    try:
+        result = controller.compress_pdf(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            compression_level=compression_level,
+            jpeg_quality=jpeg_quality,
+            remove_metadata=remove_metadata,
+            downscale_images=downscale_images
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

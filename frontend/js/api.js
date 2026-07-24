@@ -47,6 +47,7 @@ window.API = {
         convertToWord: (params) => apiRequest('/pdf/convert-to-word', 'POST', params),
         convertImagesToPDF: (params) => apiRequest('/pdf/convert-images-to-pdf', 'POST', params),
         convertPdfToImages: (params) => apiRequest('/pdf/convert-pdf-to-images', 'POST', params),
+        compress: (params) => apiRequest('/pdf/compress', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),

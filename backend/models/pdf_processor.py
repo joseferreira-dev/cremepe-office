@@ -1007,7 +1007,6 @@ def convert_images_to_pdf(
 
     return stats
 
-# ==================== CONVERTER PDF PARA IMAGEM ====================
 def convert_pdf_to_images(
     pdf_paths: List[str],
     output_dir: str,
@@ -1115,3 +1114,125 @@ def convert_pdf_to_images(
             stats['errors'].append(f"Erro ao abrir {pdf_path.name}: {str(e)}")
 
     return stats
+
+def compress_pdf(
+    input_path: str,
+    output_path: str,
+    compression_level: str = 'medium',  # 'low', 'medium', 'high'
+    jpeg_quality: int = 85,
+    remove_metadata: bool = False,
+    downscale_images: bool = True
+) -> dict:
+    """
+    Comprime um PDF com reamostragem de imagens e compressão JPEG.
+    Retorna estatísticas: tamanho original, final, proporção.
+    """
+    import fitz
+    from pathlib import Path
+    import io
+    from PIL import Image
+
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Configurações por nível de compressão
+    level_config = {
+        'low': {
+            'dpi_target': 150,
+            'garbage': 1,
+            'deflate': True,
+            'clean': False,
+            'deflate_images': False,
+            'deflate_fonts': False,
+        },
+        'medium': {
+            'dpi_target': 100,
+            'garbage': 3,
+            'deflate': True,
+            'clean': True,
+            'deflate_images': True,
+            'deflate_fonts': True,
+        },
+        'high': {
+            'dpi_target': 72,
+            'garbage': 4,
+            'deflate': True,
+            'clean': True,
+            'deflate_images': True,
+            'deflate_fonts': True,
+        }
+    }
+
+    config = level_config.get(compression_level, level_config['medium'])
+    dpi_target = config['dpi_target'] if downscale_images else None
+
+    original_size = input_path.stat().st_size
+
+    try:
+        doc = fitz.open(input_path)
+
+        # Remover metadados se solicitado
+        if remove_metadata:
+            doc.metadata = {}
+
+        # Reamostragem de imagens
+        if downscale_images and dpi_target:
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                image_list = page.get_images()
+                for img_info in image_list:
+                    xref = img_info[0]
+                    try:
+                        base_image = doc.extract_image(xref)
+                        image_bytes = base_image["image"]
+                        # Usar PIL para processar a imagem
+                        pil_img = Image.open(io.BytesIO(image_bytes))
+                        # Converte para RGB se necessário (JPEG não suporta alpha)
+                        if pil_img.mode in ('RGBA', 'LA', 'P'):
+                            pil_img = pil_img.convert('RGB')
+                        # Calcular fator de escala baseado no DPI alvo (assumindo DPI original 300)
+                        # Usamos um fator fixo para simplificar, ou podemos estimar o DPI a partir das dimensões em pontos
+                        # Vamos usar escala baseada na proporção: new_size = old_size * (dpi_target / 300)
+                        scale_factor = dpi_target / 300.0
+                        if scale_factor < 1:
+                            new_width = int(pil_img.width * scale_factor)
+                            new_height = int(pil_img.height * scale_factor)
+                            if new_width > 0 and new_height > 0:
+                                pil_img = pil_img.resize((new_width, new_height), Image.LANCZOS)
+                        # Recompressão para JPEG com qualidade definida
+                        img_buffer = io.BytesIO()
+                        pil_img.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
+                        new_image_bytes = img_buffer.getvalue()
+                        # Substituir a imagem no PDF
+                        doc.update_stream(xref, new_image_bytes)
+                    except Exception as e:
+                        # Se falhar em uma imagem, continua com as demais
+                        continue
+
+        # Salvar com opções de compressão
+        doc.save(
+            output_path,
+            garbage=config['garbage'],
+            deflate=config['deflate'],
+            clean=config['clean'],
+            deflate_images=config['deflate_images'],
+            deflate_fonts=config['deflate_fonts'],
+        )
+        doc.close()
+
+        final_size = output_path.stat().st_size
+        ratio = (final_size / original_size) if original_size > 0 else 1.0
+
+        return {
+            'original_size': original_size,
+            'compressed_size': final_size,
+            'ratio': ratio,
+            'output_path': str(output_path)
+        }
+
+    except Exception as e:
+        raise RuntimeError(f"Erro ao comprimir PDF: {str(e)}")
