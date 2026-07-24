@@ -462,3 +462,165 @@ def split_by_size(
         stats['total_files'] += 1
 
     return stats
+
+def _parse_page_selection(page_str: str, total_pages: int) -> list:
+    """
+    Converte uma string de seleção de páginas como "1,3,5-7" em uma lista de números de página (1-based).
+    """
+    pages = []
+    parts = [p.strip() for p in page_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            start_str, end_str = part.split('-', 1)
+            try:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            except ValueError:
+                raise ValueError(f"Intervalo inválido: {part}")
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(f"Intervalo {start}-{end} inválido para documento com {total_pages} páginas")
+            pages.extend(range(start, end + 1))
+        else:
+            try:
+                page = int(part.strip())
+            except ValueError:
+                raise ValueError(f"Página inválida: {part}")
+            if page < 1 or page > total_pages:
+                raise ValueError(f"Página {page} inválida para documento com {total_pages} páginas")
+            pages.append(page)
+    # Remove duplicatas mantendo a ordem
+    seen = set()
+    return [p for p in pages if not (p in seen or seen.add(p))]
+
+def extract_all_pages(pdf_path: str, output_dir: str, prefix: str = '') -> dict:
+    """
+    Extrai todas as páginas de um PDF em arquivos individuais.
+    
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        prefix: Prefixo para os nomes dos arquivos (ex: 'pagina_')
+    
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+    
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'errors': []
+    }
+    
+    prefix_str = f"{prefix}_" if prefix else ""
+    
+    for page_num in range(1, total_pages + 1):
+        try:
+            writer = PdfWriter()
+            writer.add_page(reader.pages[page_num - 1])
+            
+            output_file = output_path / f"{prefix_str}page_{page_num:04d}.pdf"
+            with open(output_file, 'wb') as f:
+                writer.write(f)
+            stats['output_files'].append(str(output_file))
+            stats['total_files'] += 1
+        except Exception as e:
+            stats['errors'].append(f"Erro ao extrair página {page_num}: {str(e)}")
+    
+    return stats
+
+def extract_selected_pages(
+    pdf_path: str,
+    output_dir: str,
+    pages_selection: str,
+    prefix: str = '',
+    combine: bool = False,
+    combine_name: str = None
+) -> dict:
+    """
+    Extrai páginas selecionadas de um PDF.
+    
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        pages_selection: String com a seleção (ex: "1,3,5-7")
+        prefix: Prefixo para os nomes dos arquivos (ex: 'pagina_')
+        combine: Se True, mescla as páginas extraídas em um único PDF
+        combine_name: Nome do arquivo combinado (sem extensão)
+    
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, combined_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+    
+    # Parse da seleção
+    page_numbers = _parse_page_selection(pages_selection, total_pages)
+    
+    if not page_numbers:
+        raise ValueError("Nenhuma página selecionada para extrair.")
+    
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'combined_file': None,
+        'errors': []
+    }
+    
+    prefix_str = f"{prefix}_" if prefix else ""
+    combined_writer = PdfWriter()
+    files_generated = []
+    
+    for idx, page_num in enumerate(page_numbers, 1):
+        try:
+            writer = PdfWriter()
+            writer.add_page(reader.pages[page_num - 1])
+            
+            output_file = output_path / f"{prefix_str}page_{page_num:04d}.pdf"
+            with open(output_file, 'wb') as f:
+                writer.write(f)
+            stats['output_files'].append(str(output_file))
+            stats['total_files'] += 1
+            files_generated.append(output_file)
+            
+            # Se combine=True, adiciona ao writer combinado
+            if combine:
+                combined_writer.add_page(reader.pages[page_num - 1])
+                
+        except Exception as e:
+            stats['errors'].append(f"Erro ao extrair página {page_num}: {str(e)}")
+    
+    # Se combine=True e há páginas extraídas, gerar o arquivo combinado
+    if combine and stats['total_files'] > 0:
+        combine_name = combine_name or "extracted_combined"
+        if not combine_name.endswith('.pdf'):
+            combine_name += '.pdf'
+        combined_file = output_path / combine_name
+        with open(combined_file, 'wb') as f:
+            combined_writer.write(f)
+        stats['combined_file'] = str(combined_file)
+    
+    return stats

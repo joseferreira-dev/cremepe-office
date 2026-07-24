@@ -96,3 +96,42 @@ def split_by_size():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/extract-all-pages', methods=['POST'])
+def extract_all_pages():
+    data = request.json
+    required = ['pdf_path', 'output_dir']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.extract_all_pages(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            prefix=data.get('prefix', '')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/extract-selected-pages', methods=['POST'])
+def extract_selected_pages():
+    data = request.json
+    required = ['pdf_path', 'output_dir', 'pages_selection']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.extract_selected_pages(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            pages_selection=data['pages_selection'],
+            prefix=data.get('prefix', ''),
+            combine=data.get('combine', False),
+            combine_name=data.get('combine_name')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

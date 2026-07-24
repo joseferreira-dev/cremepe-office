@@ -40,6 +40,8 @@ window.API = {
         splitCustom: (params) => apiRequest('/pdf/split-custom', 'POST', params),
         splitFixed: (params) => apiRequest('/pdf/split-fixed', 'POST', params),
         splitBySize: (params) => apiRequest('/pdf/split-by-size', 'POST', params),
+        extractAllPages: (params) => apiRequest('/pdf/extract-all-pages', 'POST', params),
+        extractSelectedPages: (params) => apiRequest('/pdf/extract-selected-pages', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),

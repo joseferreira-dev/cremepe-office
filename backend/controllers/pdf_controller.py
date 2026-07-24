@@ -1,5 +1,10 @@
 from models.pdf_processor import (
-    merge, merge_by_size, split_by_size, split_custom, split_fixed
+    extract_all_pages,
+    extract_selected_pages,
+    merge, merge_by_size,
+    split_by_size,
+    split_custom,
+    split_fixed
 )
 
 class PDFController:
@@ -17,3 +22,9 @@ class PDFController:
     
     def split_by_size(self, pdf_path, output_dir, max_size_mb, prefix=''):
         return split_by_size(pdf_path, output_dir, max_size_mb, prefix)
+
+    def extract_all_pages(self, pdf_path, output_dir, prefix=''):
+        return extract_all_pages(pdf_path, output_dir, prefix)
+    
+    def extract_selected_pages(self, pdf_path, output_dir, pages_selection, prefix='', combine=False, combine_name=None):
+        return extract_selected_pages(pdf_path, output_dir, pages_selection, prefix, combine, combine_name)
