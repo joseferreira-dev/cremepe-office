@@ -1,4 +1,6 @@
-from models.pdf_processor import merge, merge_by_size, split_custom, split_fixed
+from models.pdf_processor import (
+    merge, merge_by_size, split_by_size, split_custom, split_fixed
+)
 
 class PDFController:
     def merge(self, pdf_paths, output_path):
@@ -12,3 +14,6 @@ class PDFController:
 
     def split_fixed(self, pdf_path, output_dir, pages_per_file, combine=False, part_prefix="part", combine_name="combined"):
         return split_fixed(pdf_path, output_dir, pages_per_file, combine, part_prefix, combine_name)
+    
+    def split_by_size(self, pdf_path, output_dir, max_size_mb, prefix=''):
+        return split_by_size(pdf_path, output_dir, max_size_mb, prefix)

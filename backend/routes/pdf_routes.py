@@ -77,3 +77,22 @@ def split_fixed():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/split-by-size', methods=['POST'])
+def split_by_size():
+    data = request.json
+    required = ['pdf_path', 'output_dir', 'max_size_mb']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_by_size(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            max_size_mb=float(data['max_size_mb']),
+            prefix=data.get('prefix', '')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

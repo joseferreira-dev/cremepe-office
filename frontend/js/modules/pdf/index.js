@@ -6,6 +6,7 @@ class PDFModule {
             { id: 'merge', label: 'Combinar', render: (container) => new PDFMergeFeature().render(container) },
             { id: 'merge-by-size', label: 'Combinar por Tamanho', render: (container) => new PDFMergeBySizeFeature().render(container) },
             { id: 'split', label: 'Dividir', render: (container) => new PDFSplitFeature().render(container) },
+            { id: 'split-by-size', label: 'Dividir por Tamanho', render: (container) => new PDFSplitBySizeFeature().render(container) },
         ];
     }
 

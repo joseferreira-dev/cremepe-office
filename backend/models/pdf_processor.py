@@ -360,3 +360,105 @@ def split_fixed(pdf_path: str, output_dir: str, pages_per_file: int,
             stats['total_files'] += 1
     
     return stats
+
+def split_by_size(
+    pdf_path: str,
+    output_dir: str,
+    max_size_mb: float,
+    prefix: str = ''
+) -> dict:
+    """
+    Divide um PDF em partes com tamanho máximo definido (em MB).
+
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        max_size_mb: Tamanho máximo por parte (MB)
+        prefix: Prefixo para os nomes das partes (ex: 'relatorio_')
+
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, errors
+    """
+    from io import BytesIO
+
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+
+    max_size_bytes = max_size_mb * 1024 * 1024
+
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'errors': []
+    }
+
+    current_pages = []
+    part_number = 1
+    prefix_str = f"{prefix}_" if prefix else ""
+
+    for page_num in range(total_pages):
+        current_pages.append(reader.pages[page_num])
+
+        # Testar o tamanho da parte atual
+        temp_writer = PdfWriter()
+        for page in current_pages:
+            temp_writer.add_page(page)
+
+        buffer = BytesIO()
+        temp_writer.write(buffer)
+        size = buffer.tell()
+
+        if size > max_size_bytes:
+            if len(current_pages) == 1:
+                # Uma única página já ultrapassou o limite - salvar mesmo assim
+                part_writer = PdfWriter()
+                part_writer.add_page(current_pages[0])
+                part_name = f"{prefix_str}part_{part_number:04d}.pdf"
+                part_file = output_path / part_name
+                with open(part_file, 'wb') as f:
+                    part_writer.write(f)
+                stats['output_files'].append(str(part_file))
+                stats['total_files'] += 1
+                current_pages = []
+                part_number += 1
+            else:
+                # Salvar parte sem a última página (que causou o estouro)
+                part_writer = PdfWriter()
+                for page in current_pages[:-1]:
+                    part_writer.add_page(page)
+
+                part_name = f"{prefix_str}part_{part_number:04d}.pdf"
+                part_file = output_path / part_name
+                with open(part_file, 'wb') as f:
+                    part_writer.write(f)
+                stats['output_files'].append(str(part_file))
+                stats['total_files'] += 1
+
+                # Nova parte começa com a página que estourou
+                current_pages = [current_pages[-1]]
+                part_number += 1
+
+    # Salvar a última parte (se houver páginas restantes)
+    if current_pages:
+        part_writer = PdfWriter()
+        for page in current_pages:
+            part_writer.add_page(page)
+        part_name = f"{prefix_str}part_{part_number:04d}.pdf"
+        part_file = output_path / part_name
+        with open(part_file, 'wb') as f:
+            part_writer.write(f)
+        stats['output_files'].append(str(part_file))
+        stats['total_files'] += 1
+
+    return stats

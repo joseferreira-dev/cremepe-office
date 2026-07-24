@@ -39,6 +39,7 @@ window.API = {
         mergeBySize: (params) => apiRequest('/pdf/merge-by-size', 'POST', params),
         splitCustom: (params) => apiRequest('/pdf/split-custom', 'POST', params),
         splitFixed: (params) => apiRequest('/pdf/split-fixed', 'POST', params),
+        splitBySize: (params) => apiRequest('/pdf/split-by-size', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),
