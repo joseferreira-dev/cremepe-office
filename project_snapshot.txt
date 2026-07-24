@@ -69,9 +69,14 @@
 │   │   │   │   ├── split.js
 │   │   │   │   └── utils.js
 │   │   │   ├── pdf/
+│   │   │   │   ├── extract_pages.js
 │   │   │   │   ├── index.js
 │   │   │   │   ├── merge.js
-│   │   │   │   └── merge_by_size.js
+│   │   │   │   ├── merge_by_size.js
+│   │   │   │   ├── remove_pages.js
+│   │   │   │   ├── reorder.js
+│   │   │   │   ├── split.js
+│   │   │   │   └── split_by_size.js
 │   │   │   ├── word/
 │   │   │   │   ├── compare.js
 │   │   │   │   ├── convert.js
@@ -817,7 +822,16 @@ class FileController:
 ### backend\controllers\pdf_controller.py
 
 ```
-from models.pdf_processor import merge, merge_by_size
+from models.pdf_processor import (
+    extract_all_pages,
+    extract_selected_pages,
+    merge, merge_by_size,
+    remove_pages,
+    reorder_pages,
+    split_by_size,
+    split_custom,
+    split_fixed
+)
 
 class PDFController:
     def merge(self, pdf_paths, output_path):
@@ -825,6 +839,27 @@ class PDFController:
     
     def merge_by_size(self, source_dir, dest_dir, max_size_mb, recursive=False, sort_by='name', prefix=''):
         return merge_by_size(source_dir, dest_dir, max_size_mb, recursive, sort_by, prefix)
+    
+    def split_custom(self, pdf_path, output_dir, intervals_str, combine=False, part_prefix="part", combine_name="combined"):
+        return split_custom(pdf_path, output_dir, intervals_str, combine, part_prefix, combine_name)
+
+    def split_fixed(self, pdf_path, output_dir, pages_per_file, combine=False, part_prefix="part", combine_name="combined"):
+        return split_fixed(pdf_path, output_dir, pages_per_file, combine, part_prefix, combine_name)
+    
+    def split_by_size(self, pdf_path, output_dir, max_size_mb, prefix=''):
+        return split_by_size(pdf_path, output_dir, max_size_mb, prefix)
+
+    def extract_all_pages(self, pdf_path, output_dir, prefix=''):
+        return extract_all_pages(pdf_path, output_dir, prefix)
+    
+    def extract_selected_pages(self, pdf_path, output_dir, pages_selection, prefix='', combine=False, combine_name=None):
+        return extract_selected_pages(pdf_path, output_dir, pages_selection, prefix, combine, combine_name)
+
+    def remove_pages(self, pdf_path, output_path, pages_to_remove_str, save_removed=False, removed_output_path=None):
+        return remove_pages(pdf_path, output_path, pages_to_remove_str, save_removed, removed_output_path)
+
+    def reorder_pages(self, pdf_path, output_path, new_order_str):
+        return reorder_pages(pdf_path, output_path, new_order_str)
 ```
 
 
@@ -2902,6 +2937,628 @@ def merge_by_size(
                     stats['errors'].append(f"Erro ao mesclar grupo de {len(group)} arquivos: {str(e)}")
     
     return stats
+
+def _parse_custom_intervals(intervals_str: str, total_pages: int) -> list:
+    """
+    Converte uma string de intervalos como "1-10, 15-16, 17-17, 20-25" em uma lista de tuplas (start, end).
+    Valida se os números estão dentro do total de páginas.
+    """
+    intervals = []
+    parts = [p.strip() for p in intervals_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            start_str, end_str = part.split('-', 1)
+            try:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            except ValueError:
+                raise ValueError(f"Intervalo inválido: {part}")
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(f"Intervalo {start}-{end} inválido para documento com {total_pages} páginas")
+            intervals.append((start, end))
+        else:
+            # Página única
+            try:
+                page = int(part.strip())
+            except ValueError:
+                raise ValueError(f"Página inválida: {part}")
+            if page < 1 or page > total_pages:
+                raise ValueError(f"Página {page} inválida para documento com {total_pages} páginas")
+            intervals.append((page, page))
+    return intervals
+
+def split_custom(pdf_path: str, output_dir: str, intervals_str: str, 
+                 combine: bool = False, part_prefix: str = "part", combine_name: str = "combined") -> dict:
+    """
+    Divide um PDF em partes com base em intervalos personalizados.
+    
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        intervals_str: String com intervalos (ex: "1-10, 15-16, 20-25")
+        combine: Se True, gera apenas o arquivo combinado (não gera partes individuais)
+        part_prefix: Prefixo para os arquivos de parte (ex: "documento")
+        combine_name: Nome do arquivo combinado (sem extensão)
+    
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, combined_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    intervals = _parse_custom_intervals(intervals_str, total_pages)
+    
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'combined_file': None,
+        'errors': []
+    }
+    
+    if combine:
+        # Gerar apenas o arquivo combinado
+        try:
+            writer = PdfWriter()
+            for start, end in intervals:
+                for page_num in range(start - 1, end):
+                    writer.add_page(reader.pages[page_num])
+            
+            # Garantir extensão .pdf
+            combine_file = output_path / f"{combine_name}.pdf"
+            if combine_file.exists():
+                base = combine_file.stem
+                ext = combine_file.suffix
+                counter = 1
+                while combine_file.exists():
+                    combine_file = output_path / f"{base}_{counter}{ext}"
+                    counter += 1
+            
+            with open(combine_file, 'wb') as f:
+                writer.write(f)
+            stats['combined_file'] = str(combine_file)
+            stats['total_files'] = 1
+        except Exception as e:
+            stats['errors'].append(f"Erro ao gerar arquivo combinado: {str(e)}")
+    else:
+        # Gerar partes individuais
+        for idx, (start, end) in enumerate(intervals, 1):
+            try:
+                part_writer = PdfWriter()
+                for page_num in range(start - 1, end):
+                    part_writer.add_page(reader.pages[page_num])
+                
+                output_file = output_path / f"{part_prefix}_{idx:04d}_{start}-{end}.pdf"
+                with open(output_file, 'wb') as f:
+                    part_writer.write(f)
+                stats['output_files'].append(str(output_file))
+                stats['total_files'] += 1
+            except Exception as e:
+                stats['errors'].append(f"Erro ao gerar parte {idx}: {str(e)}")
+    
+    return stats
+
+def split_fixed(pdf_path: str, output_dir: str, pages_per_file: int, 
+                combine: bool = False, part_prefix: str = "part", combine_name: str = "combined") -> dict:
+    """
+    Divide um PDF em partes de tamanho fixo (N páginas por arquivo).
+    
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        pages_per_file: Número de páginas por arquivo
+        combine: Se True, gera apenas o arquivo combinado (não gera partes individuais)
+        part_prefix: Prefixo para os arquivos de parte
+        combine_name: Nome do arquivo combinado (sem extensão)
+    
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, combined_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    
+    if pages_per_file < 1:
+        raise ValueError("Número de páginas por arquivo deve ser >= 1")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'combined_file': None,
+        'errors': []
+    }
+    
+    if combine:
+        # Gerar apenas o arquivo combinado
+        try:
+            writer = PdfWriter()
+            for page_num in range(total_pages):
+                writer.add_page(reader.pages[page_num])
+            
+            combine_file = output_path / f"{combine_name}.pdf"
+            if combine_file.exists():
+                base = combine_file.stem
+                ext = combine_file.suffix
+                counter = 1
+                while combine_file.exists():
+                    combine_file = output_path / f"{base}_{counter}{ext}"
+                    counter += 1
+            
+            with open(combine_file, 'wb') as f:
+                writer.write(f)
+            stats['combined_file'] = str(combine_file)
+            stats['total_files'] = 1
+        except Exception as e:
+            stats['errors'].append(f"Erro ao gerar arquivo combinado: {str(e)}")
+    else:
+        # Gerar partes individuais
+        for start in range(0, total_pages, pages_per_file):
+            end = min(start + pages_per_file, total_pages)
+            part_writer = PdfWriter()
+            for page_num in range(start, end):
+                part_writer.add_page(reader.pages[page_num])
+            
+            output_file = output_path / f"{part_prefix}_{start+1:04d}-{end:04d}.pdf"
+            with open(output_file, 'wb') as f:
+                part_writer.write(f)
+            stats['output_files'].append(str(output_file))
+            stats['total_files'] += 1
+    
+    return stats
+
+def split_by_size(
+    pdf_path: str,
+    output_dir: str,
+    max_size_mb: float,
+    prefix: str = ''
+) -> dict:
+    """
+    Divide um PDF em partes com tamanho máximo definido (em MB).
+
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        max_size_mb: Tamanho máximo por parte (MB)
+        prefix: Prefixo para os nomes das partes (ex: 'relatorio_')
+
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, errors
+    """
+    from io import BytesIO
+
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+
+    max_size_bytes = max_size_mb * 1024 * 1024
+
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'errors': []
+    }
+
+    current_pages = []
+    part_number = 1
+    prefix_str = f"{prefix}_" if prefix else ""
+
+    for page_num in range(total_pages):
+        current_pages.append(reader.pages[page_num])
+
+        # Testar o tamanho da parte atual
+        temp_writer = PdfWriter()
+        for page in current_pages:
+            temp_writer.add_page(page)
+
+        buffer = BytesIO()
+        temp_writer.write(buffer)
+        size = buffer.tell()
+
+        if size > max_size_bytes:
+            if len(current_pages) == 1:
+                # Uma única página já ultrapassou o limite - salvar mesmo assim
+                part_writer = PdfWriter()
+                part_writer.add_page(current_pages[0])
+                part_name = f"{prefix_str}part_{part_number:04d}.pdf"
+                part_file = output_path / part_name
+                with open(part_file, 'wb') as f:
+                    part_writer.write(f)
+                stats['output_files'].append(str(part_file))
+                stats['total_files'] += 1
+                current_pages = []
+                part_number += 1
+            else:
+                # Salvar parte sem a última página (que causou o estouro)
+                part_writer = PdfWriter()
+                for page in current_pages[:-1]:
+                    part_writer.add_page(page)
+
+                part_name = f"{prefix_str}part_{part_number:04d}.pdf"
+                part_file = output_path / part_name
+                with open(part_file, 'wb') as f:
+                    part_writer.write(f)
+                stats['output_files'].append(str(part_file))
+                stats['total_files'] += 1
+
+                # Nova parte começa com a página que estourou
+                current_pages = [current_pages[-1]]
+                part_number += 1
+
+    # Salvar a última parte (se houver páginas restantes)
+    if current_pages:
+        part_writer = PdfWriter()
+        for page in current_pages:
+            part_writer.add_page(page)
+        part_name = f"{prefix_str}part_{part_number:04d}.pdf"
+        part_file = output_path / part_name
+        with open(part_file, 'wb') as f:
+            part_writer.write(f)
+        stats['output_files'].append(str(part_file))
+        stats['total_files'] += 1
+
+    return stats
+
+def _parse_extract_selection(page_str: str, total_pages: int) -> list:
+    """
+    Converte uma string de seleção de páginas como "1,3,5-7" em uma lista de números de página (1-based).
+    """
+    pages = []
+    parts = [p.strip() for p in page_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            start_str, end_str = part.split('-', 1)
+            try:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            except ValueError:
+                raise ValueError(f"Intervalo inválido: {part}")
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(f"Intervalo {start}-{end} inválido para documento com {total_pages} páginas")
+            pages.extend(range(start, end + 1))
+        else:
+            try:
+                page = int(part.strip())
+            except ValueError:
+                raise ValueError(f"Página inválida: {part}")
+            if page < 1 or page > total_pages:
+                raise ValueError(f"Página {page} inválida para documento com {total_pages} páginas")
+            pages.append(page)
+    # Remove duplicatas mantendo a ordem
+    seen = set()
+    return [p for p in pages if not (p in seen or seen.add(p))]
+
+def extract_all_pages(pdf_path: str, output_dir: str, prefix: str = '') -> dict:
+    """
+    Extrai todas as páginas de um PDF em arquivos individuais.
+    
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        prefix: Prefixo para os nomes dos arquivos (ex: 'pagina_')
+    
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+    
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'errors': []
+    }
+    
+    prefix_str = f"{prefix}_" if prefix else ""
+    
+    for page_num in range(1, total_pages + 1):
+        try:
+            writer = PdfWriter()
+            writer.add_page(reader.pages[page_num - 1])
+            
+            output_file = output_path / f"{prefix_str}page_{page_num:04d}.pdf"
+            with open(output_file, 'wb') as f:
+                writer.write(f)
+            stats['output_files'].append(str(output_file))
+            stats['total_files'] += 1
+        except Exception as e:
+            stats['errors'].append(f"Erro ao extrair página {page_num}: {str(e)}")
+    
+    return stats
+
+def extract_selected_pages(
+    pdf_path: str,
+    output_dir: str,
+    pages_selection: str,
+    prefix: str = '',
+    combine: bool = False,
+    combine_name: str = None
+) -> dict:
+    """
+    Extrai páginas selecionadas de um PDF.
+    
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        pages_selection: String com a seleção (ex: "1,3,5-7")
+        prefix: Prefixo para os nomes dos arquivos (ex: 'pagina_')
+        combine: Se True, mescla as páginas extraídas em um único PDF
+        combine_name: Nome do arquivo combinado (sem extensão)
+    
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, combined_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+    
+    # Parse da seleção
+    page_numbers = _parse_extract_selection(pages_selection, total_pages)
+    
+    if not page_numbers:
+        raise ValueError("Nenhuma página selecionada para extrair.")
+    
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'combined_file': None,
+        'errors': []
+    }
+    
+    prefix_str = f"{prefix}_" if prefix else ""
+    combined_writer = PdfWriter()
+    files_generated = []
+    
+    for idx, page_num in enumerate(page_numbers, 1):
+        try:
+            writer = PdfWriter()
+            writer.add_page(reader.pages[page_num - 1])
+            
+            output_file = output_path / f"{prefix_str}page_{page_num:04d}.pdf"
+            with open(output_file, 'wb') as f:
+                writer.write(f)
+            stats['output_files'].append(str(output_file))
+            stats['total_files'] += 1
+            files_generated.append(output_file)
+            
+            # Se combine=True, adiciona ao writer combinado
+            if combine:
+                combined_writer.add_page(reader.pages[page_num - 1])
+                
+        except Exception as e:
+            stats['errors'].append(f"Erro ao extrair página {page_num}: {str(e)}")
+    
+    # Se combine=True e há páginas extraídas, gerar o arquivo combinado
+    if combine and stats['total_files'] > 0:
+        combine_name = combine_name or "extracted_combined"
+        if not combine_name.endswith('.pdf'):
+            combine_name += '.pdf'
+        combined_file = output_path / combine_name
+        with open(combined_file, 'wb') as f:
+            combined_writer.write(f)
+        stats['combined_file'] = str(combined_file)
+    
+    return stats
+
+def _parse_page_selection(selection_str: str, total_pages: int) -> list:
+    """
+    Converte uma string de seleção de páginas em uma lista de números (1-based).
+    Suporta: "1,3,5", "1-10", "1-5, 10-15", "1,3-5,10"
+    """
+    pages = set()
+    parts = [p.strip() for p in selection_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            start_str, end_str = part.split('-', 1)
+            try:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            except ValueError:
+                raise ValueError(f"Intervalo inválido: {part}")
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(f"Intervalo {start}-{end} inválido (total: {total_pages} páginas)")
+            for p in range(start, end + 1):
+                pages.add(p)
+        else:
+            try:
+                p = int(part.strip())
+            except ValueError:
+                raise ValueError(f"Página inválida: {part}")
+            if p < 1 or p > total_pages:
+                raise ValueError(f"Página {p} inválida (total: {total_pages} páginas)")
+            pages.add(p)
+    return sorted(pages)
+
+def remove_pages(
+    pdf_path: str,
+    output_path: str,
+    pages_to_remove_str: str,
+    save_removed: bool = False,
+    removed_output_path: str = None
+) -> dict:
+    """
+    Remove páginas específicas de um PDF.
+
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_path: Caminho do PDF de saída (sem as páginas removidas)
+        pages_to_remove_str: String com páginas a remover (ex: "1,3,5" ou "1-10" ou "1,3-5,10")
+        save_removed: Se True, salva as páginas removidas em um arquivo separado
+        removed_output_path: Caminho para salvar as páginas removidas (se None e save_removed=True, usa "removed_pages.pdf" no mesmo diretório)
+
+    Returns:
+        dict com estatísticas: total_pages, remaining_pages, removed_pages, output_file, removed_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+
+    try:
+        pages_to_remove = _parse_page_selection(pages_to_remove_str, total_pages)
+    except ValueError as e:
+        raise ValueError(f"Erro na seleção de páginas: {str(e)}")
+
+    pages_to_remove_set = set(pages_to_remove)
+    pages_to_keep = [i for i in range(1, total_pages + 1) if i not in pages_to_remove_set]
+
+    if not pages_to_keep:
+        raise ValueError("Nenhuma página restante após a remoção.")
+
+    stats = {
+        'total_pages': total_pages,
+        'remaining_pages': len(pages_to_keep),
+        'removed_pages': len(pages_to_remove),
+        'output_file': None,
+        'removed_file': None,
+        'errors': []
+    }
+
+    # Gerar arquivo sem as páginas removidas
+    try:
+        writer = PdfWriter()
+        for page_num in pages_to_keep:
+            writer.add_page(reader.pages[page_num - 1])
+        with open(output_path, 'wb') as f:
+            writer.write(f)
+        stats['output_file'] = str(output_path)
+    except Exception as e:
+        stats['errors'].append(f"Erro ao salvar arquivo final: {str(e)}")
+
+    # Salvar páginas removidas separadamente, se solicitado
+    if save_removed and pages_to_remove:
+        try:
+            if removed_output_path is None:
+                removed_output_path = output_path.parent / "removed_pages.pdf"
+            else:
+                removed_output_path = Path(removed_output_path).resolve()
+                removed_output_path.parent.mkdir(parents=True, exist_ok=True)
+
+            writer_removed = PdfWriter()
+            for page_num in pages_to_remove:
+                writer_removed.add_page(reader.pages[page_num - 1])
+            with open(removed_output_path, 'wb') as f:
+                writer_removed.write(f)
+            stats['removed_file'] = str(removed_output_path)
+        except Exception as e:
+            stats['errors'].append(f"Erro ao salvar páginas removidas: {str(e)}")
+
+    return stats
+
+def reorder_pages(
+    pdf_path: str,
+    output_path: str,
+    new_order_str: str
+) -> dict:
+    """
+    Reordena as páginas de um PDF de acordo com a ordem especificada.
+
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_path: Caminho do PDF de saída com a nova ordem
+        new_order_str: String com a nova ordem (ex: "5,1,3,2,4" ou "1-3,5,4")
+
+    Returns:
+        dict com estatísticas: total_pages, output_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+
+    try:
+        # Usar a mesma função de parse para extrair páginas (números 1-based)
+        new_order = _parse_page_selection(new_order_str, total_pages)
+    except ValueError as e:
+        raise ValueError(f"Erro na ordem especificada: {str(e)}")
+
+    # Verificar se todas as páginas foram incluídas na nova ordem
+    if len(new_order) != total_pages:
+        raise ValueError(
+            f"Número de páginas na ordem ({len(new_order)}) não corresponde ao total de páginas ({total_pages}). "
+            "Para reordenar, todas as páginas devem ser incluídas exatamente uma vez."
+        )
+
+    # Verificar se há duplicatas
+    if len(set(new_order)) != total_pages:
+        raise ValueError("A ordem contém páginas duplicadas. Cada página deve aparecer exatamente uma vez.")
+
+    stats = {
+        'total_pages': total_pages,
+        'output_file': None,
+        'errors': []
+    }
+
+    try:
+        writer = PdfWriter()
+        for page_num in new_order:
+            writer.add_page(reader.pages[page_num - 1])
+        with open(output_path, 'wb') as f:
+            writer.write(f)
+        stats['output_file'] = str(output_path)
+    except Exception as e:
+        stats['errors'].append(f"Erro ao salvar arquivo reordenado: {str(e)}")
+
+    return stats
 ```
 
 
@@ -4253,6 +4910,144 @@ def merge_by_size():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/split-custom', methods=['POST'])
+def split_custom():
+    data = request.json
+    required = ['pdf_path', 'output_dir', 'intervals_str']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_custom(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            intervals_str=data['intervals_str'],
+            combine=data.get('combine', False),
+            part_prefix=data.get('part_prefix', 'part'),
+            combine_name=data.get('combine_name', 'combined')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/split-fixed', methods=['POST'])
+def split_fixed():
+    data = request.json
+    required = ['pdf_path', 'output_dir', 'pages_per_file']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_fixed(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            pages_per_file=int(data['pages_per_file']),
+            combine=data.get('combine', False),
+            part_prefix=data.get('part_prefix', 'part'),
+            combine_name=data.get('combine_name', 'combined')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/split-by-size', methods=['POST'])
+def split_by_size():
+    data = request.json
+    required = ['pdf_path', 'output_dir', 'max_size_mb']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_by_size(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            max_size_mb=float(data['max_size_mb']),
+            prefix=data.get('prefix', '')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/extract-all-pages', methods=['POST'])
+def extract_all_pages():
+    data = request.json
+    required = ['pdf_path', 'output_dir']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.extract_all_pages(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            prefix=data.get('prefix', '')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/extract-selected-pages', methods=['POST'])
+def extract_selected_pages():
+    data = request.json
+    required = ['pdf_path', 'output_dir', 'pages_selection']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.extract_selected_pages(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            pages_selection=data['pages_selection'],
+            prefix=data.get('prefix', ''),
+            combine=data.get('combine', False),
+            combine_name=data.get('combine_name')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/remove-pages', methods=['POST'])
+def remove_pages():
+    data = request.json
+    required = ['pdf_path', 'output_path', 'pages_to_remove_str']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.remove_pages(
+            pdf_path=data['pdf_path'],
+            output_path=data['output_path'],
+            pages_to_remove_str=data['pages_to_remove_str'],
+            save_removed=data.get('save_removed', False),
+            removed_output_path=data.get('removed_output_path')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/reorder-pages', methods=['POST'])
+def reorder_pages():
+    data = request.json
+    required = ['pdf_path', 'output_path', 'new_order_str']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.reorder_pages(
+            pdf_path=data['pdf_path'],
+            output_path=data['output_path'],
+            new_order_str=data['new_order_str']
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 ```
 
 
@@ -4549,6 +5344,11 @@ def get_pdf_page_count(pdf_path):
     <!-- PDF -->
     <script src="js/modules/pdf/merge.js"></script>
     <script src="js/modules/pdf/merge_by_size.js"></script>
+    <script src="js/modules/pdf/split.js"></script>
+    <script src="js/modules/pdf/split_by_size.js"></script>
+    <script src="js/modules/pdf/extract_pages.js"></script>
+    <script src="js/modules/pdf/remove_pages.js"></script>
+    <script src="js/modules/pdf/reorder.js"></script>
     <script src="js/modules/pdf/index.js"></script>
     <!-- DOCUMENTOS -->
     <script src="js/modules/word/utils.js"></script>
@@ -5066,6 +5866,13 @@ window.API = {
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),
         mergeBySize: (params) => apiRequest('/pdf/merge-by-size', 'POST', params),
+        splitCustom: (params) => apiRequest('/pdf/split-custom', 'POST', params),
+        splitFixed: (params) => apiRequest('/pdf/split-fixed', 'POST', params),
+        splitBySize: (params) => apiRequest('/pdf/split-by-size', 'POST', params),
+        extractAllPages: (params) => apiRequest('/pdf/extract-all-pages', 'POST', params),
+        extractSelectedPages: (params) => apiRequest('/pdf/extract-selected-pages', 'POST', params),
+        removePages: (params) => apiRequest('/pdf/remove-pages', 'POST', params),
+        reorderPages: (params) => apiRequest('/pdf/reorder-pages', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),
@@ -8669,6 +9476,222 @@ const FileUtils = {
 ```
 
 
+### frontend\js\modules\pdf\extract_pages.js
+
+```
+class PDFExtractPagesFeature {
+    constructor() {
+        this.mode = 'all'; // 'all' ou 'selected'
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Extrair Páginas</h4>
+                <p class="text-muted">Extraia páginas individuais ou selecionadas de um PDF.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="extract-pdf-input" class="form-control" placeholder="Selecione o PDF...">
+                        <button class="btn btn-outline-secondary" id="btn-extract-pdf-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pasta de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="extract-pdf-output" class="form-control" placeholder="Selecione a pasta de destino...">
+                        <button class="btn btn-outline-secondary" id="btn-extract-pdf-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Modo de extração</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="extract-mode" id="extract-mode-all" value="all" checked>
+                                <label class="form-check-label">Extrair todas as páginas</label>
+                            </div>
+                            <small class="text-muted">Cada página será salva como um arquivo PDF separado</small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="extract-mode" id="extract-mode-selected" value="selected">
+                                <label class="form-check-label">Extrair páginas selecionadas</label>
+                            </div>
+                            <small class="text-muted">Ex: 1,3,5-7 (páginas 1, 3, 5, 6 e 7)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3" id="extract-selected-config" style="display:none;">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Seleção de páginas</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Páginas a extrair</label>
+                        <input type="text" id="extract-pages-selection" class="form-control" placeholder="Ex: 1,3,5-7,10,15-20">
+                        <small class="text-muted">Use números separados por vírgula ou intervalos com hífen</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3" id="extract-combine-config" style="display:none;">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções de combinação</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="extract-combine">
+                        <label class="form-check-label">Combinar páginas extraídas em um único PDF</label>
+                    </div>
+                    <div id="extract-combine-name-group" style="display:none;" class="mt-2">
+                        <label class="form-label">Nome do arquivo combinado</label>
+                        <input type="text" id="extract-combine-name" class="form-control" placeholder="Ex: paginas_extraidas" value="extracted_combined">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Prefixo (opcional)</h5>
+                    <input type="text" id="extract-prefix" class="form-control" placeholder="ex: pagina">
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-extract-execute"><i class="bi bi-play-fill me-1"></i>Extrair</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="extract-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="extract-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        // Eventos para alternar entre modos
+        document.querySelectorAll('input[name="extract-mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.mode = e.target.value;
+                document.getElementById('extract-selected-config').style.display = (this.mode === 'selected') ? 'block' : 'none';
+                document.getElementById('extract-combine-config').style.display = (this.mode === 'selected') ? 'block' : 'none';
+            });
+        });
+
+        // Inicializar estado
+        document.getElementById('extract-selected-config').style.display = 'none';
+        document.getElementById('extract-combine-config').style.display = 'none';
+
+        // Evento para mostrar/ocultar campo de nome do arquivo combinado
+        document.getElementById('extract-combine').addEventListener('change', (e) => {
+            document.getElementById('extract-combine-name-group').style.display = e.target.checked ? 'block' : 'none';
+        });
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-extract-pdf-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('extract-pdf-input').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-extract-pdf-output').addEventListener('click', () => {
+            FileUtils.selectDirectory('extract-pdf-output');
+        });
+
+        document.getElementById('btn-extract-execute').addEventListener('click', () => this.executeExtract());
+    }
+
+    async executeExtract() {
+        const inputFile = document.getElementById('extract-pdf-input').value.trim();
+        const outputDir = document.getElementById('extract-pdf-output').value.trim();
+        const mode = this.mode;
+        const prefix = document.getElementById('extract-prefix').value.trim();
+
+        if (!inputFile || !outputDir) {
+            FileUtils.log('Selecione o PDF e a pasta de destino.', 'extract-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-extract-execute');
+        btn.disabled = true;
+        FileUtils.clearLog('extract-log');
+
+        try {
+            let result;
+
+            if (mode === 'all') {
+                FileUtils.log('Extraindo todas as páginas...', 'extract-log');
+                result = await window.API.pdf.extractAllPages({
+                    pdf_path: inputFile,
+                    output_dir: outputDir,
+                    prefix: prefix
+                });
+            } else {
+                const pagesSelection = document.getElementById('extract-pages-selection').value.trim();
+                if (!pagesSelection) {
+                    FileUtils.log('Selecione pelo menos uma página.', 'extract-log');
+                    btn.disabled = false;
+                    return;
+                }
+                const combine = document.getElementById('extract-combine').checked;
+                const combineName = document.getElementById('extract-combine-name').value.trim() || undefined;
+
+                FileUtils.log('Extraindo páginas selecionadas...', 'extract-log');
+                result = await window.API.pdf.extractSelectedPages({
+                    pdf_path: inputFile,
+                    output_dir: outputDir,
+                    pages_selection: pagesSelection,
+                    prefix: prefix,
+                    combine: combine,
+                    combine_name: combineName
+                });
+            }
+
+            const { total_pages, total_files, output_files, combined_file, errors } = result;
+            if (combined_file) {
+                FileUtils.log(`Concluído! ${total_files} arquivos gerados.`, 'extract-log');
+                FileUtils.log(`Arquivos combinados em: ${combined_file}`, 'extract-log');
+            } else {
+                FileUtils.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`, 'extract-log');
+                if (output_files.length <= 10) {
+                    output_files.forEach(f => FileUtils.log(`  ${f}`, 'extract-log'));
+                } else {
+                    FileUtils.log(`  ${output_files.length} arquivos gerados na pasta ${outputDir}`, 'extract-log');
+                }
+            }
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'extract-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'extract-log'));
+            }
+            document.getElementById('extract-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'extract-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFExtractPagesFeature = PDFExtractPagesFeature;
+```
+
+
 ### frontend\js\modules\pdf\index.js
 
 ```
@@ -8679,6 +9702,11 @@ class PDFModule {
         this.features = [
             { id: 'merge', label: 'Combinar', render: (container) => new PDFMergeFeature().render(container) },
             { id: 'merge-by-size', label: 'Combinar por Tamanho', render: (container) => new PDFMergeBySizeFeature().render(container) },
+            { id: 'split', label: 'Dividir', render: (container) => new PDFSplitFeature().render(container) },
+            { id: 'split-by-size', label: 'Dividir por Tamanho', render: (container) => new PDFSplitBySizeFeature().render(container) },
+            { id: 'extract-pages', label: 'Extrair Páginas', render: (container) => new PDFExtractPagesFeature().render(container) },
+            { id: 'remove-pages', label: 'Remover Páginas', render: (container) => new PDFRemovePagesFeature().render(container) },
+            { id: 'reorder', label: 'Reordenar Páginas', render: (container) => new PDFReorderFeature().render(container) },
         ];
     }
 
@@ -9161,6 +10189,739 @@ class PDFMergeBySizeFeature {
 }
 
 window.PDFMergeBySizeFeature = PDFMergeBySizeFeature;
+```
+
+
+### frontend\js\modules\pdf\remove_pages.js
+
+```
+class PDFRemovePagesFeature {
+    constructor() {
+        this.saveRemoved = false;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Remover Páginas</h4>
+                <p class="text-muted">Remova páginas específicas do PDF. O arquivo original será mantido, e um novo arquivo será gerado sem as páginas removidas.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="remove-pages-input" class="form-control" placeholder="Selecione o PDF...">
+                        <button class="btn btn-outline-secondary" id="btn-remove-pages-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Páginas a remover</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Selecione as páginas</label>
+                        <input type="text" id="remove-pages-selection" class="form-control" placeholder="Ex: 1,3,5 ou 1-10 ou 1,3-5,10">
+                        <small class="text-muted">Use vírgula para separar, hífen para intervalos. Ex: 1,3-5,10</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de saída (sem as páginas removidas)</h5>
+                    <div class="input-group">
+                        <input type="text" id="remove-pages-output" class="form-control" placeholder="Caminho do arquivo final">
+                        <button class="btn btn-outline-secondary" id="btn-remove-pages-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="remove-pages-save-removed">
+                        <label class="form-check-label">Salvar páginas removidas em um arquivo separado</label>
+                    </div>
+                    <div id="remove-pages-removed-group" style="display:none;" class="mt-2">
+                        <label class="form-label">Arquivo das páginas removidas</label>
+                        <div class="input-group">
+                            <input type="text" id="remove-pages-removed-output" class="form-control" placeholder="Caminho para salvar as páginas removidas">
+                            <button class="btn btn-outline-secondary" id="btn-remove-pages-removed-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-remove-pages-execute"><i class="bi bi-play-fill me-1"></i>Remover Páginas</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="remove-pages-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="remove-pages-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        // Evento para mostrar/ocultar campo do arquivo de removidas
+        document.getElementById('remove-pages-save-removed').addEventListener('change', (e) => {
+            const group = document.getElementById('remove-pages-removed-group');
+            group.style.display = e.target.checked ? 'block' : 'none';
+        });
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-remove-pages-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('remove-pages-input').value = result.filePaths[0];
+                        // Sugerir nome de saída
+                        this.suggestOutputs();
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-remove-pages-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('remove-pages-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-remove-pages-removed-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('remove-pages-removed-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-remove-pages-execute').addEventListener('click', () => this.executeRemove());
+    }
+
+    suggestOutputs() {
+        const input = document.getElementById('remove-pages-input').value;
+        if (input) {
+            const base = input.replace(/\.[^.]+$/, '');
+            const output = document.getElementById('remove-pages-output');
+            if (!output.value) {
+                output.value = `${base}_sem_paginas.pdf`;
+            }
+            const removed = document.getElementById('remove-pages-removed-output');
+            if (!removed.value) {
+                removed.value = `${base}_paginas_removidas.pdf`;
+            }
+        }
+    }
+
+    async executeRemove() {
+        const inputFile = document.getElementById('remove-pages-input').value.trim();
+        const outputFile = document.getElementById('remove-pages-output').value.trim();
+        const pagesSelection = document.getElementById('remove-pages-selection').value.trim();
+        const saveRemoved = document.getElementById('remove-pages-save-removed').checked;
+        const removedOutput = document.getElementById('remove-pages-removed-output').value.trim() || undefined;
+
+        if (!inputFile || !outputFile) {
+            FileUtils.log('Selecione o PDF de entrada e defina o arquivo de saída.', 'remove-pages-log');
+            return;
+        }
+
+        if (!pagesSelection) {
+            FileUtils.log('Informe as páginas a remover.', 'remove-pages-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-remove-pages-execute');
+        btn.disabled = true;
+        FileUtils.clearLog('remove-pages-log');
+        FileUtils.log(`Removendo páginas: ${pagesSelection}...`, 'remove-pages-log');
+
+        try {
+            const result = await window.API.pdf.removePages({
+                pdf_path: inputFile,
+                output_path: outputFile,
+                pages_to_remove_str: pagesSelection,
+                save_removed: saveRemoved,
+                removed_output_path: removedOutput
+            });
+
+            const { total_pages, remaining_pages, removed_pages, output_file, removed_file, errors } = result;
+            FileUtils.log(`Concluído! Total: ${total_pages} páginas, Removidas: ${removed_pages}, Restantes: ${remaining_pages}`, 'remove-pages-log');
+            FileUtils.log(`Arquivo sem páginas: ${output_file}`, 'remove-pages-log');
+            if (removed_file) {
+                FileUtils.log(`Páginas removidas salvas em: ${removed_file}`, 'remove-pages-log');
+            }
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'remove-pages-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'remove-pages-log'));
+            }
+            document.getElementById('remove-pages-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'remove-pages-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFRemovePagesFeature = PDFRemovePagesFeature;
+```
+
+
+### frontend\js\modules\pdf\reorder.js
+
+```
+class PDFReorderFeature {
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal"><i class="bi bi-arrow-up-down me-2"></i>Reordenar Páginas</h4>
+                <p class="text-muted">Defina a nova ordem das páginas do PDF. Você pode especificar páginas individuais ou intervalos.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="reorder-input" class="form-control" placeholder="Selecione o PDF...">
+                        <button class="btn btn-outline-secondary" id="btn-reorder-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Nova ordem das páginas</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Digite a nova ordem</label>
+                        <input type="text" id="reorder-order" class="form-control" placeholder="Ex: 5,1,3,2,4 ou 1-3,5,4">
+                        <small class="text-muted">Use vírgula para separar, hífen para intervalos. Ex: 5,1,3,2,4 (reorganiza as 5 páginas na ordem 5,1,3,2,4). Todas as páginas devem ser incluídas exatamente uma vez.</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="reorder-output" class="form-control" placeholder="Caminho do arquivo reordenado">
+                        <button class="btn btn-outline-secondary" id="btn-reorder-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-reorder-execute"><i class="bi bi-play-fill me-1"></i>Reordenar</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="reorder-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="reorder-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-reorder-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('reorder-input').value = result.filePaths[0];
+                        this.suggestOutput();
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-reorder-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('reorder-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-reorder-execute').addEventListener('click', () => this.executeReorder());
+    }
+
+    suggestOutput() {
+        const input = document.getElementById('reorder-input').value;
+        if (input) {
+            const base = input.replace(/\.[^.]+$/, '');
+            const output = document.getElementById('reorder-output');
+            if (!output.value) {
+                output.value = `${base}_reordenado.pdf`;
+            }
+        }
+    }
+
+    async executeReorder() {
+        const inputFile = document.getElementById('reorder-input').value.trim();
+        const outputFile = document.getElementById('reorder-output').value.trim();
+        const orderStr = document.getElementById('reorder-order').value.trim();
+
+        if (!inputFile || !outputFile) {
+            FileUtils.log('Selecione o PDF de entrada e defina o arquivo de saída.', 'reorder-log');
+            return;
+        }
+
+        if (!orderStr) {
+            FileUtils.log('Defina a nova ordem das páginas.', 'reorder-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-reorder-execute');
+        btn.disabled = true;
+        FileUtils.clearLog('reorder-log');
+        FileUtils.log(`Reordenando páginas: ${orderStr}...`, 'reorder-log');
+
+        try {
+            const result = await window.API.pdf.reorderPages({
+                pdf_path: inputFile,
+                output_path: outputFile,
+                new_order_str: orderStr
+            });
+
+            const { total_pages, output_file, errors } = result;
+            FileUtils.log(`Concluído! PDF reordenado salvo em: ${output_file}`, 'reorder-log');
+            FileUtils.log(`Total de páginas: ${total_pages}`, 'reorder-log');
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'reorder-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'reorder-log'));
+            }
+            document.getElementById('reorder-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'reorder-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFReorderFeature = PDFReorderFeature;
+```
+
+
+### frontend\js\modules\pdf\split.js
+
+```
+class PDFSplitFeature {
+    constructor() {
+        this.mode = 'custom'; // 'custom' ou 'fixed'
+        this.previewData = null;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Dividir</h4>
+                <p class="text-muted">Divida um PDF em partes com intervalos personalizados ou tamanho fixo.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="split-pdf-input" class="form-control" placeholder="Selecione o PDF...">
+                        <button class="btn btn-outline-secondary" id="btn-split-pdf-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pasta de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="split-pdf-output" class="form-control" placeholder="Selecione a pasta de destino...">
+                        <button class="btn btn-outline-secondary" id="btn-split-pdf-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Modo de divisão</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="split-mode" id="split-mode-custom" value="custom" checked>
+                                <label class="form-check-label">Intervalo Personalizado</label>
+                            </div>
+                            <small class="text-muted">Ex: 1-10, 15-16, 20-25</small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="split-mode" id="split-mode-fixed" value="fixed">
+                                <label class="form-check-label">Intervalo Fixo</label>
+                            </div>
+                            <small class="text-muted">Dividir de X em X páginas</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3" id="split-custom-config">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Intervalos personalizados</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Digite os intervalos</label>
+                        <input type="text" id="split-intervals" class="form-control" placeholder="Ex: 1-10, 15-16, 20-25">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3" id="split-fixed-config" style="display:none;">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Intervalo Fixo</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Páginas por arquivo</label>
+                        <input type="number" id="split-pages-per-file" class="form-control" value="10" min="1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções de saída</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Prefixo das partes</label>
+                        <input type="text" id="split-part-prefix" class="form-control" placeholder="Ex: documento" value="part">
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="split-combine">
+                        <label class="form-check-label">Combinar em um único arquivo (não gera partes individuais)</label>
+                    </div>
+                    <div id="split-combine-name-container" style="display:none;" class="mt-2">
+                        <label class="form-label">Nome do arquivo final</label>
+                        <input type="text" id="split-combine-name" class="form-control" placeholder="Ex: documento_final" value="combined">
+                        <small class="text-muted">O arquivo será salvo com extensão .pdf</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-success" id="btn-split-preview"><i class="bi bi-eye me-1"></i>Pré-visualizar</button>
+                <button class="btn btn-success" id="btn-split-execute"><i class="bi bi-play-fill me-1"></i>Dividir</button>
+            </div>
+
+            <div id="split-preview-area" style="display:none;" class="mt-3">
+                <label class="fw-bold text-success">Pré-visualização</label>
+                <div id="split-preview-list" class="border rounded p-2" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+            </div>
+
+            <div class="progress mt-2"><div class="progress-bar" id="split-pdf-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="split-pdf-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        // Eventos para alternar entre modos
+        document.querySelectorAll('input[name="split-mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.mode = e.target.value;
+                document.getElementById('split-custom-config').style.display = (this.mode === 'custom') ? 'block' : 'none';
+                document.getElementById('split-fixed-config').style.display = (this.mode === 'fixed') ? 'block' : 'none';
+            });
+        });
+
+        // Evento para mostrar/ocultar campo de nome combinado
+        document.getElementById('split-combine').addEventListener('change', (e) => {
+            document.getElementById('split-combine-name-container').style.display = e.target.checked ? 'block' : 'none';
+        });
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-split-pdf-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('split-pdf-input').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-split-pdf-output').addEventListener('click', () => {
+            FileUtils.selectDirectory('split-pdf-output');
+        });
+
+        document.getElementById('btn-split-preview').addEventListener('click', () => this.previewSplit());
+        document.getElementById('btn-split-execute').addEventListener('click', () => this.executeSplit());
+    }
+
+    previewSplit() {
+        const mode = this.mode;
+        const intervalsStr = document.getElementById('split-intervals').value.trim();
+        const pagesPerFile = parseInt(document.getElementById('split-pages-per-file').value);
+        const combine = document.getElementById('split-combine').checked;
+        const partPrefix = document.getElementById('split-part-prefix').value.trim() || 'part';
+        const combineName = document.getElementById('split-combine-name').value.trim() || 'combined';
+
+        const previewArea = document.getElementById('split-preview-area');
+        previewArea.style.display = 'block';
+        const listDiv = document.getElementById('split-preview-list');
+
+        let html = '';
+        if (mode === 'custom') {
+            const parts = intervalsStr.split(',').map(s => s.trim()).filter(Boolean);
+            if (parts.length === 0) {
+                html = '<p class="text-muted">Nenhum intervalo definido.</p>';
+            } else {
+                html = `<strong>Intervalos definidos (${parts.length}):</strong><br>${parts.map(p => `- ${p}`).join('<br>')}`;
+            }
+        } else {
+            html = `<strong>Intervalo fixo:</strong> ${pagesPerFile} páginas por arquivo`;
+        }
+
+        if (combine) {
+            html += `<br><br><strong>Modo combinado:</strong> será gerado apenas o arquivo <strong>${combineName}.pdf</strong>`;
+        } else {
+            html += `<br><br><strong>Modo partes:</strong> serão gerados arquivos com prefixo <strong>${partPrefix}_</strong>`;
+        }
+
+        listDiv.innerHTML = html;
+        FileUtils.log('Pré-visualização gerada.', 'split-pdf-log');
+    }
+
+    async executeSplit() {
+        const inputFile = document.getElementById('split-pdf-input').value.trim();
+        const outputDir = document.getElementById('split-pdf-output').value.trim();
+        const mode = this.mode;
+        const combine = document.getElementById('split-combine').checked;
+        const partPrefix = document.getElementById('split-part-prefix').value.trim() || 'part';
+        const combineName = document.getElementById('split-combine-name').value.trim() || 'combined';
+
+        if (!inputFile || !outputDir) {
+            FileUtils.log('Selecione o PDF e a pasta de destino.', 'split-pdf-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-split-execute');
+        btn.disabled = true;
+        FileUtils.clearLog('split-pdf-log');
+        FileUtils.log('Iniciando divisão...', 'split-pdf-log');
+
+        try {
+            let result;
+            if (mode === 'custom') {
+                const intervalsStr = document.getElementById('split-intervals').value.trim();
+                if (!intervalsStr) {
+                    FileUtils.log('Digite os intervalos.', 'split-pdf-log');
+                    btn.disabled = false;
+                    return;
+                }
+                result = await window.API.pdf.splitCustom({
+                    pdf_path: inputFile,
+                    output_dir: outputDir,
+                    intervals_str: intervalsStr,
+                    combine: combine,
+                    part_prefix: partPrefix,
+                    combine_name: combineName
+                });
+            } else {
+                const pagesPerFile = parseInt(document.getElementById('split-pages-per-file').value);
+                if (isNaN(pagesPerFile) || pagesPerFile < 1) {
+                    FileUtils.log('Informe um número válido de páginas por arquivo.', 'split-pdf-log');
+                    btn.disabled = false;
+                    return;
+                }
+                result = await window.API.pdf.splitFixed({
+                    pdf_path: inputFile,
+                    output_dir: outputDir,
+                    pages_per_file: pagesPerFile,
+                    combine: combine,
+                    part_prefix: partPrefix,
+                    combine_name: combineName
+                });
+            }
+
+            const { total_pages, total_files, output_files, combined_file, errors } = result;
+            if (combine) {
+                FileUtils.log(`Concluído! Arquivo combinado gerado: ${combined_file} (${total_pages} páginas)`, 'split-pdf-log');
+            } else {
+                FileUtils.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`, 'split-pdf-log');
+                if (output_files.length) {
+                    FileUtils.log(`Arquivos:\n${output_files.join('\n')}`, 'split-pdf-log');
+                }
+            }
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'split-pdf-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'split-pdf-log'));
+            }
+            document.getElementById('split-pdf-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'split-pdf-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFSplitFeature = PDFSplitFeature;
+```
+
+
+### frontend\js\modules\pdf\split_by_size.js
+
+```
+class PDFSplitBySizeFeature {
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Dividir por Tamanho</h4>
+                <p class="text-muted">Divida um PDF em partes com tamanho máximo definido (em MB).</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="split-size-input" class="form-control" placeholder="Selecione o PDF...">
+                        <button class="btn btn-outline-secondary" id="btn-split-size-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pasta de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="split-size-output" class="form-control" placeholder="Selecione a pasta de destino...">
+                        <button class="btn btn-outline-secondary" id="btn-split-size-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Configurações</h5>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Tamanho máximo (MB)</label>
+                            <input type="number" id="split-size-max" class="form-control" value="5" min="0.1" step="0.1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Prefixo das partes (opcional)</label>
+                            <input type="text" id="split-size-prefix" class="form-control" placeholder="ex: relatorio_">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-split-size-execute"><i class="bi bi-play-fill me-1"></i>Dividir</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="split-size-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="split-size-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-split-size-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('split-size-input').value = result.filePaths[0];
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-split-size-output').addEventListener('click', () => {
+            FileUtils.selectDirectory('split-size-output');
+        });
+
+        document.getElementById('btn-split-size-execute').addEventListener('click', () => this.executeSplit());
+    }
+
+    async executeSplit() {
+        const inputFile = document.getElementById('split-size-input').value.trim();
+        const outputDir = document.getElementById('split-size-output').value.trim();
+        const maxSize = parseFloat(document.getElementById('split-size-max').value);
+        const prefix = document.getElementById('split-size-prefix').value.trim();
+
+        if (!inputFile || !outputDir) {
+            FileUtils.log('Selecione o PDF e a pasta de destino.', 'split-size-log');
+            return;
+        }
+
+        if (isNaN(maxSize) || maxSize <= 0) {
+            FileUtils.log('Informe um tamanho máximo válido.', 'split-size-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-split-size-execute');
+        btn.disabled = true;
+        FileUtils.clearLog('split-size-log');
+        FileUtils.log(`Iniciando divisão por tamanho (máx: ${maxSize} MB)...`, 'split-size-log');
+
+        try {
+            const result = await window.API.pdf.splitBySize({
+                pdf_path: inputFile,
+                output_dir: outputDir,
+                max_size_mb: maxSize,
+                prefix: prefix
+            });
+
+            const { total_pages, total_files, output_files, errors } = result;
+            FileUtils.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`, 'split-size-log');
+            output_files.forEach(f => FileUtils.log(`  ${f}`, 'split-size-log'));
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'split-size-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'split-size-log'));
+            }
+            document.getElementById('split-size-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'split-size-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFSplitBySizeFeature = PDFSplitBySizeFeature;
 ```
 
 

@@ -155,3 +155,21 @@ def remove_pages():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/reorder-pages', methods=['POST'])
+def reorder_pages():
+    data = request.json
+    required = ['pdf_path', 'output_path', 'new_order_str']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.reorder_pages(
+            pdf_path=data['pdf_path'],
+            output_path=data['output_path'],
+            new_order_str=data['new_order_str']
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

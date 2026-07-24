@@ -3,6 +3,7 @@ from models.pdf_processor import (
     extract_selected_pages,
     merge, merge_by_size,
     remove_pages,
+    reorder_pages,
     split_by_size,
     split_custom,
     split_fixed
@@ -32,3 +33,6 @@ class PDFController:
 
     def remove_pages(self, pdf_path, output_path, pages_to_remove_str, save_removed=False, removed_output_path=None):
         return remove_pages(pdf_path, output_path, pages_to_remove_str, save_removed, removed_output_path)
+
+    def reorder_pages(self, pdf_path, output_path, new_order_str):
+        return reorder_pages(pdf_path, output_path, new_order_str)

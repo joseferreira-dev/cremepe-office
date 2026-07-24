@@ -737,3 +737,95 @@ def remove_pages(
             stats['errors'].append(f"Erro ao salvar páginas removidas: {str(e)}")
 
     return stats
+
+def _parse_page_order(order_str: str, total_pages: int) -> list:
+    """
+    Converte uma string de ordem em uma lista de números (1-based) PRESERVANDO A ORDEM.
+    Suporta: "5,1,3,2,4" ou "1-3,5,4"
+    """
+    pages = []
+    parts = [p.strip() for p in order_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            start_str, end_str = part.split('-', 1)
+            try:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            except ValueError:
+                raise ValueError(f"Intervalo inválido: {part}")
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(f"Intervalo {start}-{end} inválido (total: {total_pages} páginas)")
+            for p in range(start, end + 1):
+                pages.append(p)
+        else:
+            try:
+                p = int(part.strip())
+            except ValueError:
+                raise ValueError(f"Página inválida: {part}")
+            if p < 1 or p > total_pages:
+                raise ValueError(f"Página {p} inválida (total: {total_pages} páginas)")
+            pages.append(p)
+    return pages
+
+def reorder_pages(
+    pdf_path: str,
+    output_path: str,
+    new_order_str: str
+) -> dict:
+    """
+    Reordena as páginas de um PDF de acordo com a ordem especificada.
+
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_path: Caminho do PDF de saída com a nova ordem
+        new_order_str: String com a nova ordem (ex: "5,1,3,2,4" ou "1-3,5,4")
+
+    Returns:
+        dict com estatísticas: total_pages, output_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+
+    if total_pages == 0:
+        raise ValueError("O PDF não contém páginas.")
+
+    try:
+        new_order = _parse_page_order(new_order_str, total_pages)
+    except ValueError as e:
+        raise ValueError(f"Erro na ordem especificada: {str(e)}")
+
+    # Verificar se todas as páginas foram incluídas
+    if len(new_order) != total_pages:
+        raise ValueError(
+            f"Número de páginas na ordem ({len(new_order)}) não corresponde ao total de páginas ({total_pages}). "
+            "Para reordenar, todas as páginas devem ser incluídas exatamente uma vez."
+        )
+
+    # Verificar duplicatas
+    if len(set(new_order)) != total_pages:
+        raise ValueError("A ordem contém páginas duplicadas. Cada página deve aparecer exatamente uma vez.")
+
+    stats = {
+        'total_pages': total_pages,
+        'output_file': None,
+        'errors': []
+    }
+
+    try:
+        writer = PdfWriter()
+        for page_num in new_order:
+            writer.add_page(reader.pages[page_num - 1])
+        with open(output_path, 'wb') as f:
+            writer.write(f)
+        stats['output_file'] = str(output_path)
+    except Exception as e:
+        stats['errors'].append(f"Erro ao salvar arquivo reordenado: {str(e)}")
+
+    return stats
