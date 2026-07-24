@@ -69,12 +69,14 @@
 │   │   │   │   ├── split.js
 │   │   │   │   └── utils.js
 │   │   │   ├── pdf/
+│   │   │   │   ├── compress.js
 │   │   │   │   ├── convert_to_image.js
 │   │   │   │   ├── convert_to_word.js
 │   │   │   │   ├── extract_pages.js
 │   │   │   │   ├── index.js
 │   │   │   │   ├── merge.js
 │   │   │   │   ├── merge_by_size.js
+│   │   │   │   ├── protect.js
 │   │   │   │   ├── remove_pages.js
 │   │   │   │   ├── reorder.js
 │   │   │   │   ├── split.js
@@ -175,6 +177,7 @@ html2text==2025.4.15
 xlwt==1.3.0
 pdf2docx==0.5.13
 PyMuPDF==1.28.0
+pikepdf==10.10.0
 ```
 
 
@@ -827,13 +830,16 @@ class FileController:
 
 ```
 from models.pdf_processor import (
+    compress,
     convert_images_to_pdf,
     convert_pdf_to_images,
     convert_pdf_to_word,
     extract_all_pages,
     extract_selected_pages,
     merge, merge_by_size,
+    protect_password,
     remove_pages,
+    remove_password,
     reorder_pages,
     split_by_size,
     split_custom,
@@ -871,11 +877,26 @@ class PDFController:
     def convert_to_word(self, pdf_path, output_path):
         return convert_pdf_to_word(pdf_path, output_path)
 
-    def convert_images_to_pdf(self, image_paths, output_path, combine=True, margin_cm=0.5, orientation='portrait'):
-        return convert_images_to_pdf(image_paths, output_path, combine, margin_cm, orientation)
+    def convert_images_to_pdf(self, image_paths, output_path, combine=True, margin_cm=0.5,
+                            orientation='portrait', resize_mode='cover', naming='prefix',
+                            prefix='image'):
+        return convert_images_to_pdf(
+            image_paths, output_path, combine, margin_cm,
+            orientation, resize_mode, naming, prefix
+        )
 
     def convert_pdf_to_images(self, pdf_paths, output_dir, pages_selection='all', image_format='png', prefix=''):
         return convert_pdf_to_images(pdf_paths, output_dir, pages_selection, image_format, prefix)
+
+    def compress(self, input_path, output_path, compression_level='medium', 
+                    jpeg_quality=85, remove_metadata=False, downscale_images=True):
+        return compress(input_path, output_path, compression_level, jpeg_quality, remove_metadata, downscale_images)
+
+    def protect_password(self, input_path, output_path, password):
+        return protect_password(input_path, output_path, password)
+
+    def remove_password(self, input_path, output_path, password):
+        return remove_password(input_path, output_path, password)
 ```
 
 
@@ -2772,11 +2793,20 @@ def merge_parts(
 ### backend\models\pdf_processor.py
 
 ```
-import os
 from pathlib import Path
 import shutil
 from typing import List
 from PyPDF2 import PdfReader, PdfWriter
+from pdf2docx import Converter
+import io
+from io import BytesIO
+from PIL import Image
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+import tempfile
+import fitz
+import pikepdf
+import secrets
 
 def merge(pdf_paths, output_path):
     """
@@ -3154,8 +3184,6 @@ def split_by_size(
     Returns:
         dict com estatísticas: total_pages, total_files, output_files, errors
     """
-    from io import BytesIO
-
     pdf_path = Path(pdf_path).resolve()
     if not pdf_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
@@ -3609,8 +3637,6 @@ def convert_pdf_to_word(pdf_path: str, output_path: str) -> str:
     """
     Converte um arquivo PDF para Word (.docx) usando pdf2docx.
     """
-    from pdf2docx import Converter
-
     pdf_path = Path(pdf_path).resolve()
     if not pdf_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
@@ -3631,40 +3657,28 @@ def convert_images_to_pdf(
     output_path: str,
     combine: bool = True,
     margin_cm: float = 0.5,
-    orientation: str = 'portrait'  # 'portrait' ou 'landscape'
+    orientation: str = 'portrait',
+    resize_mode: str = 'cover',      # 'fit' ou 'cover'
+    naming: str = 'prefix',          # 'original' ou 'prefix'
+    prefix: str = 'image'
 ) -> dict:
     """
     Converte uma ou mais imagens para PDF.
-    Se combine=True, gera um único PDF com todas as imagens (cada imagem em uma página).
-    Se combine=False, gera um PDF para cada imagem (com sufixo _page_N).
-
-    Args:
-        image_paths: Lista de caminhos das imagens
-        output_path: Caminho base para o PDF (se combine=True, este é o arquivo final)
-        combine: Se True, gera um único PDF combinado
-        margin_cm: Margem ao redor da imagem (em cm)
-        orientation: 'portrait' ou 'landscape'
-
-    Returns:
-        dict com estatísticas: total_images, output_files, combined_file, errors
+    - combine=True : gera um único PDF (output_path é o arquivo final)
+    - combine=False: gera múltiplos PDFs (output_path é a pasta de destino)
+    - resize_mode: 'fit' (mantém proporção, centraliza) ou 'cover' (preenche toda a área, corta excesso)
+    - naming: 'original' (usa o nome da imagem) ou 'prefix' (usa o prefixo + contagem)
     """
-    from PIL import Image
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import portrait, landscape, A4, letter
-    from reportlab.lib.utils import ImageReader
-    from io import BytesIO
-    import tempfile
-
     if not image_paths:
         raise ValueError("Nenhuma imagem fornecida.")
 
     output_path = Path(output_path).resolve()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if combine:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        output_path.mkdir(parents=True, exist_ok=True)
 
-    # Converter margem para pontos (1 cm = 28.3464567 pontos)
     margin_pt = margin_cm * 28.3464567
-
-    # Definir página base (A4)
     base_size = A4
     if orientation == 'landscape':
         base_size = (base_size[1], base_size[0])
@@ -3680,8 +3694,6 @@ def convert_images_to_pdf(
 
     try:
         if combine:
-            # Gerar um único PDF
-            from reportlab.pdfgen import canvas
             c = canvas.Canvas(str(output_path), pagesize=base_size)
             page_width, page_height = base_size
 
@@ -3693,35 +3705,34 @@ def convert_images_to_pdf(
 
                 try:
                     img = Image.open(img_path)
-                    # Converter para RGB se necessário
-                    if img.mode in ('RGBA', 'LA', 'P'):
-                        img = img.convert('RGB')
-
+                    # Mantém o modo original (incluindo transparência)
+                    # Não converte para RGB
                     img_width, img_height = img.size
-                    # Calcular dimensões com margem
+
+                    # Área útil (com margem)
                     max_width = page_width - 2 * margin_pt
                     max_height = page_height - 2 * margin_pt
 
-                    # Escalar mantendo proporção
-                    ratio = min(max_width / img_width, max_height / img_height)
-                    if ratio < 1:
-                        draw_width = img_width * ratio
-                        draw_height = img_height * ratio
-                    else:
-                        draw_width = img_width
-                        draw_height = img_height
+                    if resize_mode == 'cover':
+                        # Razão para preencher toda a área (cortando excesso)
+                        ratio = max(max_width / img_width, max_height / img_height)
+                    else:  # 'fit'
+                        ratio = min(max_width / img_width, max_height / img_height)
 
-                    # Centralizar
+                    draw_width = img_width * ratio
+                    draw_height = img_height * ratio
+
+                    # Centraliza
                     x = (page_width - draw_width) / 2
                     y = (page_height - draw_height) / 2
 
-                    # Salvar imagem temporária em formato compatível com reportlab
+                    # Salva imagem temporária em PNG (preserva transparência)
                     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
                         img.save(tmp.name, 'PNG')
                         temp_files.append(tmp.name)
 
-                    # Desenhar no PDF
-                    c.drawImage(tmp.name, x, y, width=draw_width, height=draw_height, preserveAspectRatio=True)
+                    c.drawImage(tmp.name, x, y, width=draw_width, height=draw_height,
+                                preserveAspectRatio=True, mask=None)  # mask=None permite transparência
 
                     if idx < len(image_paths) - 1:
                         c.showPage()
@@ -3733,9 +3744,7 @@ def convert_images_to_pdf(
             stats['output_files'] = [str(output_path)]
 
         else:
-            # Gerar um PDF por imagem
-            base_name = output_path.stem
-            parent = output_path.parent
+            # Múltiplos PDFs – output_path é a pasta
             for idx, img_path in enumerate(image_paths):
                 img_path = Path(img_path)
                 if not img_path.exists():
@@ -3743,32 +3752,40 @@ def convert_images_to_pdf(
                     continue
 
                 try:
-                    # Nome do PDF: base_name_page_N.pdf
-                    pdf_out = parent / f"{base_name}_page_{idx+1:04d}.pdf"
-
                     img = Image.open(img_path)
-                    if img.mode in ('RGBA', 'LA', 'P'):
-                        img = img.convert('RGB')
-
                     img_width, img_height = img.size
-                    max_width = base_size[0] - 2 * margin_pt
-                    max_height = base_size[1] - 2 * margin_pt
-                    ratio = min(max_width / img_width, max_height / img_height)
-                    if ratio < 1:
-                        draw_width = img_width * ratio
-                        draw_height = img_height * ratio
-                    else:
-                        draw_width = img_width
-                        draw_height = img_height
 
-                    x = (base_size[0] - draw_width) / 2
-                    y = (base_size[1] - draw_height) / 2
+                    # Nome do arquivo de saída
+                    if naming == 'original':
+                        # Usa o nome original da imagem, trocando extensão para .pdf
+                        base_name = img_path.stem
+                    else:
+                        # Usa prefixo + contagem
+                        base_name = f"{prefix}_{idx+1:04d}"
+
+                    pdf_out = output_path / f"{base_name}.pdf"
+
+                    page_width, page_height = base_size
+                    max_width = page_width - 2 * margin_pt
+                    max_height = page_height - 2 * margin_pt
+
+                    if resize_mode == 'cover':
+                        ratio = max(max_width / img_width, max_height / img_height)
+                    else:
+                        ratio = min(max_width / img_width, max_height / img_height)
+
+                    draw_width = img_width * ratio
+                    draw_height = img_height * ratio
+
+                    x = (page_width - draw_width) / 2
+                    y = (page_height - draw_height) / 2
 
                     c = canvas.Canvas(str(pdf_out), pagesize=base_size)
                     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
                         img.save(tmp.name, 'PNG')
                         temp_files.append(tmp.name)
-                    c.drawImage(tmp.name, x, y, width=draw_width, height=draw_height, preserveAspectRatio=True)
+                    c.drawImage(tmp.name, x, y, width=draw_width, height=draw_height,
+                                preserveAspectRatio=True, mask=None)
                     c.save()
 
                     stats['output_files'].append(str(pdf_out))
@@ -3776,7 +3793,6 @@ def convert_images_to_pdf(
                     stats['errors'].append(f"Erro ao processar {img_path.name}: {str(e)}")
 
     finally:
-        # Limpar arquivos temporários
         for f in temp_files:
             try:
                 Path(f).unlink()
@@ -3785,7 +3801,6 @@ def convert_images_to_pdf(
 
     return stats
 
-# ==================== CONVERTER PDF PARA IMAGEM ====================
 def convert_pdf_to_images(
     pdf_paths: List[str],
     output_dir: str,
@@ -3806,8 +3821,6 @@ def convert_pdf_to_images(
     Returns:
         dict com estatísticas: total_pdfs, total_images, output_files, errors
     """
-    import fitz  # PyMuPDF
-
     if not pdf_paths:
         raise ValueError("Nenhum PDF fornecido.")
 
@@ -3893,6 +3906,178 @@ def convert_pdf_to_images(
             stats['errors'].append(f"Erro ao abrir {pdf_path.name}: {str(e)}")
 
     return stats
+
+def compress(
+    input_path: str,
+    output_path: str,
+    compression_level: str = 'medium',
+    jpeg_quality: int = 85,
+    remove_metadata: bool = False,
+    downscale_images: bool = True
+) -> dict:
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Se o caminho de saída for igual ao de entrada, adiciona sufixo para evitar sobrescrever
+    if input_path == output_path:
+        output_path = input_path.parent / f"{input_path.stem}_compressed{input_path.suffix}"
+        # Atualiza a mensagem de log no frontend? O frontend mostrará o caminho alterado.
+        # Podemos retornar o caminho final.
+
+    level_config = {
+        'low': {
+            'dpi_target': 150,
+            'compress_streams': True,
+            'object_stream_mode': pikepdf.ObjectStreamMode.disable,
+        },
+        'medium': {
+            'dpi_target': 100,
+            'compress_streams': True,
+            'object_stream_mode': pikepdf.ObjectStreamMode.preserve,
+        },
+        'high': {
+            'dpi_target': 72,
+            'compress_streams': True,
+            'object_stream_mode': pikepdf.ObjectStreamMode.generate,
+        }
+    }
+
+    config = level_config.get(compression_level, level_config['medium'])
+    dpi_target = config['dpi_target'] if downscale_images else None
+
+    original_size = input_path.stat().st_size
+
+    try:
+        pdf = pikepdf.Pdf.open(input_path, allow_overwriting_input=True)
+
+        if remove_metadata:
+            pdf.docinfo = None
+            if '/Metadata' in pdf.Root:
+                del pdf.Root.Metadata
+
+        if downscale_images and dpi_target:
+            for page in pdf.pages:
+                for name, raw_stream in page.images.items():
+                    try:
+                        pil_image = raw_stream.as_pil_image()
+                        scale_factor = dpi_target / 300.0
+                        if scale_factor < 1:
+                            new_width = int(pil_image.width * scale_factor)
+                            new_height = int(pil_image.height * scale_factor)
+                            if new_width > 0 and new_height > 0:
+                                pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
+                        img_buffer = io.BytesIO()
+                        if pil_image.mode in ('RGBA', 'LA', 'P'):
+                            pil_image = pil_image.convert('RGB')
+                        pil_image.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
+                        page.images[name] = pikepdf.Stream(pdf, img_buffer.getvalue())
+                    except Exception:
+                        continue
+
+        pdf.save(
+            output_path,
+            compress_streams=config['compress_streams'],
+            stream_decode_level=pikepdf.StreamDecodeLevel.specialized,
+            object_stream_mode=config['object_stream_mode'],
+        )
+        pdf.close()
+
+        final_size = output_path.stat().st_size
+        ratio = (final_size / original_size) if original_size > 0 else 1.0
+
+        return {
+            'original_size': original_size,
+            'compressed_size': final_size,
+            'ratio': ratio,
+            'output_path': str(output_path)
+        }
+
+    except Exception as e:
+        raise RuntimeError(f"Erro ao comprimir PDF: {str(e)}")
+
+def protect_password(
+    input_path: str,
+    output_path: str,
+    password: str
+) -> dict:
+
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    if not password:
+        raise ValueError("Senha é obrigatória.")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    original_size = input_path.stat().st_size
+
+    try:
+        pdf = pikepdf.Pdf.open(input_path)
+        encryption = pikepdf.Encryption(
+            user=password,
+            owner=password,  # mesma senha para simplificar
+            allow=pikepdf.Permissions(print=True, modify=True, extract=True, annotate=True, assemble=True, form_fill=True)
+        )
+        pdf.save(output_path, encryption=encryption)
+        pdf.close()
+
+        final_size = output_path.stat().st_size
+        ratio = (final_size / original_size) if original_size > 0 else 1.0
+
+        return {
+            'original_size': original_size,
+            'protected_size': final_size,
+            'ratio': ratio,
+            'output_path': str(output_path),
+            'password': password,
+        }
+
+    except Exception as e:
+        raise RuntimeError(f"Erro ao proteger PDF: {str(e)}")
+
+
+def remove_password(
+    input_path: str,
+    output_path: str,
+    password: str
+) -> dict:
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    if not password:
+        raise ValueError("Senha é obrigatória para descriptografar.")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    original_size = input_path.stat().st_size
+
+    try:
+        pdf = pikepdf.Pdf.open(input_path, password=password)
+        pdf.save(output_path)
+        pdf.close()
+
+        final_size = output_path.stat().st_size
+        ratio = (final_size / original_size) if original_size > 0 else 1.0
+
+        return {
+            'original_size': original_size,
+            'unprotected_size': final_size,
+            'ratio': ratio,
+            'output_path': str(output_path),
+        }
+
+    except pikepdf.PasswordError:
+        raise ValueError("Senha incorreta. Não foi possível abrir o PDF.")
+    except Exception as e:
+        raise RuntimeError(f"Erro ao remover senha: {str(e)}")
 ```
 
 
@@ -5416,7 +5601,10 @@ def images_to_pdf():
             output_path=data['output_path'],
             combine=data.get('combine', True),
             margin_cm=float(data.get('margin_cm', 0.5)),
-            orientation=data.get('orientation', 'portrait')
+            orientation=data.get('orientation', 'portrait'),
+            resize_mode=data.get('resize_mode', 'cover'),
+            naming=data.get('naming', 'prefix'),
+            prefix=data.get('prefix', 'image')
         )
         return jsonify({"success": True, **result}), 200
     except Exception as e:
@@ -5437,6 +5625,69 @@ def pdf_to_images():
             pages_selection=data.get('pages_selection', 'all'),
             image_format=data.get('image_format', 'png'),
             prefix=data.get('prefix', '')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/compress', methods=['POST'])
+def compress():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+
+    compression_level = data.get('compression_level', 'medium')
+    if compression_level not in ('low', 'medium', 'high'):
+        return jsonify({"error": "Nível de compressão inválido. Use 'low', 'medium' ou 'high'"}), 400
+
+    jpeg_quality = int(data.get('jpeg_quality', 85))
+    if jpeg_quality < 1 or jpeg_quality > 100:
+        return jsonify({"error": "Qualidade JPEG deve estar entre 1 e 100"}), 400
+
+    remove_metadata = data.get('remove_metadata', False)
+    downscale_images = data.get('downscale_images', True)
+
+    try:
+        result = controller.compress(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            compression_level=compression_level,
+            jpeg_quality=jpeg_quality,
+            remove_metadata=remove_metadata,
+            downscale_images=downscale_images
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/protect-password', methods=['POST'])
+def protect_password():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path') or not data.get('password'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path, password"}), 400
+
+    try:
+        result = controller.protect_password(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            password=data['password']
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@pdf_bp.route('/remove-password', methods=['POST'])
+def remove_password():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path') or not data.get('password'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path, password"}), 400
+
+    try:
+        result = controller.remove_password(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            password=data['password']
         )
         return jsonify({"success": True, **result}), 200
     except Exception as e:
@@ -5744,8 +5995,10 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/pdf/reorder.js"></script>
     <script src="js/modules/pdf/convert_to_word.js"></script>
     <script src="js/modules/pdf/convert_to_image.js"></script>
+    <script src="js/modules/pdf/compress.js"></script>
+    <script src="js/modules/pdf/protect.js"></script>
     <script src="js/modules/pdf/index.js"></script>
-    <!-- DOCUMENTOS -->
+    <!-- WORD -->
     <script src="js/modules/word/utils.js"></script>
     <script src="js/modules/word/merge.js"></script>
     <script src="js/modules/word/convert.js"></script>
@@ -5754,7 +6007,7 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/word/watermark.js"></script>
     <script src="js/modules/word/filepath.js"></script>
     <script src="js/modules/word/index.js"></script>
-    <!-- PLANILHAS -->
+    <!-- EXCEL -->
     <script src="js/modules/excel/utils.js"></script>
     <script src="js/modules/excel/convert.js"></script>
     <script src="js/modules/excel/merge_all.js"></script>
@@ -6271,6 +6524,9 @@ window.API = {
         convertToWord: (params) => apiRequest('/pdf/convert-to-word', 'POST', params),
         convertImagesToPDF: (params) => apiRequest('/pdf/convert-images-to-pdf', 'POST', params),
         convertPdfToImages: (params) => apiRequest('/pdf/convert-pdf-to-images', 'POST', params),
+        compress: (params) => apiRequest('/pdf/compress', 'POST', params),
+        protectPassword: (params) => apiRequest('/pdf/protect-password', 'POST', params),
+        removePassword: (params) => apiRequest('/pdf/remove-password', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),
@@ -9874,6 +10130,204 @@ const FileUtils = {
 ```
 
 
+### frontend\js\modules\pdf\compress.js
+
+```
+class PDFCompressFeature {
+    constructor() {
+        this.compressionLevels = [
+            { value: 'low', label: 'Baixa (150 DPI)' },
+            { value: 'medium', label: 'Média (100 DPI)' },
+            { value: 'high', label: 'Alta (72 DPI)' }
+        ];
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Comprimir PDF</h4>
+                <p class="text-muted">Reduza o tamanho do PDF reamostrando imagens e aplicando compressão JPEG.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="compress-input" class="form-control" placeholder="Selecione o PDF...">
+                        <button class="btn btn-outline-secondary" id="btn-compress-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Nível de compressão</h5>
+                    <div class="row g-2">
+                        ${this.compressionLevels.map(lvl => `
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="compress-level" id="compress-${lvl.value}" value="${lvl.value}" ${lvl.value === 'medium' ? 'checked' : ''}>
+                                    <label class="form-check-label" for="compress-${lvl.value}">${lvl.label}</label>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Qualidade das imagens (JPEG)</h5>
+                    <div class="d-flex align-items-center gap-3">
+                        <input type="range" id="jpeg-quality" class="form-range flex-grow-1" min="10" max="100" value="85">
+                        <span id="jpeg-quality-label" class="fw-bold" style="min-width:45px;">85%</span>
+                    </div>
+                    <small class="text-muted">Valores mais baixos = arquivos menores, porém com perda de qualidade.</small>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Opções</h5>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="compress-remove-metadata">
+                        <label class="form-check-label">Remover metadados (autor, título, etc.)</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="compress-downscale" checked>
+                        <label class="form-check-label">Redimensionar imagens (reduzir resolução)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="compress-output" class="form-control" placeholder="Caminho do PDF comprimido">
+                        <button class="btn btn-outline-secondary" id="btn-compress-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-compress"><i class="bi bi-play-fill me-1"></i>Comprimir</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="compress-progress" style="width:0%"></div></div>
+
+            <div id="compress-result" style="display:none;" class="mt-3">
+                <div class="row g-2">
+                    <div class="col-6"><span class="badge bg-secondary">Original: <span id="orig-size">0</span> KB</span></div>
+                    <div class="col-6"><span class="badge bg-success">Comprimido: <span id="comp-size">0</span> KB</span></div>
+                </div>
+                <div class="mt-2"><span class="badge bg-info">Redução: <span id="comp-ratio">0</span>%</span></div>
+            </div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="compress-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        // Atualizar label do slider de qualidade
+        document.getElementById('jpeg-quality').addEventListener('input', (e) => {
+            document.getElementById('jpeg-quality-label').textContent = e.target.value + '%';
+        });
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-compress-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('compress-input').value = result.filePaths[0];
+                        this.suggestOutput();
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-compress-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('compress-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-compress').addEventListener('click', () => this.compressPDF());
+        document.getElementById('compress-input').addEventListener('change', () => this.suggestOutput());
+    }
+
+    suggestOutput() {
+        const input = document.getElementById('compress-input').value.trim();
+        const output = document.getElementById('compress-output');
+        if (input && !output.value) {
+            const base = input.replace(/\.[^.]+$/, '');
+            output.value = `${base}_comprimido.pdf`;
+        }
+    }
+
+    async compressPDF() {
+        const inputPath = document.getElementById('compress-input').value.trim();
+        const outputPath = document.getElementById('compress-output').value.trim();
+        const levelRadio = document.querySelector('input[name="compress-level"]:checked');
+        const compressionLevel = levelRadio ? levelRadio.value : 'medium';
+        const jpegQuality = parseInt(document.getElementById('jpeg-quality').value) || 85;
+        const removeMetadata = document.getElementById('compress-remove-metadata').checked;
+        const downscaleImages = document.getElementById('compress-downscale').checked;
+
+        if (!inputPath || !outputPath) {
+            FileUtils.log('Selecione o PDF de entrada e defina o de saída.', 'compress-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-compress');
+        btn.disabled = true;
+        FileUtils.clearLog('compress-log');
+        FileUtils.log('Comprimindo PDF...', 'compress-log');
+
+        try {
+            const result = await window.API.pdf.compress({
+                input_path: inputPath,
+                output_path: outputPath,
+                compression_level: compressionLevel,
+                jpeg_quality: jpegQuality,
+                remove_metadata: removeMetadata,
+                downscale_images: downscaleImages
+            });
+
+            const orig = (result.original_size / 1024).toFixed(2);
+            const comp = (result.compressed_size / 1024).toFixed(2);
+            const reduction = ((1 - result.ratio) * 100).toFixed(1);
+
+            document.getElementById('orig-size').textContent = orig;
+            document.getElementById('comp-size').textContent = comp;
+            document.getElementById('comp-ratio').textContent = reduction;
+            document.getElementById('compress-result').style.display = 'block';
+
+            FileUtils.log(`Comprimido com sucesso! Tamanho original: ${orig} KB, comprimido: ${comp} KB (redução de ${reduction}%)`, 'compress-log');
+            document.getElementById('compress-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'compress-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFCompressFeature = PDFCompressFeature;
+```
+
+
 ### frontend\js\modules\pdf\convert_to_image.js
 
 ```
@@ -9939,6 +10393,16 @@ class PDFConvertToImageFeature {
                                     <option value="landscape">Paisagem</option>
                                 </select>
                             </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Redimensionamento</label>
+                                <select id="resize-mode" class="form-select">
+                                    <option value="cover">Preencher (cortar excesso)</option>
+                                    <option value="fit">Ajustar (centralizar)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <!-- Modo de redimensionamento -->
+                        <div class="row g-2 mt-2">
                             <div class="col-md-4 d-flex align-items-end">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="combine-images" checked>
@@ -9949,12 +10413,44 @@ class PDFConvertToImageFeature {
                     </div>
                 </div>
 
-                <div class="card mb-3">
+                <!-- Saída para arquivo único -->
+                <div id="output-file-group" class="card mb-3">
                     <div class="card-body">
                         <h5 class="card-title text-success">Arquivo de saída (PDF)</h5>
                         <div class="input-group">
                             <input type="text" id="image-to-pdf-output" class="form-control" placeholder="Caminho do PDF de saída">
                             <button class="btn btn-outline-secondary" id="btn-image-to-pdf-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Saída para múltiplos arquivos -->
+                <div id="output-folder-group" style="display:none;" class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Pasta de saída</h5>
+                        <div class="input-group">
+                            <input type="text" id="image-to-pdf-folder" class="form-control" placeholder="Selecione a pasta de destino">
+                            <button class="btn btn-outline-secondary" id="btn-image-to-pdf-folder">Selecionar</button>
+                        </div>
+                        <div class="mt-2">
+                            <label class="form-label">Nome dos arquivos</label>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="naming-mode" id="naming-original" value="original" checked>
+                                        <label class="form-check-label">Manter nome original</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="naming-mode" id="naming-prefix" value="prefix">
+                                        <label class="form-check-label">Usar prefixo</label>
+                                    </div>
+                                    <div id="prefix-group" style="display:none;" class="mt-1">
+                                        <input type="text" id="image-prefix" class="form-control" placeholder="Prefixo" value="imagem">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -9992,7 +10488,7 @@ class PDFConvertToImageFeature {
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">Prefixo (opcional)</label>
-                                <input type="text" id="image-prefix" class="form-control" placeholder="ex: pagina">
+                                <input type="text" id="image-prefix-pdf" class="form-control" placeholder="ex: pagina">
                             </div>
                         </div>
                     </div>
@@ -10019,7 +10515,7 @@ class PDFConvertToImageFeature {
             </div>
         `;
 
-        // Evento para alternar modos
+        // Eventos para alternar modos
         document.querySelectorAll('input[name="convert-mode"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 this.mode = e.target.value;
@@ -10028,9 +10524,27 @@ class PDFConvertToImageFeature {
             });
         });
 
+        // Evento para alternar entre arquivo/pasta conforme combine
+        document.getElementById('combine-images').addEventListener('change', (e) => {
+            const combine = e.target.checked;
+            document.getElementById('output-file-group').style.display = combine ? 'block' : 'none';
+            document.getElementById('output-folder-group').style.display = combine ? 'none' : 'block';
+        });
+
+        // Mostrar/ocultar campo de prefixo
+        document.querySelectorAll('input[name="naming-mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                document.getElementById('prefix-group').style.display = (e.target.value === 'prefix') ? 'block' : 'none';
+            });
+        });
+
         this.attachEvents();
         this.updateImageList();
         this.updatePDFList();
+
+        // Inicializar visibilidade
+        document.getElementById('output-folder-group').style.display = 'none';
+        document.getElementById('prefix-group').style.display = 'none';
     }
 
     attachEvents() {
@@ -10047,6 +10561,9 @@ class PDFConvertToImageFeature {
                     }
                 });
             }
+        });
+        document.getElementById('btn-image-to-pdf-folder').addEventListener('click', () => {
+            FileUtils.selectDirectory('image-to-pdf-folder');
         });
 
         // PDF → Imagem
@@ -10138,31 +10655,62 @@ class PDFConvertToImageFeature {
 
     async convertImagesToPDF() {
         const imagePaths = this.imagePaths;
-        const outputPath = document.getElementById('image-to-pdf-output').value.trim();
         const combine = document.getElementById('combine-images').checked;
-        const margin = parseFloat(document.getElementById('margin-cm').value);
-        const orientation = document.getElementById('orientation-select').value;
 
-        if (imagePaths.length === 0 || !outputPath) {
-            FileUtils.log('Selecione imagens e defina o caminho de saída.', 'convert-image-log');
-            throw new Error('Dados incompletos');
+        let outputPath, naming, prefix, resizeMode;
+
+        if (combine) {
+            outputPath = document.getElementById('image-to-pdf-output').value.trim();
+            if (!outputPath) {
+                FileUtils.log('Defina o caminho do arquivo PDF de saída.', 'convert-image-log');
+                throw new Error('Caminho de saída ausente');
+            }
+            naming = 'prefix'; // não usado
+            prefix = '';
+        } else {
+            outputPath = document.getElementById('image-to-pdf-folder').value.trim();
+            if (!outputPath) {
+                FileUtils.log('Selecione a pasta de destino.', 'convert-image-log');
+                throw new Error('Pasta de destino ausente');
+            }
+            const namingRadio = document.querySelector('input[name="naming-mode"]:checked');
+            naming = namingRadio ? namingRadio.value : 'original';
+            prefix = document.getElementById('image-prefix').value.trim() || 'imagem';
         }
 
-        FileUtils.log(`Convertendo ${imagePaths.length} imagens para PDF...`, 'convert-image-log');
+        resizeMode = document.getElementById('resize-mode').value; // 'cover' ou 'fit'
+
+        if (imagePaths.length === 0) {
+            FileUtils.log('Selecione pelo menos uma imagem.', 'convert-image-log');
+            throw new Error('Nenhuma imagem selecionada');
+        }
+
+        const margin = parseFloat(document.getElementById('margin-cm').value) || 0.5;
+        const orientation = document.getElementById('orientation-select').value;
+
+        FileUtils.log(`Convertendo ${imagePaths.length} imagens para PDF (modo: ${combine ? 'combinado' : 'separado'})...`, 'convert-image-log');
+
         const result = await window.API.pdf.convertImagesToPDF({
             image_paths: imagePaths,
             output_path: outputPath,
             combine: combine,
             margin_cm: margin,
-            orientation: orientation
+            orientation: orientation,
+            resize_mode: resizeMode,
+            naming: naming,
+            prefix: prefix
         });
 
         const { total_images, output_files, combined_file, errors } = result;
         if (combined_file) {
             FileUtils.log(`Concluído! PDF combinado salvo em: ${combined_file}`, 'convert-image-log');
         } else {
-            FileUtils.log(`Concluído! ${total_images} PDFs gerados.`, 'convert-image-log');
-            output_files.forEach(f => FileUtils.log(`  ${f}`, 'convert-image-log'));
+            FileUtils.log(`Concluído! ${total_images} PDFs gerados na pasta ${outputPath}.`, 'convert-image-log');
+            if (output_files.length <= 10) {
+                output_files.forEach(f => FileUtils.log(`  ${f}`, 'convert-image-log'));
+            } else {
+                FileUtils.log(`  ${output_files.length} arquivos gerados.`, 'convert-image-log');
+            }
         }
         if (errors.length) {
             FileUtils.log(`Erros: ${errors.length}`, 'convert-image-log');
@@ -10176,7 +10724,7 @@ class PDFConvertToImageFeature {
         const outputDir = document.getElementById('pdf-to-images-output').value.trim();
         const pagesSelection = document.getElementById('pdf-pages-selection').value.trim();
         const imageFormat = document.getElementById('image-format-select').value;
-        const prefix = document.getElementById('image-prefix').value.trim();
+        const prefix = document.getElementById('image-prefix-pdf').value.trim();
 
         if (pdfPaths.length === 0 || !outputDir) {
             FileUtils.log('Selecione PDFs e a pasta de destino.', 'convert-image-log');
@@ -10187,7 +10735,7 @@ class PDFConvertToImageFeature {
         const result = await window.API.pdf.convertPdfToImages({
             pdf_paths: pdfPaths,
             output_dir: outputDir,
-            pages_selection: pagesSelection,
+            pages_selection: pagesSelection || 'all',
             image_format: imageFormat,
             prefix: prefix
         });
@@ -10615,6 +11163,8 @@ class PDFModule {
             { id: 'reorder', label: 'Reordenar Páginas', render: (container) => new PDFReorderFeature().render(container) },
             { id: 'convert-to-word', label: 'Converter para Word', render: (container) => new PDFConvertToWordFeature().render(container) },
             { id: 'convert-to-image', label: 'Converter para Imagem', render: (container) => new PDFConvertToImageFeature().render(container) },
+            { id: 'compress', label: 'Comprimir', render: (container) => new PDFCompressFeature().render(container) },
+            { id: 'protect', label: 'Proteger/Desproteger', render: (container) => new PDFProtectFeature().render(container) },
         ];
     }
 
@@ -11097,6 +11647,276 @@ class PDFMergeBySizeFeature {
 }
 
 window.PDFMergeBySizeFeature = PDFMergeBySizeFeature;
+```
+
+
+### frontend\js\modules\pdf\protect.js
+
+```
+class PDFProtectFeature {
+    constructor() {
+        this.mode = 'protect';
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Proteger / Desproteger PDF</h4>
+                <p class="text-muted">Adicione ou remova senha de arquivos PDF.</p>
+            </div>
+
+            <ul class="nav nav-tabs mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" data-mode="protect" id="tab-protect">Proteger</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" data-mode="remove" id="tab-remove">Remover Senha</button>
+                </li>
+            </ul>
+
+            <div id="protect-content">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivo de entrada</h5>
+                        <div class="input-group">
+                            <input type="text" id="protect-input" class="form-control" placeholder="Selecione o PDF...">
+                            <button class="btn btn-outline-secondary" id="btn-protect-input">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Senha</h5>
+                        <input type="password" id="protect-pwd" class="form-control" placeholder="Digite a senha para abrir o PDF">
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivo de saída</h5>
+                        <div class="input-group">
+                            <input type="text" id="protect-output" class="form-control" placeholder="Caminho do PDF protegido">
+                            <button class="btn btn-outline-secondary" id="btn-protect-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-success" id="btn-protect"><i class="bi bi-lock-fill me-1"></i>Proteger</button>
+            </div>
+
+            <div id="remove-content" style="display:none;">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivo protegido</h5>
+                        <div class="input-group">
+                            <input type="text" id="remove-input" class="form-control" placeholder="Selecione o PDF com senha...">
+                            <button class="btn btn-outline-secondary" id="btn-remove-input">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Senha</h5>
+                        <input type="password" id="remove-pwd" class="form-control" placeholder="Digite a senha do documento">
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivo de saída (sem senha)</h5>
+                        <div class="input-group">
+                            <input type="text" id="remove-output" class="form-control" placeholder="Caminho do PDF desprotegido">
+                            <button class="btn btn-outline-secondary" id="btn-remove-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-success" id="btn-remove"><i class="bi bi-unlock-fill me-1"></i>Remover Senha</button>
+            </div>
+
+            <div class="progress mt-2"><div class="progress-bar" id="protect-progress" style="width:0%"></div></div>
+
+            <div id="protect-result" style="display:none;" class="mt-3">
+                <div class="row g-2">
+                    <div class="col-6"><span class="badge bg-secondary">Original: <span id="orig-size">0</span> KB</span></div>
+                    <div class="col-6"><span class="badge bg-success">Resultado: <span id="new-size">0</span> KB</span></div>
+                    <div class="col-12"><span class="badge bg-info">Redução: <span id="size-ratio">0</span>%</span></div>
+                </div>
+                <div id="password-info" class="mt-2"></div>
+            </div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG</label>
+                <div class="log-area" id="protect-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        document.querySelectorAll('.nav-link').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const mode = e.target.dataset.mode;
+                this.mode = mode;
+                document.querySelectorAll('.nav-link').forEach(t => t.classList.remove('active'));
+                e.target.classList.add('active');
+                document.getElementById('protect-content').style.display = (mode === 'protect') ? 'block' : 'none';
+                document.getElementById('remove-content').style.display = (mode === 'remove') ? 'block' : 'none';
+            });
+        });
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-protect-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('protect-input').value = result.filePaths[0];
+                        this.suggestOutput('protect-input', 'protect-output', '_protegido');
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-protect-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('protect-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-remove-input').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('remove-input').value = result.filePaths[0];
+                        this.suggestOutput('remove-input', 'remove-output', '_desprotegido');
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-remove-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('remove-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-protect').addEventListener('click', () => this.protectPassword());
+        document.getElementById('btn-remove').addEventListener('click', () => this.removePassword());
+    }
+
+    suggestOutput(inputId, outputId, suffix) {
+        const input = document.getElementById(inputId).value.trim();
+        const output = document.getElementById(outputId);
+        if (input && !output.value) {
+            const base = input.replace(/\.[^.]+$/, '');
+            output.value = `${base}${suffix}.pdf`;
+        }
+    }
+
+    async protectPassword() {
+        const inputPath = document.getElementById('protect-input').value.trim();
+        const outputPath = document.getElementById('protect-output').value.trim();
+        const password = document.getElementById('protect-pwd').value.trim();
+
+        if (!inputPath || !outputPath || !password) {
+            FileUtils.log('Preencha todos os campos.', 'protect-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-protect');
+        btn.disabled = true;
+        FileUtils.clearLog('protect-log');
+        FileUtils.log('Protegendo PDF...', 'protect-log');
+
+        try {
+            const result = await window.API.pdf.protectPassword({
+                input_path: inputPath,
+                output_path: outputPath,
+                password: password
+            });
+
+            const orig = (result.original_size / 1024).toFixed(2);
+            const newSize = (result.protected_size / 1024).toFixed(2);
+            const reduction = ((1 - result.ratio) * 100).toFixed(1);
+
+            document.getElementById('orig-size').textContent = orig;
+            document.getElementById('new-size').textContent = newSize;
+            document.getElementById('size-ratio').textContent = reduction;
+            document.getElementById('protect-result').style.display = 'block';
+            document.getElementById('password-info').innerHTML = `<div><strong>Senha:</strong> ${result.password}</div>`;
+
+            FileUtils.log(`PDF protegido com sucesso!`, 'protect-log');
+            document.getElementById('protect-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'protect-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async removePassword() {
+        const inputPath = document.getElementById('remove-input').value.trim();
+        const outputPath = document.getElementById('remove-output').value.trim();
+        const password = document.getElementById('remove-pwd').value.trim();
+
+        if (!inputPath || !outputPath || !password) {
+            FileUtils.log('Preencha todos os campos.', 'protect-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-remove');
+        btn.disabled = true;
+        FileUtils.clearLog('protect-log');
+        FileUtils.log('Removendo senha...', 'protect-log');
+
+        try {
+            const result = await window.API.pdf.removePassword({
+                input_path: inputPath,
+                output_path: outputPath,
+                password: password
+            });
+
+            const orig = (result.original_size / 1024).toFixed(2);
+            const newSize = (result.unprotected_size / 1024).toFixed(2);
+            const reduction = ((1 - result.ratio) * 100).toFixed(1);
+
+            document.getElementById('orig-size').textContent = orig;
+            document.getElementById('new-size').textContent = newSize;
+            document.getElementById('size-ratio').textContent = reduction;
+            document.getElementById('protect-result').style.display = 'block';
+            document.getElementById('password-info').innerHTML = '';
+
+            FileUtils.log(`Senha removida! Arquivo salvo em: ${result.output_path}`, 'protect-log');
+            document.getElementById('protect-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'protect-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFProtectFeature = PDFProtectFeature;
 ```
 
 

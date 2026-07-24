@@ -237,7 +237,7 @@ def pdf_to_images():
         return jsonify({"error": str(e)}), 500
 
 @pdf_bp.route('/compress', methods=['POST'])
-def compress_pdf():
+def compress():
     data = request.json
     if not data.get('input_path') or not data.get('output_path'):
         return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
@@ -254,13 +254,46 @@ def compress_pdf():
     downscale_images = data.get('downscale_images', True)
 
     try:
-        result = controller.compress_pdf(
+        result = controller.compress(
             input_path=data['input_path'],
             output_path=data['output_path'],
             compression_level=compression_level,
             jpeg_quality=jpeg_quality,
             remove_metadata=remove_metadata,
             downscale_images=downscale_images
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/protect-password', methods=['POST'])
+def protect_password():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path') or not data.get('password'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path, password"}), 400
+
+    try:
+        result = controller.protect_password(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            password=data['password']
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@pdf_bp.route('/remove-password', methods=['POST'])
+def remove_password():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path') or not data.get('password'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path, password"}), 400
+
+    try:
+        result = controller.remove_password(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            password=data['password']
         )
         return jsonify({"success": True, **result}), 200
     except Exception as e:

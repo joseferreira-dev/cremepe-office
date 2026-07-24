@@ -1,12 +1,14 @@
 from models.pdf_processor import (
-    compress_pdf,
+    compress,
     convert_images_to_pdf,
     convert_pdf_to_images,
     convert_pdf_to_word,
     extract_all_pages,
     extract_selected_pages,
     merge, merge_by_size,
+    protect_password,
     remove_pages,
+    remove_password,
     reorder_pages,
     split_by_size,
     split_custom,
@@ -55,7 +57,12 @@ class PDFController:
     def convert_pdf_to_images(self, pdf_paths, output_dir, pages_selection='all', image_format='png', prefix=''):
         return convert_pdf_to_images(pdf_paths, output_dir, pages_selection, image_format, prefix)
 
-    def compress_pdf(self, input_path, output_path, compression_level='medium', 
+    def compress(self, input_path, output_path, compression_level='medium', 
                     jpeg_quality=85, remove_metadata=False, downscale_images=True):
-        from models.pdf_processor import compress_pdf
-        return compress_pdf(input_path, output_path, compression_level, jpeg_quality, remove_metadata, downscale_images)
+        return compress(input_path, output_path, compression_level, jpeg_quality, remove_metadata, downscale_images)
+
+    def protect_password(self, input_path, output_path, password):
+        return protect_password(input_path, output_path, password)
+
+    def remove_password(self, input_path, output_path, password):
+        return remove_password(input_path, output_path, password)

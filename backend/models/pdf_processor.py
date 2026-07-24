@@ -1,8 +1,17 @@
-import os
 from pathlib import Path
 import shutil
 from typing import List
 from PyPDF2 import PdfReader, PdfWriter
+from pdf2docx import Converter
+import io
+from io import BytesIO
+from PIL import Image
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+import tempfile
+import fitz
+import pikepdf
+import secrets
 
 def merge(pdf_paths, output_path):
     """
@@ -380,8 +389,6 @@ def split_by_size(
     Returns:
         dict com estatísticas: total_pages, total_files, output_files, errors
     """
-    from io import BytesIO
-
     pdf_path = Path(pdf_path).resolve()
     if not pdf_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
@@ -835,8 +842,6 @@ def convert_pdf_to_word(pdf_path: str, output_path: str) -> str:
     """
     Converte um arquivo PDF para Word (.docx) usando pdf2docx.
     """
-    from pdf2docx import Converter
-
     pdf_path = Path(pdf_path).resolve()
     if not pdf_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
@@ -869,12 +874,6 @@ def convert_images_to_pdf(
     - resize_mode: 'fit' (mantém proporção, centraliza) ou 'cover' (preenche toda a área, corta excesso)
     - naming: 'original' (usa o nome da imagem) ou 'prefix' (usa o prefixo + contagem)
     """
-    from PIL import Image
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import A4, landscape as landscape_size
-    from reportlab.lib.utils import ImageReader
-    import tempfile
-
     if not image_paths:
         raise ValueError("Nenhuma imagem fornecida.")
 
@@ -1027,8 +1026,6 @@ def convert_pdf_to_images(
     Returns:
         dict com estatísticas: total_pdfs, total_images, output_files, errors
     """
-    import fitz  # PyMuPDF
-
     if not pdf_paths:
         raise ValueError("Nenhum PDF fornecido.")
 
@@ -1115,7 +1112,7 @@ def convert_pdf_to_images(
 
     return stats
 
-def compress_pdf(
+def compress(
     input_path: str,
     output_path: str,
     compression_level: str = 'medium',
@@ -1123,11 +1120,6 @@ def compress_pdf(
     remove_metadata: bool = False,
     downscale_images: bool = True
 ) -> dict:
-    import pikepdf
-    from pathlib import Path
-    import io
-    from PIL import Image
-
     input_path = Path(input_path).resolve()
     if not input_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
@@ -1211,3 +1203,82 @@ def compress_pdf(
 
     except Exception as e:
         raise RuntimeError(f"Erro ao comprimir PDF: {str(e)}")
+
+def protect_password(
+    input_path: str,
+    output_path: str,
+    password: str
+) -> dict:
+
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    if not password:
+        raise ValueError("Senha é obrigatória.")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    original_size = input_path.stat().st_size
+
+    try:
+        pdf = pikepdf.Pdf.open(input_path)
+        encryption = pikepdf.Encryption(
+            user=password,
+            owner=password,  # mesma senha para simplificar
+        )
+        pdf.save(output_path, encryption=encryption)
+        pdf.close()
+
+        final_size = output_path.stat().st_size
+        ratio = (final_size / original_size) if original_size > 0 else 1.0
+
+        return {
+            'original_size': original_size,
+            'protected_size': final_size,
+            'ratio': ratio,
+            'output_path': str(output_path),
+            'password': password,
+        }
+
+    except Exception as e:
+        raise RuntimeError(f"Erro ao proteger PDF: {str(e)}")
+
+
+def remove_password(
+    input_path: str,
+    output_path: str,
+    password: str
+) -> dict:
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    if not password:
+        raise ValueError("Senha é obrigatória para descriptografar.")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    original_size = input_path.stat().st_size
+
+    try:
+        pdf = pikepdf.Pdf.open(input_path, password=password)
+        pdf.save(output_path)
+        pdf.close()
+
+        final_size = output_path.stat().st_size
+        ratio = (final_size / original_size) if original_size > 0 else 1.0
+
+        return {
+            'original_size': original_size,
+            'unprotected_size': final_size,
+            'ratio': ratio,
+            'output_path': str(output_path),
+        }
+
+    except pikepdf.PasswordError:
+        raise ValueError("Senha incorreta. Não foi possível abrir o PDF.")
+    except Exception as e:
+        raise RuntimeError(f"Erro ao remover senha: {str(e)}")
