@@ -69,6 +69,8 @@
 │   │   │   │   ├── split.js
 │   │   │   │   └── utils.js
 │   │   │   ├── pdf/
+│   │   │   │   ├── convert_to_image.js
+│   │   │   │   ├── convert_to_word.js
 │   │   │   │   ├── extract_pages.js
 │   │   │   │   ├── index.js
 │   │   │   │   ├── merge.js
@@ -171,6 +173,8 @@ pywin32==312
 docxcompose==2.2.0
 html2text==2025.4.15
 xlwt==1.3.0
+pdf2docx==0.5.13
+PyMuPDF==1.28.0
 ```
 
 
@@ -823,6 +827,9 @@ class FileController:
 
 ```
 from models.pdf_processor import (
+    convert_images_to_pdf,
+    convert_pdf_to_images,
+    convert_pdf_to_word,
     extract_all_pages,
     extract_selected_pages,
     merge, merge_by_size,
@@ -860,6 +867,15 @@ class PDFController:
 
     def reorder_pages(self, pdf_path, output_path, new_order_str):
         return reorder_pages(pdf_path, output_path, new_order_str)
+
+    def convert_to_word(self, pdf_path, output_path):
+        return convert_pdf_to_word(pdf_path, output_path)
+
+    def convert_images_to_pdf(self, image_paths, output_path, combine=True, margin_cm=0.5, orientation='portrait'):
+        return convert_images_to_pdf(image_paths, output_path, combine, margin_cm, orientation)
+
+    def convert_pdf_to_images(self, pdf_paths, output_dir, pages_selection='all', image_format='png', prefix=''):
+        return convert_pdf_to_images(pdf_paths, output_dir, pages_selection, image_format, prefix)
 ```
 
 
@@ -2759,6 +2775,7 @@ def merge_parts(
 import os
 from pathlib import Path
 import shutil
+from typing import List
 from PyPDF2 import PdfReader, PdfWriter
 
 def merge(pdf_paths, output_path):
@@ -3383,7 +3400,7 @@ def extract_selected_pages(
     
     return stats
 
-def _parse_page_selection(selection_str: str, total_pages: int) -> list:
+def _parse_remove_selection(selection_str: str, total_pages: int) -> list:
     """
     Converte uma string de seleção de páginas em uma lista de números (1-based).
     Suporta: "1,3,5", "1-10", "1-5, 10-15", "1,3-5,10"
@@ -3446,7 +3463,7 @@ def remove_pages(
         raise ValueError("O PDF não contém páginas.")
 
     try:
-        pages_to_remove = _parse_page_selection(pages_to_remove_str, total_pages)
+        pages_to_remove = _parse_remove_selection(pages_to_remove_str, total_pages)
     except ValueError as e:
         raise ValueError(f"Erro na seleção de páginas: {str(e)}")
 
@@ -3496,6 +3513,35 @@ def remove_pages(
 
     return stats
 
+def _parse_page_order(order_str: str, total_pages: int) -> list:
+    """
+    Converte uma string de ordem em uma lista de números (1-based) PRESERVANDO A ORDEM.
+    Suporta: "5,1,3,2,4" ou "1-3,5,4"
+    """
+    pages = []
+    parts = [p.strip() for p in order_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            start_str, end_str = part.split('-', 1)
+            try:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            except ValueError:
+                raise ValueError(f"Intervalo inválido: {part}")
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(f"Intervalo {start}-{end} inválido (total: {total_pages} páginas)")
+            for p in range(start, end + 1):
+                pages.append(p)
+        else:
+            try:
+                p = int(part.strip())
+            except ValueError:
+                raise ValueError(f"Página inválida: {part}")
+            if p < 1 or p > total_pages:
+                raise ValueError(f"Página {p} inválida (total: {total_pages} páginas)")
+            pages.append(p)
+    return pages
+
 def reorder_pages(
     pdf_path: str,
     output_path: str,
@@ -3526,19 +3572,18 @@ def reorder_pages(
         raise ValueError("O PDF não contém páginas.")
 
     try:
-        # Usar a mesma função de parse para extrair páginas (números 1-based)
-        new_order = _parse_page_selection(new_order_str, total_pages)
+        new_order = _parse_page_order(new_order_str, total_pages)
     except ValueError as e:
         raise ValueError(f"Erro na ordem especificada: {str(e)}")
 
-    # Verificar se todas as páginas foram incluídas na nova ordem
+    # Verificar se todas as páginas foram incluídas
     if len(new_order) != total_pages:
         raise ValueError(
             f"Número de páginas na ordem ({len(new_order)}) não corresponde ao total de páginas ({total_pages}). "
             "Para reordenar, todas as páginas devem ser incluídas exatamente uma vez."
         )
 
-    # Verificar se há duplicatas
+    # Verificar duplicatas
     if len(set(new_order)) != total_pages:
         raise ValueError("A ordem contém páginas duplicadas. Cada página deve aparecer exatamente uma vez.")
 
@@ -3557,6 +3602,295 @@ def reorder_pages(
         stats['output_file'] = str(output_path)
     except Exception as e:
         stats['errors'].append(f"Erro ao salvar arquivo reordenado: {str(e)}")
+
+    return stats
+
+def convert_pdf_to_word(pdf_path: str, output_path: str) -> str:
+    """
+    Converte um arquivo PDF para Word (.docx) usando pdf2docx.
+    """
+    from pdf2docx import Converter
+
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        cv = Converter(str(pdf_path))
+        cv.convert(str(output_path), start=0, end=None)
+        cv.close()
+        return str(output_path)
+    except Exception as e:
+        raise RuntimeError(f"Erro ao converter PDF para Word: {str(e)}")
+
+def convert_images_to_pdf(
+    image_paths: List[str],
+    output_path: str,
+    combine: bool = True,
+    margin_cm: float = 0.5,
+    orientation: str = 'portrait'  # 'portrait' ou 'landscape'
+) -> dict:
+    """
+    Converte uma ou mais imagens para PDF.
+    Se combine=True, gera um único PDF com todas as imagens (cada imagem em uma página).
+    Se combine=False, gera um PDF para cada imagem (com sufixo _page_N).
+
+    Args:
+        image_paths: Lista de caminhos das imagens
+        output_path: Caminho base para o PDF (se combine=True, este é o arquivo final)
+        combine: Se True, gera um único PDF combinado
+        margin_cm: Margem ao redor da imagem (em cm)
+        orientation: 'portrait' ou 'landscape'
+
+    Returns:
+        dict com estatísticas: total_images, output_files, combined_file, errors
+    """
+    from PIL import Image
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import portrait, landscape, A4, letter
+    from reportlab.lib.utils import ImageReader
+    from io import BytesIO
+    import tempfile
+
+    if not image_paths:
+        raise ValueError("Nenhuma imagem fornecida.")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Converter margem para pontos (1 cm = 28.3464567 pontos)
+    margin_pt = margin_cm * 28.3464567
+
+    # Definir página base (A4)
+    base_size = A4
+    if orientation == 'landscape':
+        base_size = (base_size[1], base_size[0])
+
+    stats = {
+        'total_images': len(image_paths),
+        'output_files': [],
+        'combined_file': None,
+        'errors': []
+    }
+
+    temp_files = []
+
+    try:
+        if combine:
+            # Gerar um único PDF
+            from reportlab.pdfgen import canvas
+            c = canvas.Canvas(str(output_path), pagesize=base_size)
+            page_width, page_height = base_size
+
+            for idx, img_path in enumerate(image_paths):
+                img_path = Path(img_path)
+                if not img_path.exists():
+                    stats['errors'].append(f"Imagem não encontrada: {img_path}")
+                    continue
+
+                try:
+                    img = Image.open(img_path)
+                    # Converter para RGB se necessário
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        img = img.convert('RGB')
+
+                    img_width, img_height = img.size
+                    # Calcular dimensões com margem
+                    max_width = page_width - 2 * margin_pt
+                    max_height = page_height - 2 * margin_pt
+
+                    # Escalar mantendo proporção
+                    ratio = min(max_width / img_width, max_height / img_height)
+                    if ratio < 1:
+                        draw_width = img_width * ratio
+                        draw_height = img_height * ratio
+                    else:
+                        draw_width = img_width
+                        draw_height = img_height
+
+                    # Centralizar
+                    x = (page_width - draw_width) / 2
+                    y = (page_height - draw_height) / 2
+
+                    # Salvar imagem temporária em formato compatível com reportlab
+                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                        img.save(tmp.name, 'PNG')
+                        temp_files.append(tmp.name)
+
+                    # Desenhar no PDF
+                    c.drawImage(tmp.name, x, y, width=draw_width, height=draw_height, preserveAspectRatio=True)
+
+                    if idx < len(image_paths) - 1:
+                        c.showPage()
+                except Exception as e:
+                    stats['errors'].append(f"Erro ao processar {img_path.name}: {str(e)}")
+
+            c.save()
+            stats['combined_file'] = str(output_path)
+            stats['output_files'] = [str(output_path)]
+
+        else:
+            # Gerar um PDF por imagem
+            base_name = output_path.stem
+            parent = output_path.parent
+            for idx, img_path in enumerate(image_paths):
+                img_path = Path(img_path)
+                if not img_path.exists():
+                    stats['errors'].append(f"Imagem não encontrada: {img_path}")
+                    continue
+
+                try:
+                    # Nome do PDF: base_name_page_N.pdf
+                    pdf_out = parent / f"{base_name}_page_{idx+1:04d}.pdf"
+
+                    img = Image.open(img_path)
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        img = img.convert('RGB')
+
+                    img_width, img_height = img.size
+                    max_width = base_size[0] - 2 * margin_pt
+                    max_height = base_size[1] - 2 * margin_pt
+                    ratio = min(max_width / img_width, max_height / img_height)
+                    if ratio < 1:
+                        draw_width = img_width * ratio
+                        draw_height = img_height * ratio
+                    else:
+                        draw_width = img_width
+                        draw_height = img_height
+
+                    x = (base_size[0] - draw_width) / 2
+                    y = (base_size[1] - draw_height) / 2
+
+                    c = canvas.Canvas(str(pdf_out), pagesize=base_size)
+                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                        img.save(tmp.name, 'PNG')
+                        temp_files.append(tmp.name)
+                    c.drawImage(tmp.name, x, y, width=draw_width, height=draw_height, preserveAspectRatio=True)
+                    c.save()
+
+                    stats['output_files'].append(str(pdf_out))
+                except Exception as e:
+                    stats['errors'].append(f"Erro ao processar {img_path.name}: {str(e)}")
+
+    finally:
+        # Limpar arquivos temporários
+        for f in temp_files:
+            try:
+                Path(f).unlink()
+            except:
+                pass
+
+    return stats
+
+# ==================== CONVERTER PDF PARA IMAGEM ====================
+def convert_pdf_to_images(
+    pdf_paths: List[str],
+    output_dir: str,
+    pages_selection: str = 'all',  # 'all' ou '1,3-5,10'
+    image_format: str = 'png',     # 'png' ou 'jpg'
+    prefix: str = ''
+) -> dict:
+    """
+    Converte páginas de PDF(s) para imagens.
+
+    Args:
+        pdf_paths: Lista de caminhos dos PDFs
+        output_dir: Pasta de saída para as imagens
+        pages_selection: 'all' ou seleção como '1,3-5,10'
+        image_format: 'png' ou 'jpg'
+        prefix: Prefixo para os nomes das imagens
+
+    Returns:
+        dict com estatísticas: total_pdfs, total_images, output_files, errors
+    """
+    import fitz  # PyMuPDF
+
+    if not pdf_paths:
+        raise ValueError("Nenhum PDF fornecido.")
+
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    stats = {
+        'total_pdfs': len(pdf_paths),
+        'total_images': 0,
+        'output_files': [],
+        'errors': []
+    }
+
+    def parse_pages(selection: str, total: int) -> list:
+        """Converte seleção em lista de números de página (0-based)."""
+        if not selection or selection.strip().lower() == 'all':
+            return list(range(total))
+        pages = []
+        parts = [p.strip() for p in selection.split(',') if p.strip()]
+        for part in parts:
+            if '-' in part:
+                start_str, end_str = part.split('-', 1)
+                try:
+                    start = int(start_str.strip())
+                    end = int(end_str.strip())
+                except ValueError:
+                    raise ValueError(f"Intervalo inválido: {part}")
+                if start < 1 or end > total or start > end:
+                    raise ValueError(f"Intervalo {start}-{end} inválido (total: {total} páginas)")
+                pages.extend(range(start - 1, end))
+            else:
+                try:
+                    p = int(part.strip())
+                except ValueError:
+                    raise ValueError(f"Página inválida: {part}")
+                if p < 1 or p > total:
+                    raise ValueError(f"Página {p} inválida (total: {total} páginas)")
+                pages.append(p - 1)
+        return pages
+
+    # Se 'all', usamos a seleção all para cada PDF
+    for pdf_idx, pdf_path in enumerate(pdf_paths):
+        pdf_path = Path(pdf_path)
+        if not pdf_path.exists():
+            stats['errors'].append(f"Arquivo não encontrado: {pdf_path}")
+            continue
+
+        try:
+            doc = fitz.open(pdf_path)
+            total_pages = doc.page_count
+
+            if pages_selection.strip().lower() == 'all':
+                page_indices = list(range(total_pages))
+            else:
+                page_indices = parse_pages(pages_selection, total_pages)
+
+            prefix_str = f"{prefix}_" if prefix else "page"
+            ext = '.png' if image_format == 'png' else '.jpg'
+
+            for idx, page_num in enumerate(page_indices, 1):
+                try:
+                    page = doc.load_page(page_num)
+                    # Aumentar resolução para 150 DPI para boa qualidade
+                    matrix = fitz.Matrix(150/72, 150/72)
+                    pix = page.get_pixmap(matrix=matrix)
+                    # Se jpg, converter para RGB
+                    if image_format == 'jpg':
+                        img = pix.tobytes('jpeg')
+                    else:
+                        img = pix.tobytes('png')
+
+                    base_name = f"{prefix_str}_{pdf_path.stem}_{idx:04d}{ext}"
+                    output_file = output_path / base_name
+                    with open(output_file, 'wb') as f:
+                        f.write(img)
+                    stats['output_files'].append(str(output_file))
+                    stats['total_images'] += 1
+                except Exception as e:
+                    stats['errors'].append(f"Erro na página {page_num+1} de {pdf_path.name}: {str(e)}")
+
+            doc.close()
+        except Exception as e:
+            stats['errors'].append(f"Erro ao abrir {pdf_path.name}: {str(e)}")
 
     return stats
 ```
@@ -5048,6 +5382,65 @@ def reorder_pages():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/convert-to-word', methods=['POST'])
+def convert_to_word():
+    data = request.json
+    required = ['pdf_path', 'output_path']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.convert_to_word(
+            pdf_path=data['pdf_path'],
+            output_path=data['output_path']
+        )
+        return jsonify({"success": True, "output_path": result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Substitua as duas rotas por estas:
+
+@pdf_bp.route('/convert-images-to-pdf', methods=['POST'])
+def images_to_pdf():
+    data = request.json
+    required = ['image_paths', 'output_path']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.convert_images_to_pdf(
+            image_paths=data['image_paths'],
+            output_path=data['output_path'],
+            combine=data.get('combine', True),
+            margin_cm=float(data.get('margin_cm', 0.5)),
+            orientation=data.get('orientation', 'portrait')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/convert-pdf-to-images', methods=['POST'])
+def pdf_to_images():
+    data = request.json
+    required = ['pdf_paths', 'output_dir']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.convert_pdf_to_images(
+            pdf_paths=data['pdf_paths'],
+            output_dir=data['output_dir'],
+            pages_selection=data.get('pages_selection', 'all'),
+            image_format=data.get('image_format', 'png'),
+            prefix=data.get('prefix', '')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 ```
 
 
@@ -5349,6 +5742,8 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/pdf/extract_pages.js"></script>
     <script src="js/modules/pdf/remove_pages.js"></script>
     <script src="js/modules/pdf/reorder.js"></script>
+    <script src="js/modules/pdf/convert_to_word.js"></script>
+    <script src="js/modules/pdf/convert_to_image.js"></script>
     <script src="js/modules/pdf/index.js"></script>
     <!-- DOCUMENTOS -->
     <script src="js/modules/word/utils.js"></script>
@@ -5873,6 +6268,9 @@ window.API = {
         extractSelectedPages: (params) => apiRequest('/pdf/extract-selected-pages', 'POST', params),
         removePages: (params) => apiRequest('/pdf/remove-pages', 'POST', params),
         reorderPages: (params) => apiRequest('/pdf/reorder-pages', 'POST', params),
+        convertToWord: (params) => apiRequest('/pdf/convert-to-word', 'POST', params),
+        convertImagesToPDF: (params) => apiRequest('/pdf/convert-images-to-pdf', 'POST', params),
+        convertPdfToImages: (params) => apiRequest('/pdf/convert-pdf-to-images', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),
@@ -9476,6 +9874,514 @@ const FileUtils = {
 ```
 
 
+### frontend\js\modules\pdf\convert_to_image.js
+
+```
+class PDFConvertToImageFeature {
+    constructor() {
+        this.mode = 'images_to_pdf'; // 'images_to_pdf' | 'pdf_to_images'
+        this.imagePaths = [];
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Converter para Imagem</h4>
+                <p class="text-muted">Converta imagens para PDF ou PDF para imagens.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Modo de conversão</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convert-mode" id="mode-images-to-pdf" value="images_to_pdf" checked>
+                                <label class="form-check-label">Imagem → PDF</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convert-mode" id="mode-pdf-to-images" value="pdf_to_images">
+                                <label class="form-check-label">PDF → Imagem</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Imagem → PDF -->
+            <div id="images-to-pdf-config">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivos de entrada (imagens)</h5>
+                        <div class="input-group">
+                            <input type="text" id="image-input-paths" class="form-control" placeholder="Selecione uma ou mais imagens">
+                            <button class="btn btn-outline-secondary" id="btn-add-images">Adicionar imagens</button>
+                            <button class="btn btn-outline-secondary" id="btn-clear-images">Limpar</button>
+                        </div>
+                        <div id="image-list" class="mt-2" style="max-height:150px; overflow:auto; font-size:0.9rem;"></div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Opções</h5>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label">Margem (cm)</label>
+                                <input type="number" id="margin-cm" class="form-control" value="0.5" step="0.1" min="0">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Orientação</label>
+                                <select id="orientation-select" class="form-select">
+                                    <option value="portrait">Retrato</option>
+                                    <option value="landscape">Paisagem</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="combine-images" checked>
+                                    <label class="form-check-label">Combinar em único PDF</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivo de saída (PDF)</h5>
+                        <div class="input-group">
+                            <input type="text" id="image-to-pdf-output" class="form-control" placeholder="Caminho do PDF de saída">
+                            <button class="btn btn-outline-secondary" id="btn-image-to-pdf-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PDF → Imagem -->
+            <div id="pdf-to-images-config" style="display:none;">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Arquivos PDF de entrada</h5>
+                        <div class="input-group">
+                            <input type="text" id="pdf-input-paths" class="form-control" placeholder="Selecione um ou mais PDFs">
+                            <button class="btn btn-outline-secondary" id="btn-add-pdfs">Adicionar PDFs</button>
+                            <button class="btn btn-outline-secondary" id="btn-clear-pdfs">Limpar</button>
+                        </div>
+                        <div id="pdf-list" class="mt-2" style="max-height:150px; overflow:auto; font-size:0.9rem;"></div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Opções</h5>
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                <label class="form-label">Páginas</label>
+                                <input type="text" id="pdf-pages-selection" class="form-control" placeholder="Deixe em branco para todas">
+                                <small class="text-muted">Ex: 1,3-5,10</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Formato da imagem</label>
+                                <select id="image-format-select" class="form-select">
+                                    <option value="png">PNG</option>
+                                    <option value="jpg">JPG</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Prefixo (opcional)</label>
+                                <input type="text" id="image-prefix" class="form-control" placeholder="ex: pagina">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title text-success">Pasta de saída</h5>
+                        <div class="input-group">
+                            <input type="text" id="pdf-to-images-output" class="form-control" placeholder="Pasta para salvar as imagens">
+                            <button class="btn btn-outline-secondary" id="btn-pdf-to-images-output">Selecionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-convert-image"><i class="bi bi-play-fill me-1"></i>Converter</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="convert-image-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="convert-image-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        // Evento para alternar modos
+        document.querySelectorAll('input[name="convert-mode"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.mode = e.target.value;
+                document.getElementById('images-to-pdf-config').style.display = (this.mode === 'images_to_pdf') ? 'block' : 'none';
+                document.getElementById('pdf-to-images-config').style.display = (this.mode === 'pdf_to_images') ? 'block' : 'none';
+            });
+        });
+
+        this.attachEvents();
+        this.updateImageList();
+        this.updatePDFList();
+    }
+
+    attachEvents() {
+        // Imagem → PDF
+        document.getElementById('btn-add-images').addEventListener('click', () => this.addImages());
+        document.getElementById('btn-clear-images').addEventListener('click', () => { this.imagePaths = []; this.updateImageList(); });
+        document.getElementById('btn-image-to-pdf-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('image-to-pdf-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        // PDF → Imagem
+        document.getElementById('btn-add-pdfs').addEventListener('click', () => this.addPDFs());
+        document.getElementById('btn-clear-pdfs').addEventListener('click', () => {
+            document.getElementById('pdf-input-paths').value = '';
+            this.updatePDFList();
+        });
+        document.getElementById('btn-pdf-to-images-output').addEventListener('click', () => {
+            FileUtils.selectDirectory('pdf-to-images-output');
+        });
+
+        // Botão principal
+        document.getElementById('btn-convert-image').addEventListener('click', () => this.executeConvert());
+    }
+
+    // ====== IMAGEM → PDF ======
+    async addImages() {
+        if (window.electronAPI && window.electronAPI.showOpenDialog) {
+            const result = await window.electronAPI.showOpenDialog({
+                properties: ['openFile', 'multiSelections'],
+                filters: [
+                    { name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'tiff', 'webp'] }
+                ]
+            });
+            if (!result.canceled) {
+                this.imagePaths.push(...result.filePaths);
+                this.updateImageList();
+            }
+        }
+    }
+
+    updateImageList() {
+        const list = document.getElementById('image-list');
+        if (this.imagePaths.length === 0) {
+            list.innerHTML = '<p class="text-muted">Nenhuma imagem selecionada.</p>';
+            return;
+        }
+        list.innerHTML = this.imagePaths.map(p => `<div><i class="bi bi-file-earmark-image me-1"></i> ${p}</div>`).join('');
+        document.getElementById('image-input-paths').value = this.imagePaths.join(', ');
+    }
+
+    // ====== PDF → IMAGEM ======
+    async addPDFs() {
+        if (window.electronAPI && window.electronAPI.showOpenDialog) {
+            const result = await window.electronAPI.showOpenDialog({
+                properties: ['openFile', 'multiSelections'],
+                filters: [{ name: 'PDF', extensions: ['pdf'] }]
+            });
+            if (!result.canceled) {
+                const current = document.getElementById('pdf-input-paths').value;
+                const newPaths = result.filePaths.join(', ');
+                document.getElementById('pdf-input-paths').value = current ? current + ', ' + newPaths : newPaths;
+                this.updatePDFList();
+            }
+        }
+    }
+
+    updatePDFList() {
+        const val = document.getElementById('pdf-input-paths').value;
+        const paths = val.split(',').map(s => s.trim()).filter(Boolean);
+        const list = document.getElementById('pdf-list');
+        if (paths.length === 0) {
+            list.innerHTML = '<p class="text-muted">Nenhum PDF selecionado.</p>';
+            return;
+        }
+        list.innerHTML = paths.map(p => `<div><i class="bi bi-file-earmark-pdf me-1"></i> ${p}</div>`).join('');
+    }
+
+    // ====== EXECUTAR ======
+    async executeConvert() {
+        const mode = this.mode;
+        const btn = document.getElementById('btn-convert-image');
+        btn.disabled = true;
+        FileUtils.clearLog('convert-image-log');
+
+        try {
+            if (mode === 'images_to_pdf') {
+                await this.convertImagesToPDF();
+            } else {
+                await this.convertPdfToImages();
+            }
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'convert-image-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async convertImagesToPDF() {
+        const imagePaths = this.imagePaths;
+        const outputPath = document.getElementById('image-to-pdf-output').value.trim();
+        const combine = document.getElementById('combine-images').checked;
+        const margin = parseFloat(document.getElementById('margin-cm').value);
+        const orientation = document.getElementById('orientation-select').value;
+
+        if (imagePaths.length === 0 || !outputPath) {
+            FileUtils.log('Selecione imagens e defina o caminho de saída.', 'convert-image-log');
+            throw new Error('Dados incompletos');
+        }
+
+        FileUtils.log(`Convertendo ${imagePaths.length} imagens para PDF...`, 'convert-image-log');
+        const result = await window.API.pdf.convertImagesToPDF({
+            image_paths: imagePaths,
+            output_path: outputPath,
+            combine: combine,
+            margin_cm: margin,
+            orientation: orientation
+        });
+
+        const { total_images, output_files, combined_file, errors } = result;
+        if (combined_file) {
+            FileUtils.log(`Concluído! PDF combinado salvo em: ${combined_file}`, 'convert-image-log');
+        } else {
+            FileUtils.log(`Concluído! ${total_images} PDFs gerados.`, 'convert-image-log');
+            output_files.forEach(f => FileUtils.log(`  ${f}`, 'convert-image-log'));
+        }
+        if (errors.length) {
+            FileUtils.log(`Erros: ${errors.length}`, 'convert-image-log');
+            errors.forEach(e => FileUtils.log(`  ${e}`, 'convert-image-log'));
+        }
+        document.getElementById('convert-image-progress').style.width = '100%';
+    }
+
+    async convertPdfToImages() {
+        const pdfPaths = document.getElementById('pdf-input-paths').value.split(',').map(s => s.trim()).filter(Boolean);
+        const outputDir = document.getElementById('pdf-to-images-output').value.trim();
+        const pagesSelection = document.getElementById('pdf-pages-selection').value.trim();
+        const imageFormat = document.getElementById('image-format-select').value;
+        const prefix = document.getElementById('image-prefix').value.trim();
+
+        if (pdfPaths.length === 0 || !outputDir) {
+            FileUtils.log('Selecione PDFs e a pasta de destino.', 'convert-image-log');
+            throw new Error('Dados incompletos');
+        }
+
+        FileUtils.log(`Convertendo ${pdfPaths.length} PDF(s) para imagens...`, 'convert-image-log');
+        const result = await window.API.pdf.convertPdfToImages({
+            pdf_paths: pdfPaths,
+            output_dir: outputDir,
+            pages_selection: pagesSelection,
+            image_format: imageFormat,
+            prefix: prefix
+        });
+
+        const { total_pdfs, total_images, output_files, errors } = result;
+        FileUtils.log(`Concluído! ${total_images} imagens geradas a partir de ${total_pdfs} PDF(s).`, 'convert-image-log');
+        if (output_files.length <= 20) {
+            output_files.forEach(f => FileUtils.log(`  ${f}`, 'convert-image-log'));
+        } else {
+            FileUtils.log(`  ${output_files.length} imagens salvas em ${outputDir}`, 'convert-image-log');
+        }
+        if (errors.length) {
+            FileUtils.log(`Erros: ${errors.length}`, 'convert-image-log');
+            errors.forEach(e => FileUtils.log(`  ${e}`, 'convert-image-log'));
+        }
+        document.getElementById('convert-image-progress').style.width = '100%';
+    }
+}
+
+window.PDFConvertToImageFeature = PDFConvertToImageFeature;
+```
+
+
+### frontend\js\modules\pdf\convert_to_word.js
+
+```
+class PDFConvertToWordFeature {
+    constructor() {
+        this.direction = 'pdf_to_word'; // 'pdf_to_word' | 'word_to_pdf'
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Converter Word ↔ PDF</h4>
+                <p class="text-muted">Converta documentos entre os formatos Word (.docx, .doc) e PDF.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Direção da conversão</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convert-direction" id="convert-pdf-to-word" value="pdf_to_word" checked>
+                                <label class="form-check-label">PDF → Word (.docx)</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="convert-direction" id="convert-word-to-pdf" value="word_to_pdf">
+                                <label class="form-check-label">Word (.docx, .doc) → PDF</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <div class="input-group">
+                        <input type="text" id="convert-input-file" class="form-control" placeholder="Selecione o arquivo...">
+                        <button class="btn btn-outline-secondary" id="btn-convert-input">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="convert-output-file" class="form-control" placeholder="Caminho do arquivo de saída">
+                        <button class="btn btn-outline-secondary" id="btn-convert-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-convert-execute"><i class="bi bi-play-fill me-1"></i>Converter</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="convert-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="convert-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        // Eventos para alternar direção
+        document.querySelectorAll('input[name="convert-direction"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                this.direction = e.target.value;
+                this.updateSuggestions();
+            });
+        });
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-convert-input').addEventListener('click', () => {
+            const filters = this.direction === 'pdf_to_word'
+                ? [{ name: 'PDF', extensions: ['pdf'] }]
+                : [{ name: 'Word', extensions: ['docx', 'doc'] }];
+            if (window.electronAPI && window.electronAPI.showOpenDialog) {
+                window.electronAPI.showOpenDialog({
+                    properties: ['openFile'],
+                    filters: filters
+                }).then(result => {
+                    if (!result.canceled) {
+                        document.getElementById('convert-input-file').value = result.filePaths[0];
+                        this.suggestOutput();
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-convert-output').addEventListener('click', () => {
+            const ext = this.direction === 'pdf_to_word' ? 'docx' : 'pdf';
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: ext.toUpperCase(), extensions: [ext] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('convert-output-file').value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-convert-execute').addEventListener('click', () => this.executeConvert());
+
+        // Atualizar sugestões quando entrada mudar
+        document.getElementById('convert-input-file').addEventListener('change', () => this.suggestOutput());
+        document.querySelectorAll('input[name="convert-direction"]').forEach(radio => {
+            radio.addEventListener('change', () => this.suggestOutput());
+        });
+    }
+
+    suggestOutput() {
+        const input = document.getElementById('convert-input-file').value.trim();
+        if (input) {
+            const output = document.getElementById('convert-output-file');
+            if (!output.value) {
+                const base = input.replace(/\.[^.]+$/, '');
+                const ext = this.direction === 'pdf_to_word' ? 'docx' : 'pdf';
+                output.value = `${base}.${ext}`;
+            }
+        }
+    }
+
+    async executeConvert() {
+        const inputFile = document.getElementById('convert-input-file').value.trim();
+        const outputFile = document.getElementById('convert-output-file').value.trim();
+
+        if (!inputFile || !outputFile) {
+            FileUtils.log('Selecione o arquivo de entrada e defina o de saída.', 'convert-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-convert-execute');
+        btn.disabled = true;
+        FileUtils.clearLog('convert-log');
+
+        try {
+            if (this.direction === 'pdf_to_word') {
+                FileUtils.log('Convertendo PDF → Word...', 'convert-log');
+                const result = await window.API.pdf.convertToWord({
+                    pdf_path: inputFile,
+                    output_path: outputFile
+                });
+                FileUtils.log(`Concluído! Arquivo salvo em: ${result.output_path}`, 'convert-log');
+            } else {
+                FileUtils.log('Convertendo Word → PDF...', 'convert-log');
+                const result = await window.API.word.convert({
+                    input_path: inputFile,
+                    output_path: outputFile,
+                    output_format: 'pdf'
+                });
+                FileUtils.log(`Concluído! Arquivo salvo em: ${result.output_path}`, 'convert-log');
+            }
+            document.getElementById('convert-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'convert-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFConvertToWordFeature = PDFConvertToWordFeature;
+```
+
+
 ### frontend\js\modules\pdf\extract_pages.js
 
 ```
@@ -9707,6 +10613,8 @@ class PDFModule {
             { id: 'extract-pages', label: 'Extrair Páginas', render: (container) => new PDFExtractPagesFeature().render(container) },
             { id: 'remove-pages', label: 'Remover Páginas', render: (container) => new PDFRemovePagesFeature().render(container) },
             { id: 'reorder', label: 'Reordenar Páginas', render: (container) => new PDFReorderFeature().render(container) },
+            { id: 'convert-to-word', label: 'Converter para Word', render: (container) => new PDFConvertToWordFeature().render(container) },
+            { id: 'convert-to-image', label: 'Converter para Imagem', render: (container) => new PDFConvertToImageFeature().render(container) },
         ];
     }
 

@@ -1,4 +1,6 @@
 from models.pdf_processor import (
+    convert_images_to_pdf,
+    convert_pdf_to_images,
     convert_pdf_to_word,
     extract_all_pages,
     extract_selected_pages,
@@ -40,3 +42,14 @@ class PDFController:
 
     def convert_to_word(self, pdf_path, output_path):
         return convert_pdf_to_word(pdf_path, output_path)
+
+    def convert_images_to_pdf(self, image_paths, output_path, combine=True, margin_cm=0.5,
+                            orientation='portrait', resize_mode='cover', naming='prefix',
+                            prefix='image'):
+        return convert_images_to_pdf(
+            image_paths, output_path, combine, margin_cm,
+            orientation, resize_mode, naming, prefix
+        )
+
+    def convert_pdf_to_images(self, pdf_paths, output_dir, pages_selection='all', image_format='png', prefix=''):
+        return convert_pdf_to_images(pdf_paths, output_dir, pages_selection, image_format, prefix)

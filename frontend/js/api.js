@@ -45,6 +45,8 @@ window.API = {
         removePages: (params) => apiRequest('/pdf/remove-pages', 'POST', params),
         reorderPages: (params) => apiRequest('/pdf/reorder-pages', 'POST', params),
         convertToWord: (params) => apiRequest('/pdf/convert-to-word', 'POST', params),
+        convertImagesToPDF: (params) => apiRequest('/pdf/convert-images-to-pdf', 'POST', params),
+        convertPdfToImages: (params) => apiRequest('/pdf/convert-pdf-to-images', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),

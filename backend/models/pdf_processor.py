@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import shutil
+from typing import List
 from PyPDF2 import PdfReader, PdfWriter
 
 def merge(pdf_paths, output_path):
@@ -850,3 +851,267 @@ def convert_pdf_to_word(pdf_path: str, output_path: str) -> str:
         return str(output_path)
     except Exception as e:
         raise RuntimeError(f"Erro ao converter PDF para Word: {str(e)}")
+
+def convert_images_to_pdf(
+    image_paths: List[str],
+    output_path: str,
+    combine: bool = True,
+    margin_cm: float = 0.5,
+    orientation: str = 'portrait',
+    resize_mode: str = 'cover',      # 'fit' ou 'cover'
+    naming: str = 'prefix',          # 'original' ou 'prefix'
+    prefix: str = 'image'
+) -> dict:
+    """
+    Converte uma ou mais imagens para PDF.
+    - combine=True : gera um único PDF (output_path é o arquivo final)
+    - combine=False: gera múltiplos PDFs (output_path é a pasta de destino)
+    - resize_mode: 'fit' (mantém proporção, centraliza) ou 'cover' (preenche toda a área, corta excesso)
+    - naming: 'original' (usa o nome da imagem) ou 'prefix' (usa o prefixo + contagem)
+    """
+    from PIL import Image
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4, landscape as landscape_size
+    from reportlab.lib.utils import ImageReader
+    import tempfile
+
+    if not image_paths:
+        raise ValueError("Nenhuma imagem fornecida.")
+
+    output_path = Path(output_path).resolve()
+    if combine:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        output_path.mkdir(parents=True, exist_ok=True)
+
+    margin_pt = margin_cm * 28.3464567
+    base_size = A4
+    if orientation == 'landscape':
+        base_size = (base_size[1], base_size[0])
+
+    stats = {
+        'total_images': len(image_paths),
+        'output_files': [],
+        'combined_file': None,
+        'errors': []
+    }
+
+    temp_files = []
+
+    try:
+        if combine:
+            c = canvas.Canvas(str(output_path), pagesize=base_size)
+            page_width, page_height = base_size
+
+            for idx, img_path in enumerate(image_paths):
+                img_path = Path(img_path)
+                if not img_path.exists():
+                    stats['errors'].append(f"Imagem não encontrada: {img_path}")
+                    continue
+
+                try:
+                    img = Image.open(img_path)
+                    # Mantém o modo original (incluindo transparência)
+                    # Não converte para RGB
+                    img_width, img_height = img.size
+
+                    # Área útil (com margem)
+                    max_width = page_width - 2 * margin_pt
+                    max_height = page_height - 2 * margin_pt
+
+                    if resize_mode == 'cover':
+                        # Razão para preencher toda a área (cortando excesso)
+                        ratio = max(max_width / img_width, max_height / img_height)
+                    else:  # 'fit'
+                        ratio = min(max_width / img_width, max_height / img_height)
+
+                    draw_width = img_width * ratio
+                    draw_height = img_height * ratio
+
+                    # Centraliza
+                    x = (page_width - draw_width) / 2
+                    y = (page_height - draw_height) / 2
+
+                    # Salva imagem temporária em PNG (preserva transparência)
+                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                        img.save(tmp.name, 'PNG')
+                        temp_files.append(tmp.name)
+
+                    c.drawImage(tmp.name, x, y, width=draw_width, height=draw_height,
+                                preserveAspectRatio=True, mask=None)  # mask=None permite transparência
+
+                    if idx < len(image_paths) - 1:
+                        c.showPage()
+                except Exception as e:
+                    stats['errors'].append(f"Erro ao processar {img_path.name}: {str(e)}")
+
+            c.save()
+            stats['combined_file'] = str(output_path)
+            stats['output_files'] = [str(output_path)]
+
+        else:
+            # Múltiplos PDFs – output_path é a pasta
+            for idx, img_path in enumerate(image_paths):
+                img_path = Path(img_path)
+                if not img_path.exists():
+                    stats['errors'].append(f"Imagem não encontrada: {img_path}")
+                    continue
+
+                try:
+                    img = Image.open(img_path)
+                    img_width, img_height = img.size
+
+                    # Nome do arquivo de saída
+                    if naming == 'original':
+                        # Usa o nome original da imagem, trocando extensão para .pdf
+                        base_name = img_path.stem
+                    else:
+                        # Usa prefixo + contagem
+                        base_name = f"{prefix}_{idx+1:04d}"
+
+                    pdf_out = output_path / f"{base_name}.pdf"
+
+                    page_width, page_height = base_size
+                    max_width = page_width - 2 * margin_pt
+                    max_height = page_height - 2 * margin_pt
+
+                    if resize_mode == 'cover':
+                        ratio = max(max_width / img_width, max_height / img_height)
+                    else:
+                        ratio = min(max_width / img_width, max_height / img_height)
+
+                    draw_width = img_width * ratio
+                    draw_height = img_height * ratio
+
+                    x = (page_width - draw_width) / 2
+                    y = (page_height - draw_height) / 2
+
+                    c = canvas.Canvas(str(pdf_out), pagesize=base_size)
+                    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+                        img.save(tmp.name, 'PNG')
+                        temp_files.append(tmp.name)
+                    c.drawImage(tmp.name, x, y, width=draw_width, height=draw_height,
+                                preserveAspectRatio=True, mask=None)
+                    c.save()
+
+                    stats['output_files'].append(str(pdf_out))
+                except Exception as e:
+                    stats['errors'].append(f"Erro ao processar {img_path.name}: {str(e)}")
+
+    finally:
+        for f in temp_files:
+            try:
+                Path(f).unlink()
+            except:
+                pass
+
+    return stats
+
+# ==================== CONVERTER PDF PARA IMAGEM ====================
+def convert_pdf_to_images(
+    pdf_paths: List[str],
+    output_dir: str,
+    pages_selection: str = 'all',  # 'all' ou '1,3-5,10'
+    image_format: str = 'png',     # 'png' ou 'jpg'
+    prefix: str = ''
+) -> dict:
+    """
+    Converte páginas de PDF(s) para imagens.
+
+    Args:
+        pdf_paths: Lista de caminhos dos PDFs
+        output_dir: Pasta de saída para as imagens
+        pages_selection: 'all' ou seleção como '1,3-5,10'
+        image_format: 'png' ou 'jpg'
+        prefix: Prefixo para os nomes das imagens
+
+    Returns:
+        dict com estatísticas: total_pdfs, total_images, output_files, errors
+    """
+    import fitz  # PyMuPDF
+
+    if not pdf_paths:
+        raise ValueError("Nenhum PDF fornecido.")
+
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    stats = {
+        'total_pdfs': len(pdf_paths),
+        'total_images': 0,
+        'output_files': [],
+        'errors': []
+    }
+
+    def parse_pages(selection: str, total: int) -> list:
+        """Converte seleção em lista de números de página (0-based)."""
+        if not selection or selection.strip().lower() == 'all':
+            return list(range(total))
+        pages = []
+        parts = [p.strip() for p in selection.split(',') if p.strip()]
+        for part in parts:
+            if '-' in part:
+                start_str, end_str = part.split('-', 1)
+                try:
+                    start = int(start_str.strip())
+                    end = int(end_str.strip())
+                except ValueError:
+                    raise ValueError(f"Intervalo inválido: {part}")
+                if start < 1 or end > total or start > end:
+                    raise ValueError(f"Intervalo {start}-{end} inválido (total: {total} páginas)")
+                pages.extend(range(start - 1, end))
+            else:
+                try:
+                    p = int(part.strip())
+                except ValueError:
+                    raise ValueError(f"Página inválida: {part}")
+                if p < 1 or p > total:
+                    raise ValueError(f"Página {p} inválida (total: {total} páginas)")
+                pages.append(p - 1)
+        return pages
+
+    # Se 'all', usamos a seleção all para cada PDF
+    for pdf_idx, pdf_path in enumerate(pdf_paths):
+        pdf_path = Path(pdf_path)
+        if not pdf_path.exists():
+            stats['errors'].append(f"Arquivo não encontrado: {pdf_path}")
+            continue
+
+        try:
+            doc = fitz.open(pdf_path)
+            total_pages = doc.page_count
+
+            if pages_selection.strip().lower() == 'all':
+                page_indices = list(range(total_pages))
+            else:
+                page_indices = parse_pages(pages_selection, total_pages)
+
+            prefix_str = f"{prefix}_" if prefix else "page"
+            ext = '.png' if image_format == 'png' else '.jpg'
+
+            for idx, page_num in enumerate(page_indices, 1):
+                try:
+                    page = doc.load_page(page_num)
+                    # Aumentar resolução para 150 DPI para boa qualidade
+                    matrix = fitz.Matrix(150/72, 150/72)
+                    pix = page.get_pixmap(matrix=matrix)
+                    # Se jpg, converter para RGB
+                    if image_format == 'jpg':
+                        img = pix.tobytes('jpeg')
+                    else:
+                        img = pix.tobytes('png')
+
+                    base_name = f"{prefix_str}_{pdf_path.stem}_{idx:04d}{ext}"
+                    output_file = output_path / base_name
+                    with open(output_file, 'wb') as f:
+                        f.write(img)
+                    stats['output_files'].append(str(output_file))
+                    stats['total_images'] += 1
+                except Exception as e:
+                    stats['errors'].append(f"Erro na página {page_num+1} de {pdf_path.name}: {str(e)}")
+
+            doc.close()
+        except Exception as e:
+            stats['errors'].append(f"Erro ao abrir {pdf_path.name}: {str(e)}")
+
+    return stats

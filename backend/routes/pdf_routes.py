@@ -190,3 +190,48 @@ def convert_to_word():
         return jsonify({"success": True, "output_path": result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# Substitua as duas rotas por estas:
+
+@pdf_bp.route('/convert-images-to-pdf', methods=['POST'])
+def images_to_pdf():
+    data = request.json
+    required = ['image_paths', 'output_path']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.convert_images_to_pdf(
+            image_paths=data['image_paths'],
+            output_path=data['output_path'],
+            combine=data.get('combine', True),
+            margin_cm=float(data.get('margin_cm', 0.5)),
+            orientation=data.get('orientation', 'portrait'),
+            resize_mode=data.get('resize_mode', 'cover'),
+            naming=data.get('naming', 'prefix'),
+            prefix=data.get('prefix', 'image')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/convert-pdf-to-images', methods=['POST'])
+def pdf_to_images():
+    data = request.json
+    required = ['pdf_paths', 'output_dir']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.convert_pdf_to_images(
+            pdf_paths=data['pdf_paths'],
+            output_dir=data['output_dir'],
+            pages_selection=data.get('pages_selection', 'all'),
+            image_format=data.get('image_format', 'png'),
+            prefix=data.get('prefix', '')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
