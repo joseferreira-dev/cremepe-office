@@ -44,6 +44,7 @@ window.API = {
         extractSelectedPages: (params) => apiRequest('/pdf/extract-selected-pages', 'POST', params),
         removePages: (params) => apiRequest('/pdf/remove-pages', 'POST', params),
         reorderPages: (params) => apiRequest('/pdf/reorder-pages', 'POST', params),
+        addPageNumbers: (params) => apiRequest('/pdf/add-page-numbers', 'POST', params),
         convertToWord: (params) => apiRequest('/pdf/convert-to-word', 'POST', params),
         convertImagesToPDF: (params) => apiRequest('/pdf/convert-images-to-pdf', 'POST', params),
         convertPdfToImages: (params) => apiRequest('/pdf/convert-pdf-to-images', 'POST', params),

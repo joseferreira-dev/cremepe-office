@@ -174,6 +174,34 @@ def reorder_pages():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@pdf_bp.route('/add-page-numbers', methods=['POST'])
+def add_page_numbers():
+    data = request.json
+    if not data.get('input_path') or not data.get('output_path'):
+        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+
+    end_page = data.get('end_page')
+    if end_page is not None:
+        end_page = int(end_page)
+
+    try:
+        result = controller.add_page_numbers(
+            input_path=data['input_path'],
+            output_path=data['output_path'],
+            start_page=int(data.get('start_page', 1)),
+            end_page=end_page,
+            start_number=int(data.get('start_number', 1)),
+            color=data.get('color', '#000000'),
+            background_color=data.get('background_color'),
+            position=data.get('position', 'bottom-center'),
+            font_size=int(data.get('font_size', 12)),
+            show_background=data.get('show_background', False),
+            margin_cm=float(data.get('margin_cm', 1.0))
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @pdf_bp.route('/convert-to-word', methods=['POST'])
 def convert_to_word():
     data = request.json

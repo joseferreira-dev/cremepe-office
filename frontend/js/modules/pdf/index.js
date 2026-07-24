@@ -10,6 +10,7 @@ class PDFModule {
             { id: 'extract-pages', label: 'Extrair Páginas', render: (container) => new PDFExtractPagesFeature().render(container) },
             { id: 'remove-pages', label: 'Remover Páginas', render: (container) => new PDFRemovePagesFeature().render(container) },
             { id: 'reorder', label: 'Reordenar Páginas', render: (container) => new PDFReorderFeature().render(container) },
+            { id: 'add-page-numbers', label: 'Numerar Páginas', render: (container) => new PDFAddPageNumbersFeature().render(container) },
             { id: 'convert-to-word', label: 'Converter para Word', render: (container) => new PDFConvertToWordFeature().render(container) },
             { id: 'convert-to-image', label: 'Converter para Imagem', render: (container) => new PDFConvertToImageFeature().render(container) },
             { id: 'compress', label: 'Comprimir', render: (container) => new PDFCompressFeature().render(container) },

@@ -838,6 +838,135 @@ def reorder_pages(
 
     return stats
 
+def add_page_numbers(
+    input_path: str,
+    output_path: str,
+    start_page: int = 1,
+    end_page: int = None,
+    start_number: int = 1,
+    color: str = '#000000',
+    background_color: str = None,
+    position: str = 'bottom-center',
+    font_size: int = 12,
+    show_background: bool = False,
+    margin_cm: float = 1.0
+) -> dict:
+    import fitz
+    from pathlib import Path
+
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_path = Path(output_path).resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    doc = fitz.open(input_path)
+    total_pages = len(doc)
+
+    if end_page is None:
+        end_page = total_pages
+
+    if start_page < 1 or start_page > total_pages:
+        raise ValueError(f"Página inicial inválida: {start_page}")
+    if end_page < start_page or end_page > total_pages:
+        raise ValueError(f"Página final inválida: {end_page}")
+
+    def hex_to_rgb(hex_color):
+        hex_color = hex_color.lstrip('#')
+        if len(hex_color) == 6:
+            r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+            return (r/255, g/255, b/255)
+        return (0, 0, 0)
+
+    text_color = hex_to_rgb(color)
+    bg_color = None
+    if background_color:
+        bg_color = hex_to_rgb(background_color)
+
+    margin_pt = margin_cm * 28.3464567
+
+    position_map = {
+        'top-left': (margin_pt, margin_pt, 0, 0),
+        'top-center': (0, margin_pt, 0.5, 0),
+        'top-right': (margin_pt, margin_pt, 1, 0),
+        'bottom-left': (margin_pt, 0, 0, 1),
+        'bottom-center': (0, 0, 0.5, 1),
+        'bottom-right': (margin_pt, 0, 1, 1),
+        'center': (0, 0, 0.5, 0.5),
+    }
+    if position not in position_map:
+        position = 'bottom-center'
+    _, _, h_ref, v_ref = position_map[position]
+
+    page_counter = start_number
+
+    for page_num in range(start_page - 1, end_page):
+        page = doc[page_num]
+        rect = page.rect
+
+        text = str(page_counter)
+
+        # Largura exata do texto com a fonte escolhida
+        text_width = fitz.get_text_length(text, fontname="helv", fontsize=font_size)
+        # Altura do texto é aproximadamente o próprio font_size (em pontos)
+        text_height = font_size
+        pad = 8
+        box_width = text_width + 2 * pad
+        box_height = text_height + 2 * pad
+
+        # Posicionamento baseado no centro (cx, cy)
+        if h_ref == 0:
+            cx = margin_pt + box_width / 2
+        elif h_ref == 0.5:
+            cx = rect.width / 2
+        else:
+            cx = rect.width - margin_pt - box_width / 2
+
+        if v_ref == 0:
+            cy = margin_pt + box_height / 2
+        elif v_ref == 0.5:
+            cy = rect.height / 2
+        else:
+            cy = rect.height - margin_pt - box_height / 2
+
+        # Evitar que o retângulo ultrapasse as bordas
+        if cx - box_width/2 < 0:
+            cx = box_width/2
+        if cx + box_width/2 > rect.width:
+            cx = rect.width - box_width/2
+        if cy - box_height/2 < 0:
+            cy = box_height/2
+        if cy + box_height/2 > rect.height:
+            cy = rect.height - box_height/2
+
+        text_rect = fitz.Rect(cx - box_width/2, cy - box_height/4, cx + box_width/2, cy + box_height/2)
+
+        # Desenhar fundo (retângulo) se solicitado
+        if show_background and bg_color:
+            page.draw_rect(text_rect, color=bg_color, fill=bg_color, width=0)
+
+        # Inserir texto centralizado horizontal e verticalmente no retângulo
+        page.insert_textbox(
+            text_rect,
+            text,
+            fontsize=font_size,
+            fontname="helv",
+            color=text_color,
+            align=fitz.TEXT_ALIGN_CENTER
+        )
+
+        page_counter += 1
+
+    doc.save(output_path)
+    doc.close()
+
+    return {
+        'total_pages': total_pages,
+        'processed_pages': end_page - start_page + 1,
+        'output_path': str(output_path)
+    }
+
 def convert_pdf_to_word(pdf_path: str, output_path: str) -> str:
     """
     Converte um arquivo PDF para Word (.docx) usando pdf2docx.

@@ -1,4 +1,5 @@
 from models.pdf_processor import (
+    add_page_numbers,
     compress,
     convert_images_to_pdf,
     convert_pdf_to_images,
@@ -42,6 +43,14 @@ class PDFController:
 
     def reorder_pages(self, pdf_path, output_path, new_order_str):
         return reorder_pages(pdf_path, output_path, new_order_str)
+
+    def add_page_numbers(self, input_path, output_path, start_page=1, end_page=None,
+                        start_number=1, color='#000000', background_color=None,
+                        position='bottom-center', font_size=12, show_background=False,
+                        margin_cm=1.0):
+        return add_page_numbers(input_path, output_path, start_page, end_page, start_number,
+                                color, background_color, position, font_size, show_background,
+                                margin_cm)
 
     def convert_to_word(self, pdf_path, output_path):
         return convert_pdf_to_word(pdf_path, output_path)
