@@ -35,3 +35,45 @@ def merge_by_size():
         return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/split-custom', methods=['POST'])
+def split_custom():
+    data = request.json
+    required = ['pdf_path', 'output_dir', 'intervals_str']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_custom(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            intervals_str=data['intervals_str'],
+            combine=data.get('combine', False),
+            part_prefix=data.get('part_prefix', 'part'),
+            combine_name=data.get('combine_name', 'combined')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@pdf_bp.route('/split-fixed', methods=['POST'])
+def split_fixed():
+    data = request.json
+    required = ['pdf_path', 'output_dir', 'pages_per_file']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
+    try:
+        result = controller.split_fixed(
+            pdf_path=data['pdf_path'],
+            output_dir=data['output_dir'],
+            pages_per_file=int(data['pages_per_file']),
+            combine=data.get('combine', False),
+            part_prefix=data.get('part_prefix', 'part'),
+            combine_name=data.get('combine_name', 'combined')
+        )
+        return jsonify({"success": True, **result}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

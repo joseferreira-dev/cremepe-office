@@ -179,3 +179,184 @@ def merge_by_size(
                     stats['errors'].append(f"Erro ao mesclar grupo de {len(group)} arquivos: {str(e)}")
     
     return stats
+
+def _parse_custom_intervals(intervals_str: str, total_pages: int) -> list:
+    """
+    Converte uma string de intervalos como "1-10, 15-16, 17-17, 20-25" em uma lista de tuplas (start, end).
+    Valida se os números estão dentro do total de páginas.
+    """
+    intervals = []
+    parts = [p.strip() for p in intervals_str.split(',') if p.strip()]
+    for part in parts:
+        if '-' in part:
+            start_str, end_str = part.split('-', 1)
+            try:
+                start = int(start_str.strip())
+                end = int(end_str.strip())
+            except ValueError:
+                raise ValueError(f"Intervalo inválido: {part}")
+            if start < 1 or end > total_pages or start > end:
+                raise ValueError(f"Intervalo {start}-{end} inválido para documento com {total_pages} páginas")
+            intervals.append((start, end))
+        else:
+            # Página única
+            try:
+                page = int(part.strip())
+            except ValueError:
+                raise ValueError(f"Página inválida: {part}")
+            if page < 1 or page > total_pages:
+                raise ValueError(f"Página {page} inválida para documento com {total_pages} páginas")
+            intervals.append((page, page))
+    return intervals
+
+def split_custom(pdf_path: str, output_dir: str, intervals_str: str, 
+                 combine: bool = False, part_prefix: str = "part", combine_name: str = "combined") -> dict:
+    """
+    Divide um PDF em partes com base em intervalos personalizados.
+    
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        intervals_str: String com intervalos (ex: "1-10, 15-16, 20-25")
+        combine: Se True, gera apenas o arquivo combinado (não gera partes individuais)
+        part_prefix: Prefixo para os arquivos de parte (ex: "documento")
+        combine_name: Nome do arquivo combinado (sem extensão)
+    
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, combined_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    intervals = _parse_custom_intervals(intervals_str, total_pages)
+    
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'combined_file': None,
+        'errors': []
+    }
+    
+    if combine:
+        # Gerar apenas o arquivo combinado
+        try:
+            writer = PdfWriter()
+            for start, end in intervals:
+                for page_num in range(start - 1, end):
+                    writer.add_page(reader.pages[page_num])
+            
+            # Garantir extensão .pdf
+            combine_file = output_path / f"{combine_name}.pdf"
+            if combine_file.exists():
+                base = combine_file.stem
+                ext = combine_file.suffix
+                counter = 1
+                while combine_file.exists():
+                    combine_file = output_path / f"{base}_{counter}{ext}"
+                    counter += 1
+            
+            with open(combine_file, 'wb') as f:
+                writer.write(f)
+            stats['combined_file'] = str(combine_file)
+            stats['total_files'] = 1
+        except Exception as e:
+            stats['errors'].append(f"Erro ao gerar arquivo combinado: {str(e)}")
+    else:
+        # Gerar partes individuais
+        for idx, (start, end) in enumerate(intervals, 1):
+            try:
+                part_writer = PdfWriter()
+                for page_num in range(start - 1, end):
+                    part_writer.add_page(reader.pages[page_num])
+                
+                output_file = output_path / f"{part_prefix}_{idx:04d}_{start}-{end}.pdf"
+                with open(output_file, 'wb') as f:
+                    part_writer.write(f)
+                stats['output_files'].append(str(output_file))
+                stats['total_files'] += 1
+            except Exception as e:
+                stats['errors'].append(f"Erro ao gerar parte {idx}: {str(e)}")
+    
+    return stats
+
+def split_fixed(pdf_path: str, output_dir: str, pages_per_file: int, 
+                combine: bool = False, part_prefix: str = "part", combine_name: str = "combined") -> dict:
+    """
+    Divide um PDF em partes de tamanho fixo (N páginas por arquivo).
+    
+    Args:
+        pdf_path: Caminho do PDF de entrada
+        output_dir: Pasta de saída
+        pages_per_file: Número de páginas por arquivo
+        combine: Se True, gera apenas o arquivo combinado (não gera partes individuais)
+        part_prefix: Prefixo para os arquivos de parte
+        combine_name: Nome do arquivo combinado (sem extensão)
+    
+    Returns:
+        dict com estatísticas: total_pages, total_files, output_files, combined_file, errors
+    """
+    pdf_path = Path(pdf_path).resolve()
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
+    
+    if pages_per_file < 1:
+        raise ValueError("Número de páginas por arquivo deve ser >= 1")
+    
+    output_path = Path(output_dir).resolve()
+    output_path.mkdir(parents=True, exist_ok=True)
+    
+    reader = PdfReader(str(pdf_path))
+    total_pages = len(reader.pages)
+    
+    stats = {
+        'total_pages': total_pages,
+        'total_files': 0,
+        'output_files': [],
+        'combined_file': None,
+        'errors': []
+    }
+    
+    if combine:
+        # Gerar apenas o arquivo combinado
+        try:
+            writer = PdfWriter()
+            for page_num in range(total_pages):
+                writer.add_page(reader.pages[page_num])
+            
+            combine_file = output_path / f"{combine_name}.pdf"
+            if combine_file.exists():
+                base = combine_file.stem
+                ext = combine_file.suffix
+                counter = 1
+                while combine_file.exists():
+                    combine_file = output_path / f"{base}_{counter}{ext}"
+                    counter += 1
+            
+            with open(combine_file, 'wb') as f:
+                writer.write(f)
+            stats['combined_file'] = str(combine_file)
+            stats['total_files'] = 1
+        except Exception as e:
+            stats['errors'].append(f"Erro ao gerar arquivo combinado: {str(e)}")
+    else:
+        # Gerar partes individuais
+        for start in range(0, total_pages, pages_per_file):
+            end = min(start + pages_per_file, total_pages)
+            part_writer = PdfWriter()
+            for page_num in range(start, end):
+                part_writer.add_page(reader.pages[page_num])
+            
+            output_file = output_path / f"{part_prefix}_{start+1:04d}-{end:04d}.pdf"
+            with open(output_file, 'wb') as f:
+                part_writer.write(f)
+            stats['output_files'].append(str(output_file))
+            stats['total_files'] += 1
+    
+    return stats

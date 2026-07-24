@@ -68,6 +68,10 @@
 │   │   │   │   ├── report.js
 │   │   │   │   ├── split.js
 │   │   │   │   └── utils.js
+│   │   │   ├── pdf/
+│   │   │   │   ├── index.js
+│   │   │   │   ├── merge.js
+│   │   │   │   └── merge_by_size.js
 │   │   │   ├── word/
 │   │   │   │   ├── compare.js
 │   │   │   │   ├── convert.js
@@ -78,7 +82,6 @@
 │   │   │   │   ├── utils.js
 │   │   │   │   └── watermark.js
 │   │   │   ├── home.js
-│   │   │   ├── pdf.js
 │   │   │   └── settings.js
 │   │   ├── api.js
 │   │   └── app.js
@@ -814,14 +817,14 @@ class FileController:
 ### backend\controllers\pdf_controller.py
 
 ```
-from models.pdf_processor import merge_pdfs, split_pdf
+from models.pdf_processor import merge, merge_by_size
 
 class PDFController:
     def merge(self, pdf_paths, output_path):
-        return merge_pdfs(pdf_paths, output_path)
-
-    def split(self, pdf_path, output_dir, pages_per_file=1):
-        return split_pdf(pdf_path, output_dir, pages_per_file)
+        return merge(pdf_paths, output_path)
+    
+    def merge_by_size(self, source_dir, dest_dir, max_size_mb, recursive=False, sort_by='name', prefix=''):
+        return merge_by_size(source_dir, dest_dir, max_size_mb, recursive, sort_by, prefix)
 ```
 
 
@@ -2720,9 +2723,10 @@ def merge_parts(
 ```
 import os
 from pathlib import Path
+import shutil
 from PyPDF2 import PdfReader, PdfWriter
 
-def merge_pdfs(pdf_paths, output_path):
+def merge(pdf_paths, output_path):
     """
     Mescla uma lista de PDFs em um único arquivo.
     Retorna o caminho do arquivo gerado.
@@ -2745,33 +2749,159 @@ def merge_pdfs(pdf_paths, output_path):
         writer.write(f)
     return str(output_path)
 
-def split_pdf(pdf_path, output_dir, pages_per_file=1):
+def merge_by_size(
+    source_dir: str,
+    dest_dir: str,
+    max_size_mb: float,
+    recursive: bool = False,
+    sort_by: str = 'name',  # 'name' ou 'date'
+    prefix: str = ''
+) -> dict:
     """
-    Divide um PDF em múltiplos arquivos, cada um com `pages_per_file` páginas.
-    Retorna lista de caminhos gerados.
-    """
-    pdf_path = Path(pdf_path)
-    if not pdf_path.exists():
-        raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    reader = PdfReader(str(pdf_path))
-    total_pages = len(reader.pages)
-    output_files = []
-
-    for start in range(0, total_pages, pages_per_file):
-        writer = PdfWriter()
-        end = min(start + pages_per_file, total_pages)
-        for i in range(start, end):
-            writer.add_page(reader.pages[i])
-        out_name = f"{pdf_path.stem}_part_{start//pages_per_file + 1}.pdf"
-        out_path = output_dir / out_name
-        with open(out_path, 'wb') as f:
-            writer.write(f)
-        output_files.append(str(out_path))
+    Combina PDFs de uma pasta em lotes com tamanho máximo definido.
     
-    return output_files
+    Args:
+        source_dir: Pasta de origem
+        dest_dir: Pasta de destino
+        max_size_mb: Tamanho máximo por lote em MB
+        recursive: Se True, inclui subpastas
+        sort_by: 'name' (alfabética) ou 'date' (data de modificação)
+        prefix: Prefixo para os arquivos combinados (opcional)
+    
+    Returns:
+        dict com estatísticas: processed, merged_groups, copied_files, errors
+    """
+    source_path = Path(source_dir).resolve()
+    dest_path = Path(dest_dir).resolve()
+    
+    if not source_path.exists():
+        raise FileNotFoundError(f"Pasta não encontrada: {source_dir}")
+    
+    dest_path.mkdir(parents=True, exist_ok=True)
+    
+    # Coletar arquivos PDF
+    if recursive:
+        pdf_files = list(source_path.rglob('*.pdf'))
+    else:
+        pdf_files = list(source_path.glob('*.pdf'))
+    
+    if not pdf_files:
+        raise ValueError(f"Nenhum arquivo PDF encontrado em {source_dir}")
+    
+    # Ordenar
+    if sort_by == 'date':
+        pdf_files.sort(key=lambda p: p.stat().st_mtime)
+    else:  # 'name'
+        pdf_files.sort(key=lambda p: p.name)
+    
+    stats = {
+        'processed': 0,
+        'merged_groups': 0,
+        'copied_files': 0,
+        'errors': []
+    }
+    
+    max_size_bytes = max_size_mb * 1024 * 1024
+    
+    current_group = []
+    current_size = 0
+    groups = []
+    
+    for pdf_path in pdf_files:
+        file_size = pdf_path.stat().st_size
+        
+        # Se o arquivo individual já excede o limite, copiar separadamente
+        if file_size > max_size_bytes:
+            if current_group:
+                groups.append(current_group)
+                current_group = []
+                current_size = 0
+            groups.append(('copy', pdf_path))
+            continue
+        
+        if current_size + file_size > max_size_bytes and current_group:
+            groups.append(current_group)
+            current_group = [pdf_path]
+            current_size = file_size
+        else:
+            current_group.append(pdf_path)
+            current_size += file_size
+    
+    if current_group:
+        groups.append(current_group)
+    
+    # Processar cada grupo
+    for group in groups:
+        if isinstance(group, tuple) and group[0] == 'copy':
+            _, pdf_path = group
+            dest_file = dest_path / pdf_path.name
+            if dest_file.exists():
+                base = dest_file.stem
+                ext = dest_file.suffix
+                counter = 1
+                while dest_file.exists():
+                    dest_file = dest_path / f"{base}_{counter}{ext}"
+                    counter += 1
+            try:
+                shutil.copy2(pdf_path, dest_file)
+                stats['copied_files'] += 1
+                stats['processed'] += 1
+            except Exception as e:
+                stats['errors'].append(f"Erro ao copiar {pdf_path.name}: {str(e)}")
+        else:
+            if len(group) == 1:
+                pdf_path = group[0]
+                dest_file = dest_path / pdf_path.name
+                if dest_file.exists():
+                    base = dest_file.stem
+                    ext = dest_file.suffix
+                    counter = 1
+                    while dest_file.exists():
+                        dest_file = dest_path / f"{base}_{counter}{ext}"
+                        counter += 1
+                try:
+                    shutil.copy2(pdf_path, dest_file)
+                    stats['copied_files'] += 1
+                    stats['processed'] += 1
+                except Exception as e:
+                    stats['errors'].append(f"Erro ao copiar {pdf_path.name}: {str(e)}")
+            else:
+                try:
+                    # Nome do arquivo mesclado com prefixo e contagem
+                    if prefix:
+                        output_name = f"{prefix}_{stats['merged_groups'] + 1:04d}.pdf"
+                    else:
+                        first_name = group[0].stem
+                        last_name = group[-1].stem
+                        if len(group) > 2:
+                            output_name = f"{first_name}_ate_{last_name}.pdf"
+                        else:
+                            output_name = f"{first_name}_e_{last_name}.pdf"
+                    
+                    dest_file = dest_path / output_name
+                    if dest_file.exists():
+                        base = dest_file.stem
+                        ext = dest_file.suffix
+                        counter = 1
+                        while dest_file.exists():
+                            dest_file = dest_path / f"{base}_{counter}{ext}"
+                            counter += 1
+                    
+                    writer = PdfWriter()
+                    for pdf_path in group:
+                        reader = PdfReader(pdf_path)
+                        for page in reader.pages:
+                            writer.add_page(page)
+                    
+                    with open(dest_file, 'wb') as f:
+                        writer.write(f)
+                    
+                    stats['merged_groups'] += 1
+                    stats['processed'] += len(group)
+                except Exception as e:
+                    stats['errors'].append(f"Erro ao mesclar grupo de {len(group)} arquivos: {str(e)}")
+    
+    return stats
 ```
 
 
@@ -4103,15 +4233,24 @@ def merge():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@pdf_bp.route('/split', methods=['POST'])
-def split():
+@pdf_bp.route('/merge-by-size', methods=['POST'])
+def merge_by_size():
     data = request.json
-    if not data.get('pdf_path') or not data.get('output_dir'):
-        return jsonify({"error": "Campos obrigatórios: pdf_path, output_dir"}), 400
+    required = ['source_dir', 'dest_dir', 'max_size_mb']
+    for field in required:
+        if not data.get(field):
+            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
+
     try:
-        pages_per = data.get('pages_per_file', 1)
-        result = controller.split(data['pdf_path'], data['output_dir'], pages_per)
-        return jsonify({"success": True, "output_files": result}), 200
+        result = controller.merge_by_size(
+            source_dir=data['source_dir'],
+            dest_dir=data['dest_dir'],
+            max_size_mb=float(data['max_size_mb']),
+            recursive=data.get('recursive', False),
+            sort_by=data.get('sort_by', 'name'),
+            prefix=data.get('prefix', '')
+        )
+        return jsonify({"success": True, **result}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 ```
@@ -4383,10 +4522,18 @@ def get_pdf_page_count(pdf_path):
         </main>
     </div>
 
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
     <!-- Bootstrap JS (opcional) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Scripts do app -->
     <script src="js/api.js"></script>
+    <script src="js/modules/home.js"></script>
+    <script src="js/modules/settings.js"></script>
+    <!-- PASTAS E ARQUIVOS -->
     <script src="js/modules/file/utils.js"></script>
     <script src="js/modules/file/collect.js"></script>
     <script src="js/modules/file/rename.js"></script>
@@ -4399,9 +4546,11 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/file/compare.js"></script>
     <script src="js/modules/file/archive.js"></script>
     <script src="js/modules/file/split.js"></script>
-    <script src="js/modules/home.js"></script>
-    <script src="js/modules/pdf.js"></script>
-    <script src="js/modules/settings.js"></script>
+    <!-- PDF -->
+    <script src="js/modules/pdf/merge.js"></script>
+    <script src="js/modules/pdf/merge_by_size.js"></script>
+    <script src="js/modules/pdf/index.js"></script>
+    <!-- DOCUMENTOS -->
     <script src="js/modules/word/utils.js"></script>
     <script src="js/modules/word/merge.js"></script>
     <script src="js/modules/word/convert.js"></script>
@@ -4410,6 +4559,7 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/word/watermark.js"></script>
     <script src="js/modules/word/filepath.js"></script>
     <script src="js/modules/word/index.js"></script>
+    <!-- PLANILHAS -->
     <script src="js/modules/excel/utils.js"></script>
     <script src="js/modules/excel/convert.js"></script>
     <script src="js/modules/excel/merge_all.js"></script>
@@ -4417,6 +4567,7 @@ def get_pdf_page_count(pdf_path):
     <script src="js/modules/excel/split_by_column.js"></script>
     <script src="js/modules/excel/split_sheets.js"></script>
     <script src="js/modules/excel/index.js"></script>
+    <!-- APP -->
     <script src="js/app.js"></script>
 </body>
 
@@ -4914,7 +5065,7 @@ window.API = {
     },
     pdf: {
         merge: (params) => apiRequest('/pdf/merge', 'POST', params),
-        split: (params) => apiRequest('/pdf/split', 'POST', params),
+        mergeBySize: (params) => apiRequest('/pdf/merge-by-size', 'POST', params),
     },
     word: {
         merge: (params) => apiRequest('/word/merge', 'POST', params),
@@ -5106,92 +5257,6 @@ class HomePage {
     }
 }
 window.HomePage = HomePage;
-```
-
-
-### frontend\js\modules\pdf.js
-
-```
-class PDFModule {
-    constructor(container) {
-        this.container = container;
-        this.currentFeature = 'merge';
-        this.features = [
-            { id: 'merge', label: 'Mesclar PDFs', render: this.renderMerge.bind(this) },
-            { id: 'split', label: 'Dividir PDF', render: this.renderSplit.bind(this) },
-        ];
-    }
-
-    render() {
-        this.container.innerHTML = `
-            <div class="page active">
-                <h2 class="module-title"><i class="bi bi-file-earmark-pdf me-2"></i>Gerenciamento de PDFs</h2>
-                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
-                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
-                        <h3>Funcionalidades</h3>
-                        <ul class="feature-list">
-                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
-                        </ul>
-                    </div>
-                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
-                </div>
-            </div>
-        `;
-        this.container.querySelectorAll('.feature-list li').forEach(item => {
-            item.addEventListener('click', () => {
-                const feature = item.dataset.feature;
-                this.selectFeature(feature);
-            });
-        });
-        this.renderCurrentFeature();
-    }
-
-    selectFeature(featureId) {
-        this.currentFeature = featureId;
-        this.container.querySelectorAll('.feature-list li').forEach(li => {
-            li.classList.toggle('active', li.dataset.feature === featureId);
-        });
-        this.renderCurrentFeature();
-    }
-
-    renderCurrentFeature() {
-        const feature = this.features.find(f => f.id === this.currentFeature);
-        if (feature) feature.render();
-    }
-
-    renderMerge() {
-        const content = document.getElementById('feature-content');
-        content.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-arrow-left-right me-2"></i>Mesclar PDFs</h4>
-                <p class="text-muted">Combine vários PDFs em um único documento.</p>
-            </div>
-            <div class="card mb-3">
-                <div class="card-body text-center text-muted py-5">
-                    <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #007A51;"></i>
-                    <p class="mt-2">Funcionalidade em desenvolvimento</p>
-                </div>
-            </div>
-        `;
-    }
-
-    renderSplit() {
-        const content = document.getElementById('feature-content');
-        content.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-scissors me-2"></i>Dividir PDF</h4>
-                <p class="text-muted">Divida um PDF em vários arquivos.</p>
-            </div>
-            <div class="card mb-3">
-                <div class="card-body text-center text-muted py-5">
-                    <i class="bi bi-file-earmark-pdf" style="font-size: 3rem; color: #007A51;"></i>
-                    <p class="mt-2">Funcionalidade em desenvolvimento</p>
-                </div>
-            </div>
-        `;
-    }
-}
-window.PDFModule = PDFModule;
 ```
 
 
@@ -8601,6 +8666,501 @@ const FileUtils = {
         }
     },
 };
+```
+
+
+### frontend\js\modules\pdf\index.js
+
+```
+class PDFModule {
+    constructor(container) {
+        this.container = container;
+        this.currentFeature = 'merge';
+        this.features = [
+            { id: 'merge', label: 'Combinar', render: (container) => new PDFMergeFeature().render(container) },
+            { id: 'merge-by-size', label: 'Combinar por Tamanho', render: (container) => new PDFMergeBySizeFeature().render(container) },
+        ];
+    }
+
+    render() {
+        this.container.innerHTML = `
+            <div class="page active">
+                <h2 class="module-title"><i class="bi bi-file-earmark-pdf me-2"></i>PDF</h2>
+                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
+                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
+                        <h3>Funcionalidades</h3>
+                        <ul class="feature-list">
+                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
+                        </ul>
+                    </div>
+                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
+                </div>
+            </div>
+        `;
+
+        this.container.querySelectorAll('.feature-list li').forEach(item => {
+            item.addEventListener('click', () => {
+                const feature = item.dataset.feature;
+                this.selectFeature(feature);
+            });
+        });
+
+        this.renderCurrentFeature();
+    }
+
+    selectFeature(featureId) {
+        this.currentFeature = featureId;
+        this.container.querySelectorAll('.feature-list li').forEach(li => {
+            li.classList.toggle('active', li.dataset.feature === featureId);
+        });
+        this.renderCurrentFeature();
+    }
+
+    renderCurrentFeature() {
+        const feature = this.features.find(f => f.id === this.currentFeature);
+        if (feature) {
+            const content = document.getElementById('feature-content');
+            content.innerHTML = '';
+            feature.render(content);
+        }
+    }
+}
+
+window.PDFModule = PDFModule;
+```
+
+
+### frontend\js\modules\pdf\merge.js
+
+```
+class PDFMergeFeature {
+    constructor() {
+        this.files = []; // array de objetos { path, name, thumbnail }
+        this.thumbnailCache = {}; // cache de thumbnails
+        this.draggedIndex = null;
+    }
+
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Combinar</h4>
+                <p class="text-muted">Combine vários PDFs em um único documento. Arraste para reordenar.</p>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivos PDF</h5>
+                    <div class="mb-2">
+                        <div class="input-group">
+                            <button class="btn btn-outline-success" id="btn-pdf-merge-add">
+                                <i class="bi bi-plus-circle me-1"></i> Adicionar PDFs
+                            </button>
+                            <button class="btn btn-outline-secondary" id="btn-pdf-merge-clear">
+                                <i class="bi bi-trash me-1"></i> Limpar todos
+                            </button>
+                        </div>
+                    </div>
+                    <div id="pdf-merge-list" class="border rounded p-2" style="min-height:100px; max-height:400px; overflow-y:auto;">
+                        <p class="text-muted text-center my-3">Nenhum PDF adicionado. Clique em "Adicionar PDFs" para começar.</p>
+                    </div>
+                    <div class="mt-2 text-muted small">
+                        <i class="bi bi-arrows-move me-1"></i> Arraste os itens para reordenar
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <div class="input-group">
+                        <input type="text" id="pdf-merge-output" class="form-control" placeholder="Caminho do arquivo final">
+                        <button class="btn btn-outline-secondary" id="btn-pdf-merge-output">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-success" id="btn-pdf-merge"><i class="bi bi-play-fill me-1"></i> Juntar</button>
+                <button class="btn btn-outline-secondary" id="btn-pdf-merge-preview"><i class="bi bi-eye me-1"></i> Pré-visualizar ordem</button>
+            </div>
+
+            <div class="progress mt-2"><div class="progress-bar" id="pdf-merge-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="pdf-merge-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        // Atualiza lista com os arquivos existentes (se houver)
+        this.updateList();
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-pdf-merge-add').addEventListener('click', () => this.addPDFs());
+        document.getElementById('btn-pdf-merge-clear').addEventListener('click', () => this.clearAll());
+        document.getElementById('btn-pdf-merge-output').addEventListener('click', () => {
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        document.getElementById('pdf-merge-output').value = result.filePath;
+                    }
+                });
+            }
+        });
+        document.getElementById('btn-pdf-merge').addEventListener('click', () => this.mergePDFs());
+        document.getElementById('btn-pdf-merge-preview').addEventListener('click', () => this.previewOrder());
+
+        // Adicionar atalho para arrastar e soltar na lista
+        const list = document.getElementById('pdf-merge-list');
+        list.addEventListener('dragover', (e) => this.handleDragOver(e));
+        list.addEventListener('drop', (e) => this.handleDrop(e));
+        list.addEventListener('dragend', () => this.draggedIndex = null);
+    }
+
+    async addPDFs() {
+        if (window.electronAPI && window.electronAPI.showOpenDialog) {
+            const result = await window.electronAPI.showOpenDialog({
+                properties: ['openFile', 'multiSelections'],
+                filters: [{ name: 'PDF', extensions: ['pdf'] }]
+            });
+            if (!result.canceled) {
+                for (const filePath of result.filePaths) {
+                    // Evitar duplicatas
+                    if (this.files.some(f => f.path === filePath)) continue;
+                    this.files.push({
+                        path: filePath,
+                        name: filePath.split(/[\\/]/).pop(),
+                        thumbnail: null // será carregado depois
+                    });
+                }
+                // Carregar thumbnails em lote
+                await this.loadThumbnails();
+                this.updateList();
+                FileUtils.log(`${this.files.length} PDF(s) adicionados.`, 'pdf-merge-log');
+            }
+        }
+    }
+
+    clearAll() {
+        if (this.files.length === 0) return;
+        if (!confirm('Remover todos os PDFs da lista?')) return;
+        this.files = [];
+        this.thumbnailCache = {};
+        this.updateList();
+        FileUtils.log('Lista limpa.', 'pdf-merge-log');
+    }
+
+    async loadThumbnails() {
+        // Carregar thumbnail para cada arquivo que ainda não tem
+        for (const file of this.files) {
+            if (!file.thumbnail) {
+                try {
+                    const thumb = await this.renderThumbnail(file.path);
+                    file.thumbnail = thumb;
+                } catch (err) {
+                    console.warn('Erro ao carregar thumbnail:', err);
+                    // Usar um ícone de fallback
+                    file.thumbnail = null;
+                }
+            }
+        }
+    }
+
+    renderThumbnail(filePath) {
+        return new Promise((resolve, reject) => {
+            const loadingTask = pdfjsLib.getDocument(filePath);
+            loadingTask.promise.then(pdf => {
+                pdf.getPage(1).then(page => {
+                    const viewport = page.getViewport({ scale: 1 });
+                    const scale = 120 / viewport.width; // largura fixa 120px
+                    const scaledViewport = page.getViewport({ scale });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = scaledViewport.width;
+                    canvas.height = scaledViewport.height;
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: scaledViewport
+                    };
+                    page.render(renderContext).promise.then(() => {
+                        resolve(canvas.toDataURL());
+                    }).catch(reject);
+                }).catch(reject);
+            }).catch(reject);
+        });
+    }
+
+    updateList() {
+        const list = document.getElementById('pdf-merge-list');
+        if (this.files.length === 0) {
+            list.innerHTML = `<p class="text-muted text-center my-3">Nenhum PDF adicionado. Clique em "Adicionar PDFs" para começar.</p>`;
+            return;
+        }
+
+        // Gerar HTML dos itens
+        let html = `<div class="pdf-items">`;
+        this.files.forEach((file, index) => {
+            const thumbSrc = file.thumbnail || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="120" height="160" viewBox="0 0 120 160"%3E%3Crect width="120" height="160" fill="%23f0f0f0"/%3E%3Ctext x="60" y="80" font-family="Arial" font-size="14" fill="%23999" text-anchor="middle"%3EPDF%3C/text%3E%3C/svg%3E';
+            html += `
+                <div class="pdf-item" draggable="true" data-index="${index}" style="display:inline-block; margin:6px; padding:4px; border:1px solid #dee2e6; border-radius:6px; background:white; cursor:grab; width:120px; text-align:center; vertical-align:top;">
+                    <img src="${thumbSrc}" alt="${file.name}" style="width:100%; height:auto; border-radius:4px;">
+                    <div style="font-size:11px; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px;" title="${file.name}">${file.name}</div>
+                    <button class="btn btn-sm btn-outline-danger" style="margin-top:4px; padding:1px 6px; font-size:10px;" data-remove="${index}">✕</button>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        list.innerHTML = html;
+
+        // Adicionar eventos de drag
+        list.querySelectorAll('.pdf-item').forEach(item => {
+            item.addEventListener('dragstart', (e) => this.handleDragStart(e));
+            item.addEventListener('dragover', (e) => e.preventDefault());
+            item.addEventListener('dragenter', (e) => e.preventDefault());
+        });
+
+        // Eventos para remover
+        list.querySelectorAll('[data-remove]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const index = parseInt(btn.dataset.remove);
+                this.removeItem(index);
+            });
+        });
+    }
+
+    removeItem(index) {
+        if (index < 0 || index >= this.files.length) return;
+        this.files.splice(index, 1);
+        // Limpar cache de thumbnail (opcional)
+        this.updateList();
+        FileUtils.log(`PDF removido da lista.`, 'pdf-merge-log');
+    }
+
+    // Drag and Drop handlers
+    handleDragStart(e) {
+        const item = e.target.closest('.pdf-item');
+        if (!item) return;
+        const index = parseInt(item.dataset.index);
+        this.draggedIndex = index;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', index);
+        // Adicionar classe para feedback visual
+        setTimeout(() => item.classList.add('dragging'), 0);
+    }
+
+    handleDragOver(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }
+
+    handleDrop(e) {
+        e.preventDefault();
+        const target = e.target.closest('.pdf-item');
+        if (!target) return;
+        const targetIndex = parseInt(target.dataset.index);
+        if (this.draggedIndex === null || this.draggedIndex === targetIndex) return;
+
+        // Reordenar array
+        const [removed] = this.files.splice(this.draggedIndex, 1);
+        this.files.splice(targetIndex, 0, removed);
+        this.draggedIndex = null;
+        this.updateList();
+        FileUtils.log('Ordem dos PDFs alterada.', 'pdf-merge-log');
+    }
+
+    previewOrder() {
+        if (this.files.length === 0) {
+            FileUtils.log('Adicione PDFs primeiro.', 'pdf-merge-log');
+            return;
+        }
+        const order = this.files.map((f, i) => `${i + 1}. ${f.name}`).join('\n');
+        alert(`Ordem dos PDFs:\n\n${order}`);
+    }
+
+    async mergePDFs() {
+        const files = this.files.map(f => f.path);
+        const output = document.getElementById('pdf-merge-output').value.trim();
+
+        if (!files.length || !output) {
+            FileUtils.log('Selecione os PDFs e defina o destino.', 'pdf-merge-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-pdf-merge');
+        btn.disabled = true;
+        FileUtils.clearLog('pdf-merge-log');
+        FileUtils.log(`Juntando ${files.length} PDFs na ordem definida...`, 'pdf-merge-log');
+
+        try {
+            const result = await window.API.pdf.merge({
+                pdf_paths: files,
+                output_path: output
+            });
+            FileUtils.log(`Concluído! PDF salvo em: ${result.output_path}`, 'pdf-merge-log');
+            document.getElementById('pdf-merge-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'pdf-merge-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFMergeFeature = PDFMergeFeature;
+```
+
+
+### frontend\js\modules\pdf\merge_by_size.js
+
+```
+class PDFMergeBySizeFeature {
+    render(container) {
+        container.innerHTML = `
+            <div class="mb-3">
+                <h4 class="text-success fw-normal">Combinar por Tamanho</h4>
+                <p class="text-muted">Agrupe PDFs de uma pasta em lotes com tamanho máximo definido. Arquivos individuais que excedem o limite são copiados separadamente.</p>
+            </div>
+
+            <!-- Pastas (lado a lado) -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Pastas</h5>
+                    <div class="row g-2">
+                        <div class="col-md-12">
+                            <label class="form-label">Pasta de origem</label>
+                            <div class="input-group">
+                                <input type="text" id="pdf-merge-size-source" class="form-control" placeholder="Selecione a pasta...">
+                                <button class="btn btn-outline-secondary" id="btn-pdf-merge-size-source">Selecionar</button>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Pasta de destino</label>
+                            <div class="input-group">
+                                <input type="text" id="pdf-merge-size-dest" class="form-control" placeholder="Selecione a pasta...">
+                                <button class="btn btn-outline-secondary" id="btn-pdf-merge-size-dest">Selecionar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configurações (lado a lado) -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title text-success">Configurações</h5>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Tamanho máximo (MB)</label>
+                            <input type="number" id="pdf-merge-size-max" class="form-control" value="50" min="1" step="0.5">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Ordem dos arquivos</label>
+                            <select id="pdf-merge-size-order" class="form-select">
+                                <option value="name">Alfabética (A-Z)</option>
+                                <option value="mtime">Data de modificação (mais recente primeiro)</option>
+                                <option value="mtime_old">Data de modificação (mais antigo primeiro)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Prefixo (opcional)</label>
+                            <input type="text" id="pdf-merge-size-prefix" class="form-control" placeholder="ex: relatorio_">
+                        </div>
+                        <div class="col-md-12 d-flex align-items-end">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="pdf-merge-size-recursive">
+                                <label class="form-check-label">Incluir subpastas</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-pdf-merge-size"><i class="bi bi-play-fill"></i> Combinar</button>
+
+            <div class="progress mt-2"><div class="progress-bar" id="pdf-merge-size-progress" style="width:0%"></div></div>
+
+            <div class="mt-3">
+                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
+                <div class="log-area" id="pdf-merge-size-log">Log de operações vazio</div>
+            </div>
+        `;
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-pdf-merge-size-source').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('pdf-merge-size-source');
+        });
+
+        document.getElementById('btn-pdf-merge-size-dest').addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('pdf-merge-size-dest');
+        });
+
+        document.getElementById('btn-pdf-merge-size').addEventListener('click', () => this.mergeBySize());
+    }
+
+    async mergeBySize() {
+        const sourceDir = document.getElementById('pdf-merge-size-source').value.trim();
+        const destDir = document.getElementById('pdf-merge-size-dest').value.trim();
+        const maxSize = parseFloat(document.getElementById('pdf-merge-size-max').value);
+        const orderBy = document.getElementById('pdf-merge-size-order').value;
+        const prefix = document.getElementById('pdf-merge-size-prefix').value.trim() || undefined;
+        const recursive = document.getElementById('pdf-merge-size-recursive').checked;
+
+        if (!sourceDir || !destDir) {
+            FileUtils.log('Selecione as pastas de origem e destino.', 'pdf-merge-size-log');
+            return;
+        }
+        if (sourceDir === destDir) {
+            FileUtils.log('Origem e destino não podem ser iguais.', 'pdf-merge-size-log');
+            return;
+        }
+        if (isNaN(maxSize) || maxSize <= 0) {
+            FileUtils.log('Informe um tamanho máximo válido.', 'pdf-merge-size-log');
+            return;
+        }
+
+        const btn = document.getElementById('btn-pdf-merge-size');
+        btn.disabled = true;
+        FileUtils.clearLog('pdf-merge-size-log');
+        FileUtils.log(`Iniciando combinação com limite de ${maxSize} MB...`, 'pdf-merge-size-log');
+
+        try {
+            const result = await window.API.pdf.mergeBySize({
+                source_dir: sourceDir,
+                dest_dir: destDir,
+                max_size_mb: maxSize,
+                order_by: orderBy,
+                prefix: prefix,
+                recursive: recursive
+            });
+
+            const { processed, merged_groups, copied_files, errors } = result;
+            FileUtils.log(`Concluído! ${processed} arquivos processados.`, 'pdf-merge-size-log');
+            FileUtils.log(`  ${merged_groups} grupos combinados`, 'pdf-merge-size-log');
+            FileUtils.log(`  ${copied_files} arquivos individuais copiados (excederam o limite)`, 'pdf-merge-size-log');
+            if (errors.length) {
+                FileUtils.log(`Erros: ${errors.length}`, 'pdf-merge-size-log');
+                errors.forEach(e => FileUtils.log(`  ${e}`, 'pdf-merge-size-log'));
+            }
+            document.getElementById('pdf-merge-size-progress').style.width = '100%';
+        } catch (err) {
+            FileUtils.log(`Erro: ${err.message}`, 'pdf-merge-size-log');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+}
+
+window.PDFMergeBySizeFeature = PDFMergeBySizeFeature;
 ```
 
 
