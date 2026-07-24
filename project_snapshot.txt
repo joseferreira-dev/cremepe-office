@@ -4022,7 +4022,6 @@ def protect_password(
         encryption = pikepdf.Encryption(
             user=password,
             owner=password,  # mesma senha para simplificar
-            allow=pikepdf.Permissions(print=True, modify=True, extract=True, annotate=True, assemble=True, form_fill=True)
         )
         pdf.save(output_path, encryption=encryption)
         pdf.close()
@@ -11661,13 +11660,13 @@ class PDFProtectFeature {
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
-                <h4 class="text-success fw-normal">Proteger / Desproteger PDF</h4>
+                <h4 class="text-success fw-normal">Proteger / Desproteger</h4>
                 <p class="text-muted">Adicione ou remova senha de arquivos PDF.</p>
             </div>
 
             <ul class="nav nav-tabs mb-3" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" data-mode="protect" id="tab-protect">Proteger</button>
+                    <button class="nav-link active" data-mode="protect" id="tab-protect">Proteger com Senha</button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" data-mode="remove" id="tab-remove">Remover Senha</button>
@@ -11739,11 +11738,6 @@ class PDFProtectFeature {
             <div class="progress mt-2"><div class="progress-bar" id="protect-progress" style="width:0%"></div></div>
 
             <div id="protect-result" style="display:none;" class="mt-3">
-                <div class="row g-2">
-                    <div class="col-6"><span class="badge bg-secondary">Original: <span id="orig-size">0</span> KB</span></div>
-                    <div class="col-6"><span class="badge bg-success">Resultado: <span id="new-size">0</span> KB</span></div>
-                    <div class="col-12"><span class="badge bg-info">Redução: <span id="size-ratio">0</span>%</span></div>
-                </div>
                 <div id="password-info" class="mt-2"></div>
             </div>
 
@@ -11859,9 +11853,6 @@ class PDFProtectFeature {
             const newSize = (result.protected_size / 1024).toFixed(2);
             const reduction = ((1 - result.ratio) * 100).toFixed(1);
 
-            document.getElementById('orig-size').textContent = orig;
-            document.getElementById('new-size').textContent = newSize;
-            document.getElementById('size-ratio').textContent = reduction;
             document.getElementById('protect-result').style.display = 'block';
             document.getElementById('password-info').innerHTML = `<div><strong>Senha:</strong> ${result.password}</div>`;
 
@@ -11900,10 +11891,6 @@ class PDFProtectFeature {
             const newSize = (result.unprotected_size / 1024).toFixed(2);
             const reduction = ((1 - result.ratio) * 100).toFixed(1);
 
-            document.getElementById('orig-size').textContent = orig;
-            document.getElementById('new-size').textContent = newSize;
-            document.getElementById('size-ratio').textContent = reduction;
-            document.getElementById('protect-result').style.display = 'block';
             document.getElementById('password-info').innerHTML = '';
 
             FileUtils.log(`Senha removida! Arquivo salvo em: ${result.output_path}`, 'protect-log');

@@ -22,7 +22,7 @@ class WordModule {
     render() {
         this.container.innerHTML = `
             <div class="page active">
-                <h2 class="module-title"><i class="bi bi-file-earmark-word me-2"></i>Documentos</h2>
+                <h2 class="module-title"><i class="bi bi-file-earmark-word me-2"></i>Word</h2>
                 <div class="d-flex gap-3" style="height: calc(100% - 60px);">
                     <div class="module-sidebar flex-shrink-0" style="width: 240px;">
                         <h3>Funcionalidades</h3>
