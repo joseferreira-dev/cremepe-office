@@ -246,6 +246,58 @@ body {
     transition: background-color 0.3s;
 }
 
+/* Home - Acesso Rápido */
+.quick-access-grid {
+    min-height: 50px;
+}
+
+.quick-card {
+    transition: transform 0.2s, opacity 0.2s;
+    cursor: default;
+}
+
+.quick-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.quick-card.drag-over {
+    border: 2px dashed #007A51;
+    background-color: #f0faf7;
+    border-radius: 0.5rem;
+}
+
+.quick-card .card {
+    transition: box-shadow 0.2s, border-color 0.2s;
+    cursor: pointer;
+}
+
+.quick-card .card:hover {
+    box-shadow: 0 4px 12px rgba(0, 122, 81, 0.12);
+    border-color: #007A51;
+}
+
+#edit-area {
+    background-color: #f8fafc;
+    border: 1px dashed #007A51;
+    border-radius: 0.75rem;
+}
+
+#edit-area .form-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.2rem;
+}
+
+.remove-card-btn {
+    font-size: 0.75rem;
+}
+
+.add-feature-btn {
+    cursor: pointer;
+}
+
 /* Ajustes responsive */
 @media (max-width: 768px) {
     #sidebar {
