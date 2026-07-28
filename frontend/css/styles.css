@@ -229,6 +229,23 @@ body {
     border-color: #007A51 !important;
 }
 
+#backend-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 4px 8px;
+    border-radius: 20px;
+    margin: 4px 0;
+    color: #dce1e7;
+}
+
+#status-dot {
+    transition: background-color 0.3s;
+}
+
 /* Ajustes responsive */
 @media (max-width: 768px) {
     #sidebar {
