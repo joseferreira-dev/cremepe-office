@@ -1,6 +1,6 @@
 {
-    "name": "cremepe-office-electron",
-    "version": "0.1.0",
+    "name": "cremepe-office",
+    "version": "1.0.0",
     "main": "frontend/main.js",
     "scripts": {
         "start": "electron .",
@@ -10,7 +10,7 @@
     },
     "build": {
         "appId": "br.org.cremepe.office",
-        "productName": "CREMEPE Office",
+        "productName": "CREMEPE OFFICE",
         "directories": {
             "output": "dist"
         },
@@ -36,7 +36,9 @@
             "allowToChangeInstallationDirectory": true
         }
     },
-    "dependencies": {},
+    "dependencies": {
+        "electron-store": "^11.0.2"
+    },
     "devDependencies": {
         "concurrently": "^10.0.3",
         "electron": "^43.1.1",

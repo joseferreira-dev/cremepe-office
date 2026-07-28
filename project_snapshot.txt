@@ -98,7 +98,8 @@
 │   │   └── app.js
 │   ├── index.html
 │   ├── main.js
-│   └── preload.js
+│   ├── preload.js
+│   └── splash.html
 ├── scripts/
 │   ├── start-backend.bat
 │   ├── start-backend.sh
@@ -114,16 +115,18 @@
 
 ```
 {
-    "name": "cremepe-office-electron",
-    "version": "0.1.0",
+    "name": "cremepe-office",
+    "version": "1.0.0",
     "main": "frontend/main.js",
     "scripts": {
         "start": "electron .",
+        "start-backend": "python backend/app.py",
+        "dev": "concurrently \"npm run start-backend\" \"npm run start\"",
         "dist": "electron-builder"
     },
     "build": {
         "appId": "br.org.cremepe.office",
-        "productName": "CREMEPE Office",
+        "productName": "CREMEPE OFFICE",
         "directories": {
             "output": "dist"
         },
@@ -149,7 +152,9 @@
             "allowToChangeInstallationDirectory": true
         }
     },
-    "dependencies": {},
+    "dependencies": {
+        "electron-store": "^11.0.2"
+    },
     "devDependencies": {
         "concurrently": "^10.0.3",
         "electron": "^43.1.1",
@@ -167,20 +172,156 @@
 Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e planilhas.
 
 ## Tecnologias
-- Frontend: Electron (HTML/CSS/JS)
-- Backend: Python + Flask (API REST)
 
-## Como executar
-1. Instale Python e Node.js.
-2. Crie e ative um ambiente virtual Python.
-3. Instale as dependências: `pip install -r requirements.txt` e `npm install`.
-4. Execute `npm run dev` para iniciar backend e frontend simultaneamente.
+- **Frontend**: Electron (HTML/CSS/JS)
+- **Backend**: Python + Flask (API REST)
+- **Empacotamento**: PyInstaller (para o backend) + electron-builder (para o instalador)
 
-## Funcionalidades
+---
+
+## Executar em modo de desenvolvimento
+
+1. Instale o **Python** (versão 3.8 ou superior) e o **Node.js** (versão 18 ou superior).
+2. Clone o repositório e acesse a pasta do projeto.
+3. Crie e ative um ambiente virtual Python:
+   ```bash
+   python -m venv venv
+   # No Windows:
+   venv\Scripts\activate
+   # No Linux/Mac:
+   source venv/bin/activate
+   ```
+4. Instale as dependências do backend:
+   ```bash
+   pip install -r requirements.txt
+   ```
+5. Instale as dependências do frontend (Electron):
+   ```bash
+   npm install
+   ```
+6. Inicie o backend (em um terminal separado) ou use o comando `npm run dev` (se configurado):
+   ```bash
+   python backend/app.py
+   ```
+7. Em outro terminal, inicie o Electron:
+   ```bash
+   npm start
+   ```
+
+> **Nota**: O frontend espera o backend rodando em `http://localhost:5000`. Certifique‑se de que a porta esteja livre.
+
+---
+
+## Gerar o instalador para Windows (distribuição)
+
+O instalador final (`.exe`) inclui o frontend Electron e o backend Python empacotado como um executável único. **Nenhuma dependência externa (Python ou Node.js) é necessária** no computador do usuário final.
+
+### Pré‑requisitos para o build
+
+- Python 3.8+ com `pip`
+- Node.js 18+ com `npm`
+- Windows (para gerar o instalador NSIS)
+
+### Passo a passo
+
+1. **Ative o ambiente virtual Python** e instale todas as dependências (já deve ter feito no passo anterior):
+   ```bash
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+2. **Instale o PyInstaller** (se ainda não estiver instalado):
+   ```bash
+   pip install pyinstaller
+   ```
+
+3. **Compile o backend para um único executável**:
+   - O projeto já possui o arquivo `backend/__main__.py` que serve como ponto de entrada.
+   - Execute o comando abaixo **dentro da pasta `backend`** (ou ajuste o caminho):
+     ```bash
+     cd backend
+     pyinstaller --onefile --name backend --add-data "templates;templates" --add-data "static;static" __main__.py
+     ```
+   - Após a conclusão, o executável `backend.exe` estará em `backend/dist/`.
+   - **Importante**: Se o backend utilizar outras pastas (como `templates` ou `static`), inclua‑as com `--add-data`. Caso contrário, remova esses argumentos.
+   - Volte para a raiz do projeto:
+     ```bash
+     cd ..
+     ```
+
+4. **Instale as dependências de build do Electron** (se ainda não estiverem no `devDependencies`):
+   ```bash
+   npm install --save-dev electron-builder
+   ```
+   (O `package.json` já possui `electron-builder` configurado, mas verifique se está instalado.)
+
+5. **Execute o build do instalador**:
+   ```bash
+   npm run dist
+   ```
+   Esse comando usará o `electron-builder` para criar o instalador NSIS (Windows) na pasta `dist/`.
+
+6. **Localize o instalador**:
+   - O arquivo gerado será algo como `dist/CREMEPE Office Setup.exe`.
+   - Este instalador contém todo o aplicativo e o backend embutido. Ao ser executado, o backend será iniciado automaticamente em segundo plano.
+
+### Personalização do build
+
+- O ícone do aplicativo pode ser definido em `frontend/assets/icon.ico` (referenciado no `package.json`).
+- Para alterar o nome do produto ou outras configurações, edite a seção `"build"` no `package.json`.
+- O backend é copiado para a pasta de recursos do Electron via `extraResources`; o código em `frontend/main.js` já detecta o ambiente de produção e inicia o `backend.exe` corretamente.
+
+### Solução de problemas comuns
+
+- **Erro ao compilar o backend com PyInstaller**: Algumas bibliotecas (como `pikepdf`, `cryptography`, `pywin32`) podem precisar de `--hidden-import` ou hooks. Se ocorrer erro, adicione os imports necessários manualmente ou instale os pacotes `pyinstaller-hooks-contrib`.
+- **O instalador não inicia o backend**: Verifique se o `backend.exe` foi copiado para `resources/` dentro do app instalado. O caminho usado em `frontend/main.js` (`process.resourcesPath`) deve apontar para o local correto.
+- **Porta 5000 em uso**: O backend usa a porta 5000 por padrão. Se houver conflito, altere a variável `PORT` no código ou no ambiente.
+
+---
+
+## Estrutura do Projeto (resumida)
+
+```
+cremepe-office/
+├── backend/                # Código Python (Flask)
+│   ├── app.py              # Aplicação principal
+│   ├── __main__.py         # Ponto de entrada para PyInstaller
+│   ├── config/             # Configurações
+│   ├── controllers/        # Lógica de negócio
+│   ├── models/             # Processadores (PDF, Word, Excel, arquivos)
+│   ├── routes/             # Endpoints da API
+│   └── utils/              # Funções auxiliares
+├── frontend/               # Código Electron (HTML/CSS/JS)
+│   ├── index.html          # Página principal
+│   ├── main.js             # Processo principal do Electron
+│   ├── preload.js          # Ponte segura entre main e renderer
+│   ├── assets/             # Imagens, ícones
+│   ├── css/                # Estilos
+│   └── js/                 # JavaScript do renderer (módulos)
+├── scripts/                # Scripts auxiliares (start, etc.)
+├── package.json            # Dependências Node e configuração do electron-builder
+├── requirements.txt        # Dependências Python
+└── README.md               # Este arquivo
+```
+
+---
+
+## Funcionalidades disponíveis
+
 - Coletar e renomear arquivos em lote
-- Mesclar e dividir PDFs
-- Converter documentos Word para PDF
-- Mesclar e manipular planilhas Excel
+- Mesclar e dividir PDFs (com suporte a intervalos personalizados e tamanho)
+- Converter documentos Word para PDF e vice‑versa
+- Mesclar e manipular planilhas Excel (consolidar, extrair células, dividir por coluna, etc.)
+- Organizar arquivos por extensão
+- Comparar e sincronizar pastas
+- Compactar e extrair arquivos (ZIP, 7z, RAR, TAR)
+- Gerenciar atributos de arquivos (datas, permissões, oculto, etc.)
+
+---
+
+## Licença
+
+Este projeto é de uso interno do CREMEPE. Para mais informações, entre em contato com a equipe de desenvolvimento.
 ```
 
 
@@ -6154,9 +6295,16 @@ def get_pdf_page_count(pdf_path):
             </nav>
             <hr style="border-color: #009964;" />
             <div class="mt-auto">
-                <button class="nav-btn nav-link text-white" data-page="settings">
+                <!-- Status do Backend -->
+                <div id="backend-status" class="text-center small mb-2">
+                    <span id="status-dot"
+                        style="display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;background-color:#6c757d;"></span>
+                    <span id="status-text" style="color:#f8f9fa;font-weight:500;">Verificando...</span>
+                </div>
+                <!-- Botão Configurações ocultado (será reativado no futuro) -->
+                <!-- <button class="nav-btn nav-link text-white" data-page="settings">
                     <i class="bi bi-gear me-2"></i> Configurações
-                </button>
+                </button> -->
                 <div id="version" class="text-center text-white-50 small mt-2">v1.0.0</div>
             </div>
         </aside>
@@ -6237,14 +6385,49 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const Store = require('electron-store').default;
+
+// Inicializa o store para os atalhos
+const store = new Store({
+    name: 'user-preferences',
+    defaults: {
+        quickAccessCards: [] // padrão: vazio
+    }
+});
 
 let mainWindow;
+let splashWindow;
 let backendProcess = null;
+let backendReady = false;
 
-function createWindow() {
+// Função para criar a splash screen
+function createSplashWindow() {
+    splashWindow = new BrowserWindow({
+        width: 400,
+        height: 500,
+        frame: false,
+        transparent: false,
+        alwaysOnTop: true,
+        resizable: false,
+        center: true,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
+        },
+        icon: path.join(__dirname, 'assets', 'icon.png'),
+    });
+    splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+    splashWindow.on('closed', () => {
+        splashWindow = null;
+    });
+}
+
+// Função para criar a janela principal
+function createMainWindow() {
     mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 750,
+        width: 1280,
+        height: 800,
         minWidth: 1000,
         minHeight: 600,
         webPreferences: {
@@ -6253,17 +6436,21 @@ function createWindow() {
             nodeIntegration: false,
             enableRemoteModule: false,
         },
-        icon: path.join(__dirname, 'assets', 'icon.png'), // opcional
+        icon: path.join(__dirname, 'assets', 'icon.png'),
+        show: false,
     });
 
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
-    // DevTools (opcional, remova em produção)
-    // mainWindow.webContents.openDevTools();
+    mainWindow.once('ready-to-show', () => {
+        if (splashWindow && !splashWindow.isDestroyed()) {
+            splashWindow.close();
+        }
+        mainWindow.show();
+    });
 
     mainWindow.on('closed', () => {
         mainWindow = null;
-        // Encerrar backend ao fechar a janela
         if (backendProcess) {
             backendProcess.kill();
             backendProcess = null;
@@ -6272,71 +6459,32 @@ function createWindow() {
     });
 }
 
-ipcMain.handle('dialog:open', async (event, options) => {
-    const result = await dialog.showOpenDialog(mainWindow, options);
-    return result;
-});
-
-ipcMain.handle('dialog:save', async (event, options) => {
-    const result = await dialog.showSaveDialog(mainWindow, options);
-    return result;
-});
-
-app.whenReady().then(() => {
-    // Iniciar o servidor Flask como subprocesso
-    startBackend();
-    createWindow();
-});
-
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
-});
-
-app.on('activate', () => {
-    if (mainWindow === null) {
-        createWindow();
-    }
-});
-
-function getBackendPath() {
-    // Em desenvolvimento: usa o script Python
-    if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-        const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
-        const scriptPath = path.join(__dirname, '..', 'backend', 'app.py');
-        return { cmd: pythonPath, args: [scriptPath], isPython: true };
-    } else {
-        // Em produção: usa o executável embutido
-        // O executável backend.exe estará ao lado do app ou em resources/
-        let exePath;
-        if (process.platform === 'win32') {
-            // No Windows, o app é um .exe e os recursos ficam em resources/
-            exePath = path.join(process.resourcesPath, 'backend.exe');
-        } else {
-            // Para outros SOs, ajuste conforme
-            exePath = path.join(path.dirname(app.getPath('exe')), 'backend');
+// Health check do backend
+async function waitForBackend(maxAttempts = 30, intervalMs = 500) {
+    const url = 'http://localhost:5000/api/health';
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+            const response = await fetch(url);
+            if (response.ok) {
+                console.log('Backend está pronto!');
+                return true;
+            }
+        } catch (e) {
+            // ignore
         }
-        // Se não existir, tenta no diretório do app
-        if (!fs.existsSync(exePath)) {
-            exePath = path.join(path.dirname(app.getPath('exe')), 'backend.exe');
-        }
-        return { cmd: exePath, args: [], isPython: false };
+        await new Promise(resolve => setTimeout(resolve, intervalMs));
     }
+    console.warn('Backend não respondeu após várias tentativas.');
+    return false;
 }
 
-// Função para iniciar o backend (Flask)
+// Função para iniciar o backend
 function startBackend() {
     const { cmd, args, isPython } = getBackendPath();
     console.log(`Iniciando backend: ${cmd} ${args.join(' ')}`);
 
     const env = { ...process.env, PORT: 5000 };
-    if (isPython) {
-        backendProcess = spawn(cmd, args, { env, stdio: 'pipe' });
-    } else {
-        // Para executável, apenas executa
-        backendProcess = spawn(cmd, args, { env, stdio: 'pipe' });
-    }
+    backendProcess = spawn(cmd, args, { env, stdio: 'pipe' });
 
     backendProcess.stdout.on('data', (data) => {
         console.log(`[Backend] ${data}`);
@@ -6352,7 +6500,55 @@ function startBackend() {
     });
 }
 
-// Quando o app for fechado, mata o backend
+// Determina o caminho do backend (desenvolvimento ou produção)
+function getBackendPath() {
+    if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+        const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+        const scriptPath = path.join(__dirname, '..', 'backend', 'app.py');
+        return { cmd: pythonPath, args: [scriptPath], isPython: true };
+    } else {
+        let exePath;
+        if (process.platform === 'win32') {
+            exePath = path.join(process.resourcesPath, 'backend.exe');
+        } else {
+            exePath = path.join(path.dirname(app.getPath('exe')), 'backend');
+        }
+        if (!fs.existsSync(exePath)) {
+            exePath = path.join(path.dirname(app.getPath('exe')), 'backend.exe');
+        }
+        return { cmd: exePath, args: [], isPython: false };
+    }
+}
+
+// Eventos do app
+app.whenReady().then(async () => {
+    createSplashWindow();
+    startBackend();
+    const backendOk = await waitForBackend(30, 500);
+    if (!backendOk) {
+        console.warn('Backend não iniciou a tempo, mas continuaremos.');
+    }
+    createMainWindow();
+    setTimeout(() => {
+        if (splashWindow && !splashWindow.isDestroyed()) {
+            splashWindow.close();
+            splashWindow = null;
+        }
+    }, 2000);
+});
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+app.on('activate', () => {
+    if (mainWindow === null) {
+        createMainWindow();
+    }
+});
+
 app.on('will-quit', () => {
     if (backendProcess) {
         backendProcess.kill();
@@ -6360,7 +6556,32 @@ app.on('will-quit', () => {
     }
 });
 
-// Expor função para o renderer obter o caminho base (opcional)
+// ========== IPC HANDLERS para electron-store ==========
+ipcMain.handle('store:get', (event, key) => {
+    return store.get(key);
+});
+
+ipcMain.handle('store:set', (event, key, value) => {
+    store.set(key, value);
+    return true;
+});
+
+ipcMain.handle('store:delete', (event, key) => {
+    store.delete(key);
+    return true;
+});
+
+// ========== IPC HANDLERS para diálogos ==========
+ipcMain.handle('dialog:open', async (event, options) => {
+    const result = await dialog.showOpenDialog(mainWindow, options);
+    return result;
+});
+
+ipcMain.handle('dialog:save', async (event, options) => {
+    const result = await dialog.showSaveDialog(mainWindow, options);
+    return result;
+});
+
 ipcMain.handle('get-base-path', () => {
     return app.getAppPath();
 });
@@ -6376,7 +6597,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     // Enviar mensagem para o main (exemplo)
     send: (channel, data) => {
-        // canais permitidos
         const validChannels = ['toMain'];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data);
@@ -6389,15 +6609,102 @@ contextBridge.exposeInMainWorld('electronAPI', {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }
     },
-    // Outras funções úteis, como abrir diálogo de arquivo (via main)
+    // Diálogos
     showOpenDialog: (options) => ipcRenderer.invoke('dialog:open', options),
     showSaveDialog: (options) => ipcRenderer.invoke('dialog:save', options),
+
+    // ========== API do electron-store ==========
+    storeGet: (key) => ipcRenderer.invoke('store:get', key),
+    storeSet: (key, value) => ipcRenderer.invoke('store:set', key, value),
+    storeDelete: (key) => ipcRenderer.invoke('store:delete', key),
 });
 
-// Pode-se adicionar também uma função para obter o caminho base
+// Função para obter o caminho base
 contextBridge.exposeInMainWorld('getBasePath', () => {
     return ipcRenderer.invoke('get-base-path');
 });
+```
+
+
+### frontend\splash.html
+
+```
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CREMEPE Office</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #007A51;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            color: white;
+            margin: 0;
+        }
+
+        .splash-container {
+            text-align: center;
+        }
+
+        .logo {
+            max-width: 200px;
+            margin-bottom: 30px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .message {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            letter-spacing: 1px;
+        }
+
+        .version {
+            margin-top: 30px;
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="splash-container">
+        <!-- Substitua pelo caminho do logo -->
+        <img src="assets/logo.svg" alt="CREMEPE Office" class="logo" style="max-width:280px;">
+        <div class="spinner"></div>
+        <div class="message">Iniciando CREMEPE Office...</div>
+        <div class="version">v1.0.0</div>
+    </div>
+</body>
+
+</html>
 ```
 
 
@@ -6635,6 +6942,75 @@ body {
     border-color: #007A51 !important;
 }
 
+#backend-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 4px 8px;
+    border-radius: 20px;
+    margin: 4px 0;
+    color: #dce1e7;
+}
+
+#status-dot {
+    transition: background-color 0.3s;
+}
+
+/* Home - Acesso Rápido */
+.quick-access-grid {
+    min-height: 50px;
+}
+
+.quick-card {
+    transition: transform 0.2s, opacity 0.2s;
+    cursor: default;
+}
+
+.quick-card.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.quick-card.drag-over {
+    border: 2px dashed #007A51;
+    background-color: #f0faf7;
+    border-radius: 0.5rem;
+}
+
+.quick-card .card {
+    transition: box-shadow 0.2s, border-color 0.2s;
+    cursor: pointer;
+}
+
+.quick-card .card:hover {
+    box-shadow: 0 4px 12px rgba(0, 122, 81, 0.12);
+    border-color: #007A51;
+}
+
+#edit-area {
+    background-color: #f8fafc;
+    border: 1px dashed #007A51;
+    border-radius: 0.75rem;
+}
+
+#edit-area .form-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.2rem;
+}
+
+.remove-card-btn {
+    font-size: 0.75rem;
+}
+
+.add-feature-btn {
+    cursor: pointer;
+}
+
 /* Ajustes responsive */
 @media (max-width: 768px) {
     #sidebar {
@@ -6803,7 +7179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pdf: PDFModule,
         word: WordModule,
         excel: ExcelModule,
-        settings: SettingsPage,
+        // settings: SettingsPage,  // Desativado temporariamente
     };
 
     const container = document.getElementById('page-container');
@@ -6812,12 +7188,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.navigateTo = (page, feature = null) => {
         console.log(`Navegando para: ${page}, feature: ${feature}`);
 
-        // Atualizar botões
         document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
         const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
         if (btn) btn.classList.add('active');
 
-        // Limpar container
         container.innerHTML = '';
 
         if (pages[page]) {
@@ -6841,11 +7215,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.navigateTo('home');
 
-    if (window.API && window.API.health) {
-        window.API.health()
-            .then(() => console.log('Backend OK'))
-            .catch(err => console.warn('Backend indisponível:', err.message));
+    // ========== HEALTH CHECK DO BACKEND ==========
+    function checkBackendStatus() {
+        const dot = document.getElementById('status-dot');
+        const text = document.getElementById('status-text');
+        if (!dot || !text) return;
+
+        if (window.API && window.API.health) {
+            window.API.health()
+                .then(() => {
+                    dot.className = 'badge bg-success';
+                    dot.style.width = '10px';
+                    dot.style.height = '10px';
+                    dot.style.display = 'inline-block';
+                    dot.style.borderRadius = '50%';
+                    text.textContent = 'Backend online';
+                    dot.style.backgroundColor = '#28a745';
+                    text.style.color = '#d4edda';
+                })
+                .catch(() => {
+                    dot.className = 'badge bg-danger';
+                    dot.style.width = '10px';
+                    dot.style.height = '10px';
+                    dot.style.display = 'inline-block';
+                    dot.style.borderRadius = '50%';
+                    text.textContent = 'Backend offline';
+                    dot.style.backgroundColor = '#dc3545';
+                    text.style.color = '#f8d7da';
+                });
+        } else {
+            // fallback: API não disponível
+            dot.className = 'badge bg-warning';
+            text.textContent = 'API indisponível';
+            text.className = 'text-warning';
+        }
     }
+
+    // Verifica imediatamente e depois a cada 5 segundos
+    checkBackendStatus();
+    setInterval(checkBackendStatus, 5000);
+
+    // Primeira verificação também pode ser feita com um pequeno atraso para garantir que o backend já subiu
+    setTimeout(checkBackendStatus, 1000);
 });
 ```
 
@@ -6856,54 +7267,152 @@ document.addEventListener('DOMContentLoaded', () => {
 class HomePage {
     constructor(container) {
         this.container = container;
+        this.storageKey = 'quickAccessCards';
+        this.isEditing = false;
+        this.draggedId = null;
+        this.cards = [];
+
+        this.availableFeatures = [
+            // ARQUIVOS
+            { id: 'collect', icon: 'bi-folder2-open', title: 'Coletar Arquivos', desc: 'Reúna arquivos de múltiplas pastas.', section: 'Arquivos', page: 'files', feature: 'collect' },
+            { id: 'rename', icon: 'bi-pencil-square', title: 'Renomear em Lote', desc: 'Renomeie vários arquivos de uma vez.', section: 'Arquivos', page: 'files', feature: 'rename' },
+            { id: 'duplicates', icon: 'bi-files', title: 'Localizar Duplicatas', desc: 'Encontre arquivos duplicados.', section: 'Arquivos', page: 'files', feature: 'duplicates' },
+            { id: 'organize', icon: 'bi-diagram-2', title: 'Organizar por Extensão', desc: 'Organize arquivos por tipo.', section: 'Arquivos', page: 'files', feature: 'organize' },
+            { id: 'rename-by-content', icon: 'bi-tags', title: 'Renomear por Conteúdo', desc: 'Renomeie usando metadados.', section: 'Arquivos', page: 'files', feature: 'rename-by-content' },
+            { id: 'attributes', icon: 'bi-sliders', title: 'Alterar Atributos', desc: 'Modifique datas e permissões.', section: 'Arquivos', page: 'files', feature: 'attributes' },
+            { id: 'report', icon: 'bi-file-text', title: 'Relatório de Estrutura', desc: 'Exporte árvore de diretórios.', section: 'Arquivos', page: 'files', feature: 'report' },
+            { id: 'compare', icon: 'bi-arrow-left-right', title: 'Comparar Pastas', desc: 'Compare e sincronize pastas.', section: 'Arquivos', page: 'files', feature: 'compare' },
+            { id: 'archive', icon: 'bi-archive', title: 'Compactar/Extrair', desc: 'Crie ou extraia arquivos ZIP.', section: 'Arquivos', page: 'files', feature: 'archive' },
+            { id: 'split-file', icon: 'bi-scissors', title: 'Dividir/Remontar', desc: 'Divida ou remonte arquivos grandes.', section: 'Arquivos', page: 'files', feature: 'split' },
+            // PDF
+            { id: 'pdf-merge', icon: 'bi-file-earmark-pdf', title: 'Combinar PDFs', desc: 'Mescle vários PDFs.', section: 'PDF', page: 'pdf', feature: 'merge' },
+            { id: 'pdf-merge-size', icon: 'bi-file-earmark-pdf', title: 'Combinar por Tamanho', desc: 'Agrupe PDFs por limite de tamanho.', section: 'PDF', page: 'pdf', feature: 'merge-by-size' },
+            { id: 'pdf-split', icon: 'bi-scissors', title: 'Dividir PDF', desc: 'Divida em partes com intervalos.', section: 'PDF', page: 'pdf', feature: 'split' },
+            { id: 'pdf-split-size', icon: 'bi-rulers', title: 'Dividir por Tamanho', desc: 'Divida PDF por MB.', section: 'PDF', page: 'pdf', feature: 'split-by-size' },
+            { id: 'pdf-extract', icon: 'bi-file-earmark-pdf', title: 'Extrair Páginas', desc: 'Extraia páginas específicas.', section: 'PDF', page: 'pdf', feature: 'extract-pages' },
+            { id: 'pdf-remove', icon: 'bi-file-earmark-pdf', title: 'Remover Páginas', desc: 'Remova páginas indesejadas.', section: 'PDF', page: 'pdf', feature: 'remove-pages' },
+            { id: 'pdf-reorder', icon: 'bi-files', title: 'Reordenar Páginas', desc: 'Altere a ordem das páginas.', section: 'PDF', page: 'pdf', feature: 'reorder' },
+            { id: 'pdf-numbers', icon: 'bi-sort-numeric-down', title: 'Numerar Páginas', desc: 'Adicione numeração.', section: 'PDF', page: 'pdf', feature: 'add-page-numbers' },
+            { id: 'pdf-to-word', icon: 'bi-file-word', title: 'PDF → Word', desc: 'Converta PDF para Word.', section: 'PDF', page: 'pdf', feature: 'convert-to-word' },
+            { id: 'pdf-image', icon: 'bi-image', title: 'PDF ↔ Imagem', desc: 'Converta entre PDF e imagens.', section: 'PDF', page: 'pdf', feature: 'convert-to-image' },
+            { id: 'pdf-compress', icon: 'bi-file-earmark-pdf', title: 'Comprimir PDF', desc: 'Reduza o tamanho do PDF.', section: 'PDF', page: 'pdf', feature: 'compress' },
+            { id: 'pdf-protect', icon: 'bi-lock', title: 'Proteger/Desproteger', desc: 'Adicione ou remova senha.', section: 'PDF', page: 'pdf', feature: 'protect' },
+            // WORD
+            { id: 'word-merge', icon: 'bi-file-earmark-word', title: 'Juntar Documentos', desc: 'Combine vários Word.', section: 'Word', page: 'word', feature: 'merge' },
+            { id: 'word-convert', icon: 'bi-arrow-left-right', title: 'Converter Word', desc: 'Converta para HTML, TXT, PDF, etc.', section: 'Word', page: 'word', feature: 'convert' },
+            { id: 'word-compare', icon: 'bi-files', title: 'Comparar Docs', desc: 'Compare dois documentos.', section: 'Word', page: 'word', feature: 'compare' },
+            { id: 'word-images', icon: 'bi-image', title: 'Extrair Imagens', desc: 'Extraia imagens do documento.', section: 'Word', page: 'word', feature: 'extract-images' },
+            { id: 'word-watermark', icon: 'bi-droplet', title: 'Marca d\'Água', desc: 'Insira texto ou imagem.', section: 'Word', page: 'word', feature: 'watermark' },
+            { id: 'word-filepath', icon: 'bi-file-earmark', title: 'Caminho do Arquivo', desc: 'Insira caminho no documento.', section: 'Word', page: 'word', feature: 'filepath' },
+            // EXCEL
+            { id: 'excel-convert', icon: 'bi-file-earmark-excel', title: 'Conversão em Lote', desc: 'Converta planilhas em lote.', section: 'Excel', page: 'excel', feature: 'convert' },
+            { id: 'excel-merge', icon: 'bi-table', title: 'Combinar Planilhas', desc: 'Consolide várias planilhas.', section: 'Excel', page: 'excel', feature: 'merge-all' },
+            { id: 'excel-extract', icon: 'bi-grid', title: 'Extrair Células', desc: 'Extraia células específicas.', section: 'Excel', page: 'excel', feature: 'extract-cells' },
+            { id: 'excel-split', icon: 'bi-columns', title: 'Dividir por Coluna', desc: 'Divida pela coluna chave.', section: 'Excel', page: 'excel', feature: 'split' },
+            { id: 'excel-sheets', icon: 'bi-files', title: 'Extrair Abas', desc: 'Separe abas em arquivos.', section: 'Excel', page: 'excel', feature: 'split-sheets' },
+        ];
     }
 
-    render() {
+    async getCards() {
+        if (window.electronAPI && window.electronAPI.storeGet) {
+            try {
+                const stored = await window.electronAPI.storeGet(this.storageKey);
+                if (Array.isArray(stored)) {
+                    return stored;
+                }
+            } catch (e) {
+                console.warn('Erro ao ler store:', e);
+            }
+        }
+        return [];
+    }
+
+    async saveCards(cards) {
+        if (window.electronAPI && window.electronAPI.storeSet) {
+            try {
+                await window.electronAPI.storeSet(this.storageKey, cards);
+                return true;
+            } catch (e) {
+                console.warn('Erro ao salvar store:', e);
+                return false;
+            }
+        }
+        return false;
+    }
+
+    async render() {
+        this.cards = await this.getCards();
+        const cardIds = this.cards.map(c => c.id);
+
+        let cardsHtml = '';
+        if (this.cards.length === 0) {
+            cardsHtml = `
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-grid-3x3-gap" style="font-size: 2rem;"></i>
+                    <p class="mt-2">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
+                </div>
+            `;
+        } else {
+            cardsHtml = `<div class="row g-3" id="quick-access-grid">${this.renderCardItems(this.cards)}</div>`;
+        }
+
+        const sections = ['Arquivos', 'PDF', 'Word', 'Excel'];
+        let checkboxesHtml = '';
+        sections.forEach(section => {
+            const sectionFeatures = this.availableFeatures.filter(f => f.section === section);
+            if (sectionFeatures.length === 0) return;
+            checkboxesHtml += `
+                <div class="mb-3">
+                    <h6 class="text-success fw-bold">${section}</h6>
+                    <div class="row">
+                        ${sectionFeatures.map(f => `
+                            <div class="col-md-6 col-lg-4">
+                                <div class="form-check">
+                                    <input class="form-check-input feature-checkbox" type="checkbox" value="${f.id}" id="chk-${f.id}" ${cardIds.includes(f.id) ? 'checked' : ''}>
+                                    <label class="form-check-label" for="chk-${f.id}">
+                                        <i class="bi ${f.icon}"></i> ${f.title}
+                                    </label>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        });
+
         this.container.innerHTML = `
             <div class="page active">
                 <h1 class="module-title">Painel Inicial</h1>
 
-                <!-- Estatísticas -->
-                <div class="row g-3 mb-4">
-                    <div class="col-6 col-md-3">
-                        <div class="stat-card">
-                            <div class="stat-number">1.284</div>
-                            <div class="stat-label">Arquivos Processados</div>
-                            <div class="stat-detail">Esta semana</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="stat-card">
-                            <div class="stat-number">12</div>
-                            <div class="stat-label">Operações Hoje</div>
-                            <div class="stat-detail">Última: 14:32</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="stat-card">
-                            <div class="stat-number">3</div>
-                            <div class="stat-label">Erros Registrados</div>
-                            <div class="stat-detail">Taxa: 0,2%</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="stat-card">
-                            <div class="stat-number">2,4 GB</div>
-                            <div class="stat-label">Espaço Economizado</div>
-                            <div class="stat-detail">Desde jan/2026</div>
-                        </div>
+                <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+                    <h2 class="h5 text-success fw-normal mb-0">Acesso Rápido</h2>
+                    <div>
+                        <button class="btn btn-sm btn-outline-success" id="toggle-edit-mode">
+                            <i class="bi bi-pencil"></i> ${this.isEditing ? 'Concluir edição' : 'Editar'}
+                        </button>
                     </div>
                 </div>
 
-                <h2 class="h5 text-success fw-normal mt-3">Acesso Rápido</h2>
-                <div class="row g-3">
-                    ${this.createCard('bi-folder2-open', 'Coletar Arquivos', 'Reúna arquivos de múltiplas pastas em um destino.', 'files', 'collect')}
-                    ${this.createCard('bi-pencil-square', 'Renomear em Lote', 'Renomeie centenas de arquivos de uma só vez.', 'files', 'rename')}
-                    ${this.createCard('bi-file-earmark-pdf', 'Mesclar PDFs', 'Combine vários PDFs em um único documento.', 'pdf', 'merge')}
-                    ${this.createCard('bi-arrow-left-right', 'Converter Docs', 'Converta entre formatos Word, PDF e mais.', 'word', 'convert')}
+                <div id="quick-access-container">
+                    ${cardsHtml}
                 </div>
 
-                <h2 class="h5 text-success fw-normal mt-4">Atividade Recente</h2>
+                <div id="edit-area" style="${this.isEditing ? 'display:block;' : 'display:none;'}" class="mt-4 p-3 border rounded bg-light">
+                    <h5 class="text-success"><i class="bi bi-check2-square"></i> Selecione as funcionalidades para exibir</h5>
+                    <div id="checkboxes-container">
+                        ${checkboxesHtml}
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-success" id="apply-changes-btn">
+                            <i class="bi bi-check2"></i> Aplicar alterações
+                        </button>
+                        <button class="btn btn-outline-secondary ms-2" id="reset-cards-btn">
+                            <i class="bi bi-arrow-counterclockwise"></i> Restaurar vazio
+                        </button>
+                    </div>
+                </div>
+
+                <h2 class="h5 text-success fw-normal mt-4 mb-3">Atividade Recente</h2>
                 <div class="card p-0 border">
                     <div class="list-group list-group-flush">
                         <div class="list-group-item d-flex justify-content-between align-items-center">
@@ -6931,32 +7440,173 @@ class HomePage {
             </div>
         `;
 
-        // Eventos dos cards
-        this.container.querySelectorAll('.card .btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const card = e.target.closest('.card');
-                const page = card.dataset.page;
-                const feature = card.dataset.feature;
-                window.navigateTo(page, feature);
-            });
-        });
+        this.attachEvents();
+
+        if (this.isEditing) {
+            this.initDragDrop();
+        }
     }
 
-    createCard(iconClass, title, desc, page, feature) {
-        return `
-            <div class="col-6 col-md-3">
-                <div class="card h-100" data-page="${page}" data-feature="${feature}">
+    renderCardItems(cards) {
+        return cards.map(card => `
+            <div class="col-6 col-md-3 quick-card" draggable="${this.isEditing}" data-id="${card.id}">
+                <div class="card h-100" data-page="${card.page}" data-feature="${card.feature}">
                     <div class="card-body d-flex flex-column">
-                        <div class="card-icon mb-2"><i class="bi ${iconClass}"></i></div>
-                        <h5 class="card-title">${title}</h5>
-                        <p class="card-text">${desc}</p>
-                        <button class="btn btn-success mt-auto align-self-start">Abrir</button>
+                        <div class="card-icon mb-2"><i class="bi ${card.icon}"></i></div>
+                        <h5 class="card-title">${card.title}</h5>
+                        <p class="card-text">${card.desc}</p>
+                        <span class="badge bg-secondary mb-2 align-self-start">${card.section}</span>
+                        <button class="btn btn-success mt-auto align-self-start btn-open-card">Abrir</button>
+                        ${this.isEditing ? `<button class="btn btn-sm btn-outline-danger mt-2 remove-card-btn" data-id="${card.id}"><i class="bi bi-trash"></i> Remover</button>` : ''}
                     </div>
                 </div>
             </div>
-        `;
+        `).join('');
+    }
+
+    attachEvents() {
+        this.container.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-open-card');
+            if (btn) {
+                e.stopPropagation();
+                const card = btn.closest('.card');
+                const page = card.dataset.page;
+                const feature = card.dataset.feature;
+                if (page && feature) {
+                    window.navigateTo(page, feature);
+                }
+            }
+        });
+
+        this.container.addEventListener('click', (e) => {
+            const card = e.target.closest('.quick-card .card');
+            if (!card) return;
+            if (e.target.closest('.btn-open-card') || e.target.closest('.remove-card-btn')) return;
+            const page = card.dataset.page;
+            const feature = card.dataset.feature;
+            if (page && feature) {
+                window.navigateTo(page, feature);
+            }
+        });
+
+        this.container.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.remove-card-btn');
+            if (!btn) return;
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            if (!id) return;
+            const card = this.cards.find(c => c.id === id);
+            if (!card) return;
+            if (confirm(`Remover o atalho "${card.title}"?`)) {
+                const updated = this.cards.filter(c => c.id !== id);
+                await this.saveCards(updated);
+                this.render();
+            }
+        });
+
+        const toggleBtn = document.getElementById('toggle-edit-mode');
+        if (toggleBtn) {
+            const newToggle = toggleBtn.cloneNode(true);
+            toggleBtn.parentNode.replaceChild(newToggle, toggleBtn);
+            newToggle.addEventListener('click', () => {
+                this.isEditing = !this.isEditing;
+                this.render();
+            });
+        }
+
+        const applyBtn = document.getElementById('apply-changes-btn');
+        if (applyBtn) {
+            const newApply = applyBtn.cloneNode(true);
+            applyBtn.parentNode.replaceChild(newApply, applyBtn);
+            newApply.addEventListener('click', async () => {
+                const checkedBoxes = document.querySelectorAll('.feature-checkbox:checked');
+                const selectedIds = Array.from(checkedBoxes).map(cb => cb.value);
+                const selectedFeatures = this.availableFeatures.filter(f => selectedIds.includes(f.id));
+                const currentCards = this.cards;
+                const updatedCards = [];
+                currentCards.forEach(card => {
+                    if (selectedIds.includes(card.id)) {
+                        updatedCards.push(card);
+                    }
+                });
+                selectedFeatures.forEach(f => {
+                    if (!updatedCards.some(c => c.id === f.id)) {
+                        updatedCards.push({ ...f });
+                    }
+                });
+                await this.saveCards(updatedCards);
+                this.render();
+            });
+        }
+
+        const resetBtn = document.getElementById('reset-cards-btn');
+        if (resetBtn) {
+            const newReset = resetBtn.cloneNode(true);
+            resetBtn.parentNode.replaceChild(newReset, resetBtn);
+            newReset.addEventListener('click', async () => {
+                if (confirm('Remover todos os atalhos da Home?')) {
+                    await this.saveCards([]);
+                    this.render();
+                }
+            });
+        }
+    }
+
+    initDragDrop() {
+        const grid = document.getElementById('quick-access-grid');
+        if (!grid) return;
+
+        const items = grid.querySelectorAll('.quick-card');
+        items.forEach(item => {
+            const newItem = item.cloneNode(true);
+            item.parentNode.replaceChild(newItem, item);
+
+            newItem.addEventListener('dragstart', (e) => {
+                this.draggedId = newItem.dataset.id;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', this.draggedId);
+                newItem.classList.add('dragging');
+            });
+
+            newItem.addEventListener('dragend', () => {
+                newItem.classList.remove('dragging');
+                document.querySelectorAll('.quick-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+            });
+
+            newItem.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                newItem.classList.add('drag-over');
+            });
+
+            newItem.addEventListener('dragleave', () => {
+                newItem.classList.remove('drag-over');
+            });
+
+            newItem.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                newItem.classList.remove('drag-over');
+                const draggedId = e.dataTransfer.getData('text/plain');
+                if (!draggedId || draggedId === newItem.dataset.id) return;
+
+                const draggedCard = this.cards.find(c => c.id === draggedId);
+                const targetCard = this.cards.find(c => c.id === newItem.dataset.id);
+                if (!draggedCard || !targetCard) return;
+
+                const fromIndex = this.cards.indexOf(draggedCard);
+                const toIndex = this.cards.indexOf(targetCard);
+                if (fromIndex === -1 || toIndex === -1) return;
+
+                const [moved] = this.cards.splice(fromIndex, 1);
+                const newToIndex = this.cards.indexOf(targetCard);
+                this.cards.splice(newToIndex, 0, moved);
+                await this.saveCards(this.cards);
+                this.render();
+            });
+        });
     }
 }
+
 window.HomePage = HomePage;
 ```
 

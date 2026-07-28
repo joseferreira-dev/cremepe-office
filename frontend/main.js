@@ -2,6 +2,15 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
+const Store = require('electron-store').default;
+
+// Inicializa o store para os atalhos
+const store = new Store({
+    name: 'user-preferences',
+    defaults: {
+        quickAccessCards: [] // padrão: vazio
+    }
+});
 
 let mainWindow;
 let splashWindow;
@@ -11,7 +20,7 @@ let backendReady = false;
 // Função para criar a splash screen
 function createSplashWindow() {
     splashWindow = new BrowserWindow({
-        width: 400,
+        width: 500,
         height: 500,
         frame: false,
         transparent: false,
@@ -34,8 +43,8 @@ function createSplashWindow() {
 // Função para criar a janela principal
 function createMainWindow() {
     mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
+        width: 1600,
+        height: 900,
         minWidth: 1000,
         minHeight: 600,
         webPreferences: {
@@ -45,13 +54,12 @@ function createMainWindow() {
             enableRemoteModule: false,
         },
         icon: path.join(__dirname, 'assets', 'icon.png'),
-        show: false, // não mostra até estar pronta
+        show: false,
     });
 
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
     mainWindow.once('ready-to-show', () => {
-        // Quando a janela estiver carregada, exibe e fecha splash
         if (splashWindow && !splashWindow.isDestroyed()) {
             splashWindow.close();
         }
@@ -79,7 +87,7 @@ async function waitForBackend(maxAttempts = 30, intervalMs = 500) {
                 return true;
             }
         } catch (e) {
-            // ignore, tenta novamente
+            // ignore
         }
         await new Promise(resolve => setTimeout(resolve, intervalMs));
     }
@@ -87,7 +95,7 @@ async function waitForBackend(maxAttempts = 30, intervalMs = 500) {
     return false;
 }
 
-// Função para iniciar o backend (mantida)
+// Função para iniciar o backend
 function startBackend() {
     const { cmd, args, isPython } = getBackendPath();
     console.log(`Iniciando backend: ${cmd} ${args.join(' ')}`);
@@ -131,23 +139,13 @@ function getBackendPath() {
 
 // Eventos do app
 app.whenReady().then(async () => {
-    // Cria splash primeiro
     createSplashWindow();
-
-    // Inicia o backend
     startBackend();
-
-    // Aguarda o backend ficar pronto (com timeout)
-    const backendOk = await waitForBackend(30, 500); // 15 segundos
-
+    const backendOk = await waitForBackend(30, 500);
     if (!backendOk) {
         console.warn('Backend não iniciou a tempo, mas continuaremos.');
     }
-
-    // Cria a janela principal
     createMainWindow();
-
-    // Força o fechamento da splash se ainda estiver aberta (caso o ready-to-show da main não dispare)
     setTimeout(() => {
         if (splashWindow && !splashWindow.isDestroyed()) {
             splashWindow.close();
@@ -168,7 +166,6 @@ app.on('activate', () => {
     }
 });
 
-// Quando o app for fechado, mata o backend
 app.on('will-quit', () => {
     if (backendProcess) {
         backendProcess.kill();
@@ -176,7 +173,22 @@ app.on('will-quit', () => {
     }
 });
 
-// IPC handlers (dialogos)
+// ========== IPC HANDLERS para electron-store ==========
+ipcMain.handle('store:get', (event, key) => {
+    return store.get(key);
+});
+
+ipcMain.handle('store:set', (event, key, value) => {
+    store.set(key, value);
+    return true;
+});
+
+ipcMain.handle('store:delete', (event, key) => {
+    store.delete(key);
+    return true;
+});
+
+// ========== IPC HANDLERS para diálogos ==========
 ipcMain.handle('dialog:open', async (event, options) => {
     const result = await dialog.showOpenDialog(mainWindow, options);
     return result;

@@ -4,6 +4,7 @@ class HomePage {
         this.storageKey = 'quickAccessCards';
         this.isEditing = false;
         this.draggedId = null;
+        this.cards = [];
 
         // ====== TODAS AS FUNCIONALIDADES DISPONÍVEIS (PRÉ‑DEFINIDAS) ======
         this.availableFeatures = [
@@ -45,33 +46,46 @@ class HomePage {
             { id: 'excel-split', icon: 'bi-columns', title: 'Dividir por Coluna', desc: 'Divida pela coluna chave.', section: 'Excel', page: 'excel', feature: 'split' },
             { id: 'excel-sheets', icon: 'bi-files', title: 'Extrair Abas', desc: 'Separe abas em arquivos.', section: 'Excel', page: 'excel', feature: 'split-sheets' },
         ];
+
+        // Inicializa eventos uma única vez
+        this.setupEventListeners();
     }
 
-    // ====== CARDS SALVOS ======
-    getCards() {
-        const stored = localStorage.getItem(this.storageKey);
-        if (stored) {
+    // ====== CARDS: ler do electron-store ======
+    async getCards() {
+        if (window.electronAPI && window.electronAPI.storeGet) {
             try {
-                const parsed = JSON.parse(stored);
-                if (Array.isArray(parsed)) {
-                    return parsed;
+                const stored = await window.electronAPI.storeGet(this.storageKey);
+                if (Array.isArray(stored)) {
+                    return stored;
                 }
-            } catch (e) { }
+            } catch (e) {
+                console.warn('Erro ao ler store:', e);
+            }
         }
         return [];
     }
 
-    saveCards(cards) {
-        localStorage.setItem(this.storageKey, JSON.stringify(cards));
+    async saveCards(cards) {
+        if (window.electronAPI && window.electronAPI.storeSet) {
+            try {
+                await window.electronAPI.storeSet(this.storageKey, cards);
+                return true;
+            } catch (e) {
+                console.warn('Erro ao salvar store:', e);
+                return false;
+            }
+        }
+        return false;
     }
 
     // ====== RENDER ======
-    render() {
-        const cards = this.getCards();
-        const cardIds = cards.map(c => c.id);
+    async render() {
+        this.cards = await this.getCards();
+        const cardIds = this.cards.map(c => c.id);
 
         let cardsHtml = '';
-        if (cards.length === 0) {
+        if (this.cards.length === 0) {
             cardsHtml = `
                 <div class="text-center text-muted py-4">
                     <i class="bi bi-grid-3x3-gap" style="font-size: 2rem;"></i>
@@ -79,10 +93,9 @@ class HomePage {
                 </div>
             `;
         } else {
-            cardsHtml = `<div class="row g-3" id="quick-access-grid">${this.renderCardItems(cards)}</div>`;
+            cardsHtml = `<div class="row g-3" id="quick-access-grid">${this.renderCardItems(this.cards)}</div>`;
         }
 
-        // Gerar lista de checkboxes, agrupados por seção
         const sections = ['Arquivos', 'PDF', 'Word', 'Excel'];
         let checkboxesHtml = '';
         sections.forEach(section => {
@@ -124,7 +137,6 @@ class HomePage {
                     ${cardsHtml}
                 </div>
 
-                <!-- Área de edição com checkboxes -->
                 <div id="edit-area" style="${this.isEditing ? 'display:block;' : 'display:none;'}" class="mt-4 p-3 border rounded bg-light">
                     <h5 class="text-success"><i class="bi bi-check2-square"></i> Selecione as funcionalidades para exibir</h5>
                     <div id="checkboxes-container">
@@ -140,8 +152,7 @@ class HomePage {
                     </div>
                 </div>
 
-                <!-- Atividade Recente -->
-                <h2 class="h5 text-success fw-normal mt-4 mb-3">Atividade Recente</h2>
+                <!-- <h2 class="h5 text-success fw-normal mt-4 mb-3">Atividade Recente</h2>
                 <div class="card p-0 border">
                     <div class="list-group list-group-flush">
                         <div class="list-group-item d-flex justify-content-between align-items-center">
@@ -165,11 +176,11 @@ class HomePage {
                             <small class="text-muted">Ontem</small>
                         </div>
                     </div>
-                </div>
+                </div>-->
             </div>
         `;
 
-        this.attachEvents();
+        // Após atualizar o DOM, reaplica os eventos de drag (se necessário)
         if (this.isEditing) {
             this.initDragDrop();
         }
@@ -192,95 +203,95 @@ class HomePage {
         `).join('');
     }
 
-    // ====== EVENTOS ======
-    attachEvents() {
-        // Abrir funcionalidade
-        this.container.querySelectorAll('.btn-open-card').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+    // ====== CONFIGURAÇÃO DE EVENTOS (UMA ÚNICA VEZ) ======
+    setupEventListeners() {
+        // Delegação para todos os eventos do container
+        this.container.addEventListener('click', async (e) => {
+            const target = e.target;
+
+            // 1. Botão "Abrir" no card
+            if (target.closest('.btn-open-card')) {
                 e.stopPropagation();
-                const card = e.target.closest('.card');
+                const card = target.closest('.card');
                 const page = card.dataset.page;
                 const feature = card.dataset.feature;
-                window.navigateTo(page, feature);
-            });
-        });
+                if (page && feature) {
+                    window.navigateTo(page, feature);
+                }
+                return;
+            }
 
-        // Clique no card (exceto botões)
-        this.container.querySelectorAll('.quick-card .card').forEach(card => {
-            card.addEventListener('click', (e) => {
-                if (e.target.closest('.btn-open-card') || e.target.closest('.remove-card-btn')) return;
+            // 2. Clique no card (qualquer área, exceto botões)
+            if (target.closest('.quick-card .card') && !target.closest('.btn-open-card') && !target.closest('.remove-card-btn')) {
+                const card = target.closest('.card');
                 const page = card.dataset.page;
                 const feature = card.dataset.feature;
-                window.navigateTo(page, feature);
-            });
-        });
+                if (page && feature) {
+                    window.navigateTo(page, feature);
+                }
+                return;
+            }
 
-        // Alternar edição
-        const toggleBtn = document.getElementById('toggle-edit-mode');
-        toggleBtn.addEventListener('click', () => {
-            this.isEditing = !this.isEditing;
-            this.render();
-        });
+            // 3. Botão "Remover"
+            if (target.closest('.remove-card-btn')) {
+                e.stopPropagation();
+                const btn = target.closest('.remove-card-btn');
+                const id = btn.dataset.id;
+                if (!id) return;
+                const card = this.cards.find(c => c.id === id);
+                if (!card) return;
+                if (confirm(`Remover o atalho "${card.title}"?`)) {
+                    const updated = this.cards.filter(c => c.id !== id);
+                    await this.saveCards(updated);
+                    this.render();
+                }
+                return;
+            }
 
-        // Aplicar alterações (checkboxes)
-        const applyBtn = document.getElementById('apply-changes-btn');
-        if (applyBtn) {
-            applyBtn.addEventListener('click', () => {
+            // 4. Alternar edição
+            if (target.id === 'toggle-edit-mode') {
+                this.isEditing = !this.isEditing;
+                this.render();
+                return;
+            }
+
+            // 5. Aplicar alterações (checkboxes)
+            if (target.id === 'apply-changes-btn') {
                 const checkedBoxes = document.querySelectorAll('.feature-checkbox:checked');
                 const selectedIds = Array.from(checkedBoxes).map(cb => cb.value);
                 const selectedFeatures = this.availableFeatures.filter(f => selectedIds.includes(f.id));
-                // Preservar a ordem existente (se o card já estiver na lista, mantém a posição)
-                const currentCards = this.getCards();
+                const currentCards = this.cards;
                 const updatedCards = [];
-                // Primeiro, manter os cards que ainda estão selecionados, na ordem atual
+                // Manter a ordem dos cards existentes
                 currentCards.forEach(card => {
                     if (selectedIds.includes(card.id)) {
                         updatedCards.push(card);
                     }
                 });
-                // Depois, adicionar os novos (que não estavam na lista)
+                // Adicionar novos que não estavam na lista
                 selectedFeatures.forEach(f => {
                     if (!updatedCards.some(c => c.id === f.id)) {
                         updatedCards.push({ ...f });
                     }
                 });
-                this.saveCards(updatedCards);
+                await this.saveCards(updatedCards);
                 this.render();
-            });
-        }
+                return;
+            }
 
-        // Restaurar vazio
-        const resetBtn = document.getElementById('reset-cards-btn');
-        if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
+            // 6. Restaurar vazio
+            if (target.id === 'reset-cards-btn') {
                 if (confirm('Remover todos os atalhos da Home?')) {
-                    this.saveCards([]);
+                    await this.saveCards([]);
                     this.render();
                 }
-            });
-        }
-
-        // Remover card (delegação)
-        this.container.addEventListener('click', (e) => {
-            if (e.target.closest('.remove-card-btn')) {
-                const btn = e.target.closest('.remove-card-btn');
-                const id = btn.dataset.id;
-                if (!id) return;
-                const cards = this.getCards();
-                const card = cards.find(c => c.id === id);
-                if (!card) return;
-                if (confirm(`Remover o atalho "${card.title}"?`)) {
-                    const updated = cards.filter(c => c.id !== id);
-                    this.saveCards(updated);
-                    this.render();
-                }
+                return;
             }
         });
     }
 
     // ====== DRAG & DROP ======
     initDragDrop() {
-        const cards = this.getCards();
         const grid = document.getElementById('quick-access-grid');
         if (!grid) return;
 
@@ -308,24 +319,24 @@ class HomePage {
                 item.classList.remove('drag-over');
             });
 
-            item.addEventListener('drop', (e) => {
+            item.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 item.classList.remove('drag-over');
                 const draggedId = e.dataTransfer.getData('text/plain');
                 if (!draggedId || draggedId === item.dataset.id) return;
 
-                const draggedCard = cards.find(c => c.id === draggedId);
-                const targetCard = cards.find(c => c.id === item.dataset.id);
+                const draggedCard = this.cards.find(c => c.id === draggedId);
+                const targetCard = this.cards.find(c => c.id === item.dataset.id);
                 if (!draggedCard || !targetCard) return;
 
-                const fromIndex = cards.indexOf(draggedCard);
-                const toIndex = cards.indexOf(targetCard);
+                const fromIndex = this.cards.indexOf(draggedCard);
+                const toIndex = this.cards.indexOf(targetCard);
                 if (fromIndex === -1 || toIndex === -1) return;
 
-                const [moved] = cards.splice(fromIndex, 1);
-                const newToIndex = cards.indexOf(targetCard);
-                cards.splice(newToIndex, 0, moved);
-                this.saveCards(cards);
+                const [moved] = this.cards.splice(fromIndex, 1);
+                const newToIndex = this.cards.indexOf(targetCard);
+                this.cards.splice(newToIndex, 0, moved);
+                await this.saveCards(this.cards);
                 this.render();
             });
         });

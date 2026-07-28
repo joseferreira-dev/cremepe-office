@@ -4,7 +4,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
     // Enviar mensagem para o main (exemplo)
     send: (channel, data) => {
-        // canais permitidos
         const validChannels = ['toMain'];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data);
@@ -17,12 +16,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }
     },
-    // Outras funções úteis, como abrir diálogo de arquivo (via main)
+    // Diálogos
     showOpenDialog: (options) => ipcRenderer.invoke('dialog:open', options),
     showSaveDialog: (options) => ipcRenderer.invoke('dialog:save', options),
+
+    // ========== API do electron-store ==========
+    storeGet: (key) => ipcRenderer.invoke('store:get', key),
+    storeSet: (key, value) => ipcRenderer.invoke('store:set', key, value),
+    storeDelete: (key) => ipcRenderer.invoke('store:delete', key),
 });
 
-// Pode-se adicionar também uma função para obter o caminho base
+// Função para obter o caminho base
 contextBridge.exposeInMainWorld('getBasePath', () => {
     return ipcRenderer.invoke('get-base-path');
 });
