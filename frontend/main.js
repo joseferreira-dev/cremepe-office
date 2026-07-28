@@ -65,21 +65,43 @@ app.on('activate', () => {
     }
 });
 
+function getBackendPath() {
+    // Em desenvolvimento: usa o script Python
+    if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+        const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+        const scriptPath = path.join(__dirname, '..', 'backend', 'app.py');
+        return { cmd: pythonPath, args: [scriptPath], isPython: true };
+    } else {
+        // Em produção: usa o executável embutido
+        // O executável backend.exe estará ao lado do app ou em resources/
+        let exePath;
+        if (process.platform === 'win32') {
+            // No Windows, o app é um .exe e os recursos ficam em resources/
+            exePath = path.join(process.resourcesPath, 'backend.exe');
+        } else {
+            // Para outros SOs, ajuste conforme
+            exePath = path.join(path.dirname(app.getPath('exe')), 'backend');
+        }
+        // Se não existir, tenta no diretório do app
+        if (!fs.existsSync(exePath)) {
+            exePath = path.join(path.dirname(app.getPath('exe')), 'backend.exe');
+        }
+        return { cmd: exePath, args: [], isPython: false };
+    }
+}
+
 // Função para iniciar o backend (Flask)
 function startBackend() {
-    const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
-    const backendScript = path.join(__dirname, '..', 'backend', 'app.py');
+    const { cmd, args, isPython } = getBackendPath();
+    console.log(`Iniciando backend: ${cmd} ${args.join(' ')}`);
 
-    // Verifica se o script existe
-    if (!fs.existsSync(backendScript)) {
-        console.error('Backend script not found:', backendScript);
-        return;
+    const env = { ...process.env, PORT: 5000 };
+    if (isPython) {
+        backendProcess = spawn(cmd, args, { env, stdio: 'pipe' });
+    } else {
+        // Para executável, apenas executa
+        backendProcess = spawn(cmd, args, { env, stdio: 'pipe' });
     }
-
-    backendProcess = spawn(pythonPath, [backendScript], {
-        env: { ...process.env, PORT: 5000 },
-        stdio: 'pipe',
-    });
 
     backendProcess.stdout.on('data', (data) => {
         console.log(`[Backend] ${data}`);
@@ -93,13 +115,15 @@ function startBackend() {
         console.log(`Backend process exited with code ${code}`);
         backendProcess = null;
     });
-
-    // Aguardar um pouco para o servidor iniciar
-    // (em produção, seria melhor usar um mecanismo de health check)
-    setTimeout(() => {
-        console.log('Backend iniciado (aguardando conexão)');
-    }, 2000);
 }
+
+// Quando o app for fechado, mata o backend
+app.on('will-quit', () => {
+    if (backendProcess) {
+        backendProcess.kill();
+        backendProcess = null;
+    }
+});
 
 // Expor função para o renderer obter o caminho base (opcional)
 ipcMain.handle('get-base-path', () => {

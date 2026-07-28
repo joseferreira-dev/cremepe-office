@@ -1,17 +1,43 @@
 {
     "name": "cremepe-office-electron",
     "version": "0.1.0",
-    "description": "CREMEPE Office",
     "main": "frontend/main.js",
     "scripts": {
         "start": "electron .",
-        "start-backend": "python backend/app.py",
-        "dev": "concurrently \"npm run start-backend\" \"npm run start\""
+        "dist": "electron-builder"
     },
-    "dependencies": {
-        "electron": "^43.1.1"
+    "build": {
+        "appId": "br.org.cremepe.office",
+        "productName": "CREMEPE Office",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "frontend/**/*",
+            "node_modules/**/*"
+        ],
+        "extraResources": [
+            {
+                "from": "backend/dist/backend.exe",
+                "to": "backend.exe",
+                "filter": [
+                    "**/*"
+                ]
+            }
+        ],
+        "win": {
+            "target": "nsis",
+            "icon": "frontend/assets/icon.ico"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true
+        }
     },
+    "dependencies": {},
     "devDependencies": {
-        "concurrently": "^10.0.3"
+        "concurrently": "^10.0.3",
+        "electron": "^43.1.1",
+        "electron-builder": "^26.15.3"
     }
 }

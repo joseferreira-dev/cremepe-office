@@ -1,5 +1,5 @@
 # Snapshot do projeto: cremepe-office
-# Gerado em: C:\Projetos\cremepe-office
+# Gerado em: C:\Users\gjose\Desktop\cremepe-office
 
 ## ESTRUTURA DE DIRETÓRIOS
 
@@ -39,6 +39,7 @@
 │   │   ├── file_utils.py
 │   │   ├── pdf_utils.py
 │   │   └── word_utils.py
+│   ├── __main__.py
 │   └── app.py
 ├── frontend/
 │   ├── assets/
@@ -115,18 +116,44 @@
 {
     "name": "cremepe-office-electron",
     "version": "0.1.0",
-    "description": "CREMEPE Office",
     "main": "frontend/main.js",
     "scripts": {
         "start": "electron .",
-        "start-backend": "python backend/app.py",
-        "dev": "concurrently \"npm run start-backend\" \"npm run start\""
+        "dist": "electron-builder"
     },
-    "dependencies": {
-        "electron": "^43.1.1"
+    "build": {
+        "appId": "br.org.cremepe.office",
+        "productName": "CREMEPE Office",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "frontend/**/*",
+            "node_modules/**/*"
+        ],
+        "extraResources": [
+            {
+                "from": "backend/dist/backend.exe",
+                "to": "backend.exe",
+                "filter": [
+                    "**/*"
+                ]
+            }
+        ],
+        "win": {
+            "target": "nsis",
+            "icon": "frontend/assets/icon.ico"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true
+        }
     },
+    "dependencies": {},
     "devDependencies": {
-        "concurrently": "^10.0.3"
+        "concurrently": "^10.0.3",
+        "electron": "^43.1.1",
+        "electron-builder": "^26.15.3"
     }
 }
 ```
@@ -210,6 +237,16 @@ def health():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
+```
+
+
+### backend\__main__.py
+
+```
+from app import app
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
 ```
 
 
@@ -877,10 +914,12 @@ class PDFController:
         return reorder_pages(pdf_path, output_path, new_order_str)
 
     def add_page_numbers(self, input_path, output_path, start_page=1, end_page=None,
-                     start_number=1, color='#000000', background_color=None,
-                     position='bottom-center', font_size=12, show_background=False):
+                        start_number=1, color='#000000', background_color=None,
+                        position='bottom-center', font_size=12, show_background=False,
+                        margin_cm=1.0):
         return add_page_numbers(input_path, output_path, start_page, end_page, start_number,
-                            color, background_color, position, font_size, show_background)
+                                color, background_color, position, font_size, show_background,
+                                margin_cm)
 
     def convert_to_word(self, pdf_path, output_path):
         return convert_pdf_to_word(pdf_path, output_path)
@@ -3651,8 +3690,11 @@ def add_page_numbers(
     background_color: str = None,
     position: str = 'bottom-center',
     font_size: int = 12,
-    show_background: bool = False
+    show_background: bool = False,
+    margin_cm: float = 1.0
 ) -> dict:
+    import fitz
+    from pathlib import Path
 
     input_path = Path(input_path).resolve()
     if not input_path.exists():
@@ -3684,19 +3726,20 @@ def add_page_numbers(
     if background_color:
         bg_color = hex_to_rgb(background_color)
 
-    margin = 50
+    margin_pt = margin_cm * 28.3464567
+
     position_map = {
-        'top-left': (margin, margin, 0, 0),
-        'top-center': (0, margin, 0.5, 0),
-        'top-right': (margin, margin, 1, 0),
-        'bottom-left': (margin, 0, 0, 1),
+        'top-left': (margin_pt, margin_pt, 0, 0),
+        'top-center': (0, margin_pt, 0.5, 0),
+        'top-right': (margin_pt, margin_pt, 1, 0),
+        'bottom-left': (margin_pt, 0, 0, 1),
         'bottom-center': (0, 0, 0.5, 1),
-        'bottom-right': (margin, 0, 1, 1),
+        'bottom-right': (margin_pt, 0, 1, 1),
         'center': (0, 0, 0.5, 0.5),
     }
     if position not in position_map:
         position = 'bottom-center'
-    h_align, v_align, h_ref, v_ref = position_map[position]
+    _, _, h_ref, v_ref = position_map[position]
 
     page_counter = start_number
 
@@ -3705,40 +3748,48 @@ def add_page_numbers(
         rect = page.rect
 
         text = str(page_counter)
-        text_width = len(text) * font_size * 0.6
-        text_height = font_size * 1.2
-        box_width = text_width + 20
-        box_height = text_height + 20
 
+        # Largura exata do texto com a fonte escolhida
+        text_width = fitz.get_text_length(text, fontname="helv", fontsize=font_size)
+        # Altura do texto é aproximadamente o próprio font_size (em pontos)
+        text_height = font_size
+        pad = 8
+        box_width = text_width + 2 * pad
+        box_height = text_height + 2 * pad
+
+        # Posicionamento baseado no centro (cx, cy)
         if h_ref == 0:
-            x = margin
+            cx = margin_pt + box_width / 2
         elif h_ref == 0.5:
-            x = (rect.width - box_width) / 2
+            cx = rect.width / 2
         else:
-            x = rect.width - margin - box_width
+            cx = rect.width - margin_pt - box_width / 2
 
         if v_ref == 0:
-            y = margin
+            cy = margin_pt + box_height / 2
         elif v_ref == 0.5:
-            y = (rect.height - box_height) / 2
+            cy = rect.height / 2
         else:
-            y = rect.height - margin - box_height
+            cy = rect.height - margin_pt - box_height / 2
 
-        if x < 0: x = 0
-        if y < 0: y = 0
+        # Evitar que o retângulo ultrapasse as bordas
+        if cx - box_width/2 < 0:
+            cx = box_width/2
+        if cx + box_width/2 > rect.width:
+            cx = rect.width - box_width/2
+        if cy - box_height/2 < 0:
+            cy = box_height/2
+        if cy + box_height/2 > rect.height:
+            cy = rect.height - box_height/2
 
-        text_rect = fitz.Rect(x, y, x + box_width, y + box_height)
+        text_rect = fitz.Rect(cx - box_width/2, cy - box_height/4, cx + box_width/2, cy + box_height/2)
 
+        # Desenhar fundo (retângulo) se solicitado
         if show_background and bg_color:
-            cx = (text_rect.x0 + text_rect.x1) / 2
-            cy = (text_rect.y0 + text_rect.y1) / 2
-            radius = max(box_width, box_height) / 2 + 5
-            shape = page.new_shape()
-            shape.draw_circle(fitz.Point(cx, cy), radius)
-            shape.finish(color=bg_color, fill=bg_color, closePath=True)
-            shape.commit()
+            page.draw_rect(text_rect, color=bg_color, fill=bg_color, width=0)
 
-        rc = page.insert_textbox(
+        # Inserir texto centralizado horizontal e verticalmente no retângulo
+        page.insert_textbox(
             text_rect,
             text,
             fontsize=font_size,
@@ -3746,15 +3797,6 @@ def add_page_numbers(
             color=text_color,
             align=fitz.TEXT_ALIGN_CENTER
         )
-        if rc < 0:
-            page.insert_text(
-                (text_rect.x0 + box_width/2, text_rect.y0 + box_height/2),
-                text,
-                fontsize=font_size,
-                fontname="helv",
-                color=text_color,
-                align=fitz.TEXT_ALIGN_CENTER
-            )
 
         page_counter += 1
 
@@ -5722,7 +5764,8 @@ def add_page_numbers():
             background_color=data.get('background_color'),
             position=data.get('position', 'bottom-center'),
             font_size=int(data.get('font_size', 12)),
-            show_background=data.get('show_background', False)
+            show_background=data.get('show_background', False),
+            margin_cm=float(data.get('margin_cm', 1.0))
         )
         return jsonify({"success": True, **result}), 200
     except Exception as e:
@@ -6257,21 +6300,43 @@ app.on('activate', () => {
     }
 });
 
+function getBackendPath() {
+    // Em desenvolvimento: usa o script Python
+    if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+        const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
+        const scriptPath = path.join(__dirname, '..', 'backend', 'app.py');
+        return { cmd: pythonPath, args: [scriptPath], isPython: true };
+    } else {
+        // Em produção: usa o executável embutido
+        // O executável backend.exe estará ao lado do app ou em resources/
+        let exePath;
+        if (process.platform === 'win32') {
+            // No Windows, o app é um .exe e os recursos ficam em resources/
+            exePath = path.join(process.resourcesPath, 'backend.exe');
+        } else {
+            // Para outros SOs, ajuste conforme
+            exePath = path.join(path.dirname(app.getPath('exe')), 'backend');
+        }
+        // Se não existir, tenta no diretório do app
+        if (!fs.existsSync(exePath)) {
+            exePath = path.join(path.dirname(app.getPath('exe')), 'backend.exe');
+        }
+        return { cmd: exePath, args: [], isPython: false };
+    }
+}
+
 // Função para iniciar o backend (Flask)
 function startBackend() {
-    const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
-    const backendScript = path.join(__dirname, '..', 'backend', 'app.py');
+    const { cmd, args, isPython } = getBackendPath();
+    console.log(`Iniciando backend: ${cmd} ${args.join(' ')}`);
 
-    // Verifica se o script existe
-    if (!fs.existsSync(backendScript)) {
-        console.error('Backend script not found:', backendScript);
-        return;
+    const env = { ...process.env, PORT: 5000 };
+    if (isPython) {
+        backendProcess = spawn(cmd, args, { env, stdio: 'pipe' });
+    } else {
+        // Para executável, apenas executa
+        backendProcess = spawn(cmd, args, { env, stdio: 'pipe' });
     }
-
-    backendProcess = spawn(pythonPath, [backendScript], {
-        env: { ...process.env, PORT: 5000 },
-        stdio: 'pipe',
-    });
 
     backendProcess.stdout.on('data', (data) => {
         console.log(`[Backend] ${data}`);
@@ -6285,13 +6350,15 @@ function startBackend() {
         console.log(`Backend process exited with code ${code}`);
         backendProcess = null;
     });
-
-    // Aguardar um pouco para o servidor iniciar
-    // (em produção, seria melhor usar um mecanismo de health check)
-    setTimeout(() => {
-        console.log('Backend iniciado (aguardando conexão)');
-    }, 2000);
 }
+
+// Quando o app for fechado, mata o backend
+app.on('will-quit', () => {
+    if (backendProcess) {
+        backendProcess.kill();
+        backendProcess = null;
+    }
+});
 
 // Expor função para o renderer obter o caminho base (opcional)
 ipcMain.handle('get-base-path', () => {
@@ -10329,7 +10396,7 @@ class PDFAddPageNumbersFeature {
                 </div>
             </div>
 
-            <div class="row g-3">
+            <div class="row g-3 mb-3">
                 <div class="col-md-6">
                     <div class="card mb-3">
                         <div class="card-body">
@@ -10366,19 +10433,26 @@ class PDFAddPageNumbersFeature {
                                 <div class="col-12">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="pn-show-bg" checked>
-                                        <label class="form-check-label">Mostrar fundo (círculo)</label>
+                                        <label class="form-check-label">Mostrar fundo (retângulo)</label>
                                     </div>
                                 </div>
-                                <div class="col-12">
+                                <div class="col-6">
                                     <label class="form-label">Tamanho da fonte</label>
-                                    <input type="number" id="pn-font-size" class="form-control" value="12" min="6" max="72">
+                                    <select id="pn-font-size" class="form-select">
+                                        <option value="8">8</option>
+                                        <option value="9">9</option>
+                                        <option value="10">10</option>
+                                        <option value="11">11</option>
+                                        <option value="12" selected>12</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Margem da borda (cm)</label>
+                                    <input type="number" id="pn-margin" class="form-control" value="1.0" min="0" step="0.1">
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <div class="col-md-6">
                     <div class="card mb-3">
                         <div class="card-body">
                             <h5 class="card-title text-success">Posição</h5>
@@ -10393,7 +10467,9 @@ class PDFAddPageNumbersFeature {
                             </select>
                         </div>
                     </div>
+                </div>
 
+                <div class="col-md-6">
                     <div class="card">
                         <div class="card-body">
                             <h5 class="card-title text-success">Preview</h5>
@@ -10435,7 +10511,8 @@ class PDFAddPageNumbersFeature {
             </div>
         `;
 
-        ['pn-position', 'pn-color', 'pn-bg-color', 'pn-show-bg', 'pn-font-size'].forEach(id => {
+        // Atualiza preview ao alterar estes controles
+        ['pn-position', 'pn-color', 'pn-bg-color', 'pn-show-bg', 'pn-font-size', 'pn-margin'].forEach(id => {
             const el = document.getElementById(id);
             if (el) {
                 el.addEventListener('input', () => this.schedulePreviewUpdate());
@@ -10516,15 +10593,17 @@ class PDFAddPageNumbersFeature {
         const bgColor = document.getElementById('pn-bg-color').value;
         const showBg = document.getElementById('pn-show-bg').checked;
         const fontSize = parseInt(document.getElementById('pn-font-size').value) || 12;
+        const marginCm = parseFloat(document.getElementById('pn-margin').value) || 1.0;
+        const margin = marginCm * 28.3464567;
+
         const text = '123';
-
-        const margin = 50;
         const textWidth = text.length * fontSize * 0.6;
-        const textHeight = fontSize * 1.2;
-        const boxWidth = textWidth + 20;
-        const boxHeight = textHeight + 20;
+        const textHeight = fontSize;
+        const pad = 8;
+        const boxWidth = textWidth + 2 * pad;
+        const boxHeight = textHeight + 2 * pad;
 
-        let x, y;
+        let cx, cy;
         const refMap = {
             'top-left': { hRef: 0, vRef: 0 },
             'top-center': { hRef: 0.5, vRef: 0 },
@@ -10535,41 +10614,47 @@ class PDFAddPageNumbersFeature {
             'center': { hRef: 0.5, vRef: 0.5 }
         };
         const ref = refMap[position] || { hRef: 0.5, vRef: 1 };
-        if (ref.hRef === 0) x = margin;
-        else if (ref.hRef === 0.5) x = (w - boxWidth) / 2;
-        else x = w - margin - boxWidth;
-        if (ref.vRef === 0) y = margin;
-        else if (ref.vRef === 0.5) y = (h - boxHeight) / 2;
-        else y = h - margin - boxHeight;
-        if (x < 0) x = 0;
-        if (y < 0) y = 0;
+        if (ref.hRef === 0) cx = margin + boxWidth / 2;
+        else if (ref.hRef === 0.5) cx = w / 2;
+        else cx = w - margin - boxWidth / 2;
+        if (ref.vRef === 0) cy = margin + boxHeight / 2;
+        else if (ref.vRef === 0.5) cy = h / 2;
+        else cy = h - margin - boxHeight / 2;
 
+        if (cx - boxWidth / 2 < 0) cx = boxWidth / 2;
+        if (cx + boxWidth / 2 > w) cx = w - boxWidth / 2;
+        if (cy - boxHeight / 2 < 0) cy = boxHeight / 2;
+        if (cy + boxHeight / 2 > h) cy = h - boxHeight / 2;
+
+        const rectX = cx - boxWidth / 2;
+        const rectY = cy - boxHeight / 2;
+
+        // Desenhar fundo retangular se solicitado
         if (showBg) {
-            const cx = x + boxWidth / 2;
-            const cy = y + boxHeight / 2;
-            const radius = Math.max(boxWidth, boxHeight) / 2 + 5;
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
             ctx.fillStyle = bgColor;
-            ctx.fill();
+            ctx.fillRect(rectX, rectY, boxWidth, boxHeight);
             ctx.strokeStyle = bgColor;
-            ctx.stroke();
+            ctx.lineWidth = 1;
+            ctx.strokeRect(rectX, rectY, boxWidth, boxHeight);
         }
 
+        // Texto centralizado
         ctx.fillStyle = color;
         ctx.font = `${fontSize}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(text, x + boxWidth / 2, y + boxHeight / 2);
+        ctx.fillText(text, cx, cy);
 
+        // Informações
         ctx.font = '10px Arial';
         ctx.fillStyle = '#6c757d';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         ctx.fillText(`Posição: ${position}`, 5, 5);
-        ctx.fillText(`Cor: ${color}`, 5, 20);
-        ctx.fillText(`Fundo: ${showBg ? bgColor : 'nenhum'}`, 5, 35);
-        ctx.fillText(`Fonte: ${fontSize}pt`, 5, 50);
+        ctx.fillText(`Margem: ${marginCm.toFixed(1)} cm`, 5, 20);
+        ctx.fillText(`Cor: ${color}`, 5, 35);
+        ctx.fillText(`Fundo: ${showBg ? bgColor : 'nenhum'}`, 5, 50);
+        ctx.fillText(`Fonte: ${fontSize}pt`, 5, 65);
     }
 
     async applyPageNumbers() {
@@ -10583,6 +10668,7 @@ class PDFAddPageNumbersFeature {
         const showBg = document.getElementById('pn-show-bg').checked;
         const position = document.getElementById('pn-position').value;
         const fontSize = parseInt(document.getElementById('pn-font-size').value) || 12;
+        const marginCm = parseFloat(document.getElementById('pn-margin').value) || 1.0;
 
         if (!inputPath || !outputPath) {
             FileUtils.log('Selecione o PDF de entrada e defina o de saída.', 'pn-log');
@@ -10605,7 +10691,8 @@ class PDFAddPageNumbersFeature {
                 background_color: bgColor,
                 position: position,
                 font_size: fontSize,
-                show_background: showBg
+                show_background: showBg,
+                margin_cm: marginCm
             });
 
             document.getElementById('pn-total-pages').textContent = result.total_pages;
