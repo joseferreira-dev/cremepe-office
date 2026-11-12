@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const Store = require('electron-store').default;
+const logger = require('./logger');
 
 // Inicializa o store para os atalhos
 const store = new Store({
@@ -16,6 +17,25 @@ let mainWindow;
 let splashWindow;
 let backendProcess = null;
 let backendReady = false;
+
+// Escreve stdout/stderr de um processo filho no log, linha a linha
+// (chunks do pipe chegam em tamanhos arbitrários).
+function pipeProcessLog(stream, prefix, level) {
+    let buffer = '';
+    stream.on('data', (data) => {
+        buffer += data.toString();
+        let idx;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, idx).replace(/\r$/, '');
+            buffer = buffer.slice(idx + 1);
+            if (line.trim()) logger[level](`${prefix}${line}`);
+        }
+    });
+    stream.on('end', () => {
+        if (buffer.trim()) logger[level](`${prefix}${buffer}`);
+        buffer = '';
+    });
+}
 
 // Função para criar a splash screen
 function createSplashWindow() {
@@ -57,6 +77,18 @@ function createMainWindow() {
         show: false,
     });
 
+    // Captura erros/avisos do renderer (API nova do Electron 43:
+    // o primeiro argumento é o objeto de detalhes com level como string).
+    // Registrado ANTES do loadFile para não perder mensagens iniciais.
+    mainWindow.webContents.on('console-message', (details) => {
+        const { level, message, lineNumber, sourceId } = details;
+        if (level === 'debug') return;
+        const location = sourceId ? ` (${path.basename(sourceId)}:${lineNumber})` : '';
+        if (level === 'error') logger.error(`[Renderer] ${message}${location}`);
+        else if (level === 'warning') logger.warn(`[Renderer] ${message}${location}`);
+        else logger.log(`[Renderer] ${message}${location}`);
+    });
+
     mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
     mainWindow.once('ready-to-show', () => {
@@ -67,6 +99,7 @@ function createMainWindow() {
     });
 
     mainWindow.on('closed', () => {
+        logger.log('Janela principal fechada');
         mainWindow = null;
         if (backendProcess) {
             backendProcess.kill();
@@ -83,7 +116,7 @@ async function waitForBackend(maxAttempts = 30, intervalMs = 500) {
         try {
             const response = await fetch(url);
             if (response.ok) {
-                console.log('Backend está pronto!');
+                logger.log('Backend está pronto!');
                 return true;
             }
         } catch (e) {
@@ -91,28 +124,35 @@ async function waitForBackend(maxAttempts = 30, intervalMs = 500) {
         }
         await new Promise(resolve => setTimeout(resolve, intervalMs));
     }
-    console.warn('Backend não respondeu após várias tentativas.');
+    logger.warn('Backend não respondeu após várias tentativas.');
     return false;
 }
 
 // Função para iniciar o backend
 function startBackend() {
     const { cmd, args, isPython } = getBackendPath();
-    console.log(`Iniciando backend: ${cmd} ${args.join(' ')}`);
+    logger.log(`Iniciando backend: ${cmd} ${args.join(' ')}`);
 
-    const env = { ...process.env, PORT: 5000 };
+    const env = {
+        ...process.env,
+        PORT: 5000,
+        // Backend grava o log no mesmo diretório do Electron
+        CREMEPE_LOG_DIR: app.getPath('logs'),
+    };
     backendProcess = spawn(cmd, args, { env, stdio: 'pipe' });
 
-    backendProcess.stdout.on('data', (data) => {
-        console.log(`[Backend] ${data}`);
+    // Sem handler de 'error', spawn falho (ex.: python ausente) derruba o app
+    backendProcess.on('error', (err) => {
+        logger.error(`Falha ao iniciar o processo backend: ${err.message}`);
+        backendProcess = null;
     });
 
-    backendProcess.stderr.on('data', (data) => {
-        console.error(`[Backend Error] ${data}`);
-    });
+    pipeProcessLog(backendProcess.stdout, '[Backend] ', 'log');
+    pipeProcessLog(backendProcess.stderr, '[Backend] ', 'error');
 
     backendProcess.on('close', (code) => {
-        console.log(`Backend process exited with code ${code}`);
+        if (code === 0) logger.log('Backend encerrado (code 0)');
+        else logger.error(`Backend process exited with code ${code}`);
         backendProcess = null;
     });
 }
@@ -139,11 +179,15 @@ function getBackendPath() {
 
 // Eventos do app
 app.whenReady().then(async () => {
+    logger.init(app);
+    logger.log(`CREMEPE Office v${app.getVersion()} iniciando` +
+        ` (packaged=${app.isPackaged}, log=${logger.getLogPath()})`);
+
     createSplashWindow();
     startBackend();
     const backendOk = await waitForBackend(30, 500);
     if (!backendOk) {
-        console.warn('Backend não iniciou a tempo, mas continuaremos.');
+        logger.warn('Backend não iniciou a tempo, mas continuaremos.');
     }
     createMainWindow();
     setTimeout(() => {
@@ -155,6 +199,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
+    logger.log('Todas as janelas fechadas');
     if (process.platform !== 'darwin') {
         app.quit();
     }
@@ -167,10 +212,29 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
+    logger.log('Encerrando aplicativo');
     if (backendProcess) {
         backendProcess.kill();
         backendProcess = null;
     }
+    logger.close();
+});
+
+// Diagnóstico: processo do renderer ou filho do Electron morreu
+app.on('render-process-gone', (event, webContents, details) => {
+    logger.error(`Renderer process gone: reason=${details.reason}, exitCode=${details.exitCode}`);
+});
+app.on('child-process-gone', (event, details) => {
+    logger.error(`Child process gone: type=${details.type}, reason=${details.reason}, exitCode=${details.exitCode}`);
+});
+
+// Erros não tratados no processo principal: registra no arquivo de log.
+// (em app GUI o stderr não é visível, então sem isto o erro se perderia)
+process.on('uncaughtException', (err) => {
+    logger.error('uncaughtException no processo principal:', err);
+});
+process.on('unhandledRejection', (reason) => {
+    logger.error('unhandledRejection no processo principal:', reason);
 });
 
 // ========== IPC HANDLERS para electron-store ==========

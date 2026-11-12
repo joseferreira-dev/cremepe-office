@@ -12,18 +12,15 @@ def convert_batch():
         if not data.get(field):
             return jsonify({"error": f"Campo obrigatório: {field}"}), 400
 
-    try:
-        result = controller.convert_batch(
-            source_dir=data['source_dir'],
-            dest_dir=data['dest_dir'],
-            input_format=data['input_format'].lower(),
-            output_format=data['output_format'].lower(),
-            recursive=data.get('recursive', False),
-            overwrite=data.get('overwrite', False)
-        )
-        return jsonify({"success": True, **result}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    result = controller.convert_batch(
+        source_dir=data['source_dir'],
+        dest_dir=data['dest_dir'],
+        input_format=data['input_format'].lower(),
+        output_format=data['output_format'].lower(),
+        recursive=data.get('recursive', False),
+        overwrite=data.get('overwrite', False)
+    )
+    return jsonify({"success": True, **result}), 200
     
 @excel_bp.route('/merge-all', methods=['POST'])
 def merge_all():
@@ -33,17 +30,14 @@ def merge_all():
         if not data.get(field):
             return jsonify({"error": f"Campo obrigatório: {field}"}), 400
 
-    try:
-        result = controller.merge_all(
-            source_dir=data['source_dir'],
-            dest_file=data['dest_file'],
-            mode=data.get('mode', 'sheets'),
-            include_header=data.get('include_header', True),
-            recursive=data.get('recursive', False)
-        )
-        return jsonify({"success": True, **result}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    result = controller.merge_all(
+        source_dir=data['source_dir'],
+        dest_file=data['dest_file'],
+        mode=data.get('mode', 'sheets'),
+        include_header=data.get('include_header', True),
+        recursive=data.get('recursive', False)
+    )
+    return jsonify({"success": True, **result}), 200
     
 @excel_bp.route('/extract-cells', methods=['POST'])
 def extract_cells():
@@ -53,16 +47,13 @@ def extract_cells():
     if not data.get('fields') or not isinstance(data['fields'], list):
         return jsonify({"error": "Campo 'fields' deve ser uma lista"}), 400
 
-    try:
-        result = controller.extract_cells(
-            source_dir=data['source_dir'],
-            fields=data['fields'],
-            recursive=data.get('recursive', False),
-            output_file=data.get('output_file')
-        )
-        return jsonify({"success": True, **result}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    result = controller.extract_cells(
+        source_dir=data['source_dir'],
+        fields=data['fields'],
+        recursive=data.get('recursive', False),
+        output_file=data.get('output_file')
+    )
+    return jsonify({"success": True, **result}), 200
     
 @excel_bp.route('/split-by-column', methods=['POST'])
 def split_by_column():
@@ -72,17 +63,14 @@ def split_by_column():
         if not data.get(field):
             return jsonify({"error": f"Campo obrigatório: {field}"}), 400
 
-    try:
-        result = controller.split_by_column(
-            input_file=data['input_file'],
-            output_dir=data['output_dir'],
-            column=data['column'],
-            output_format=data.get('output_format', 'xlsx'),
-            include_header=data.get('include_header', True)
-        )
-        return jsonify({"success": True, **result}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    result = controller.split_by_column(
+        input_file=data['input_file'],
+        output_dir=data['output_dir'],
+        column=data['column'],
+        output_format=data.get('output_format', 'xlsx'),
+        include_header=data.get('include_header', True)
+    )
+    return jsonify({"success": True, **result}), 200
     
 @excel_bp.route('/split-sheets', methods=['POST'])
 def split_sheets():
@@ -92,12 +80,9 @@ def split_sheets():
         if not data.get(field):
             return jsonify({"error": f"Campo obrigatório: {field}"}), 400
 
-    try:
-        result = controller.split_sheets(
-            input_file=data['input_file'],
-            output_dir=data['output_dir'],
-            output_format=data.get('output_format', 'xlsx')
-        )
-        return jsonify({"success": True, **result}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    result = controller.split_sheets(
+        input_file=data['input_file'],
+        output_dir=data['output_dir'],
+        output_format=data.get('output_format', 'xlsx')
+    )
+    return jsonify({"success": True, **result}), 200
