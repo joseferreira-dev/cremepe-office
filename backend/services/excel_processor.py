@@ -6,6 +6,7 @@ import openpyxl
 import xlwt
 from openpyxl import Workbook, load_workbook
 from datetime import datetime
+from utils.jobs import report_progress
 
 # ========== UTILITÁRIOS ==========
 def _get_base_name(file_path):
@@ -145,7 +146,8 @@ def batch_convert(source_dir, dest_dir, input_format, output_format, recursive=F
 
     results = {'processed': 0, 'skipped': 0, 'errors': []}
 
-    for file_path in files:
+    for i_file, file_path in enumerate(files, 1):
+        report_progress(i_file, len(files))
         base = file_path.stem
         output_file = dest_path / (base + output_ext)
 
@@ -240,7 +242,8 @@ def merge_all_files(
         default_sheet = wb_out.active
         wb_out.remove(default_sheet)
 
-        for file_path in files:
+        for i_file, file_path in enumerate(files, 1):
+            report_progress(i_file, len(files))
             try:
                 wb_in = load_workbook(file_path, data_only=True)
                 # Usar a primeira planilha ativa
@@ -283,7 +286,8 @@ def merge_all_files(
         first_file = True
         total_rows = 0
 
-        for file_path in files:
+        for i_file, file_path in enumerate(files, 1):
+            report_progress(i_file, len(files))
             try:
                 wb_in = load_workbook(file_path, data_only=True)
                 ws_in = wb_in.active
@@ -374,7 +378,8 @@ def extract_cells_from_directory(source_dir, fields, recursive=False, output_fil
     results = []
     errors = []
 
-    for file_path in files:
+    for i_file, file_path in enumerate(files, 1):
+        report_progress(i_file, len(files))
         try:
             wb = openpyxl.load_workbook(file_path, data_only=True)
             ws = wb.active
@@ -585,7 +590,8 @@ def split_sheets_to_files(input_file: str, output_dir: str, output_format: str =
     wb = load_workbook(input_path, data_only=True)
     stats = {'processed': 0, 'files': [], 'errors': []}
     
-    for sheet_name in wb.sheetnames:
+    for i_sheet, sheet_name in enumerate(wb.sheetnames, 1):
+        report_progress(i_sheet, len(wb.sheetnames))
         ws = wb[sheet_name]
         # Nome do arquivo de saída (sanitizado)
         base_name = _sanitize_sheet_name(sheet_name, max_len=50)

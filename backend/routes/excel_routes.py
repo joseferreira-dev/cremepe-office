@@ -1,12 +1,14 @@
 from flask import Blueprint, jsonify
 from controllers.excel_controller import ExcelController
 from utils.validation import require
+from utils.job_routes import as_job
 
 excel_bp = Blueprint('excel', __name__)
 controller = ExcelController()
 
 @excel_bp.route('/convert-batch', methods=['POST'])
 @require('source_dir', 'dest_dir', 'input_format', 'output_format')
+@as_job()
 def convert_batch(data):
     result = controller.convert_batch(
         source_dir=data['source_dir'],
@@ -20,6 +22,7 @@ def convert_batch(data):
     
 @excel_bp.route('/merge-all', methods=['POST'])
 @require('source_dir', 'dest_file')
+@as_job()
 def merge_all(data):
     result = controller.merge_all(
         source_dir=data['source_dir'],
@@ -32,6 +35,7 @@ def merge_all(data):
     
 @excel_bp.route('/extract-cells', methods=['POST'])
 @require('source_dir')
+@as_job()
 def extract_cells(data):
     if not data.get('fields') or not isinstance(data['fields'], list):
         return jsonify({"error": "Campo 'fields' deve ser uma lista"}), 400
@@ -46,6 +50,7 @@ def extract_cells(data):
     
 @excel_bp.route('/split-by-column', methods=['POST'])
 @require('input_file', 'output_dir', 'column')
+@as_job()
 def split_by_column(data):
     result = controller.split_by_column(
         input_file=data['input_file'],
@@ -58,6 +63,7 @@ def split_by_column(data):
     
 @excel_bp.route('/split-sheets', methods=['POST'])
 @require('input_file', 'output_dir')
+@as_job()
 def split_sheets(data):
     result = controller.split_sheets(
         input_file=data['input_file'],

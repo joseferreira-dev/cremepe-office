@@ -1,12 +1,14 @@
 from flask import Blueprint, jsonify
 from controllers.word_controller import WordController
 from utils.validation import require
+from utils.job_routes import as_job
 
 word_bp = Blueprint('word', __name__)
 controller = WordController()
 
 @word_bp.route('/merge', methods=['POST'])
 @require('docx_paths', 'output_path')
+@as_job()
 def merge_documents(data):
     insert_page_breaks = data.get('insert_page_breaks', True)
     result = controller.merge_documents(
@@ -18,6 +20,7 @@ def merge_documents(data):
 
 @word_bp.route('/convert', methods=['POST'])
 @require('input_path', 'output_path', 'output_format')
+@as_job()
 def convert_document(data):
     result = controller.convert_document(
         input_path=data['input_path'],
@@ -28,6 +31,7 @@ def convert_document(data):
 
 @word_bp.route('/compare', methods=['POST'])
 @require('doc1_path', 'doc2_path')
+@as_job()
 def compare_documents(data):
     result = controller.compare_documents(
         doc1_path=data['doc1_path'],
@@ -37,6 +41,7 @@ def compare_documents(data):
 
 @word_bp.route('/extract-images', methods=['POST'])
 @require('input_path', 'output_dir')
+@as_job()
 def extract_images(data):
     prefix = data.get('prefix')
     result = controller.extract_images(
@@ -48,6 +53,7 @@ def extract_images(data):
 
 @word_bp.route('/watermark', methods=['POST'])
 @require('input_path', 'output_path')
+@as_job()
 def add_watermark(data):
     result = controller.add_watermark(
         input_path=data['input_path'],
@@ -66,6 +72,7 @@ def add_watermark(data):
 
 @word_bp.route('/watermark/preview', methods=['POST'])
 @require()
+@as_job()
 def preview_watermark(data):
     result = controller.preview_watermark_position(
         page_width_cm=data.get('page_width_cm', 21.0),
@@ -80,6 +87,7 @@ def preview_watermark(data):
 
 @word_bp.route('/filepath', methods=['POST'])
 @require('input_path', 'output_path')
+@as_job()
 def insert_file_path(data):
     result = controller.insert_file_path(
         input_path=data['input_path'],

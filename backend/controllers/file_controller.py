@@ -31,7 +31,6 @@ class FileController:
             include_hidden=include_hidden,
             min_mtime=min_mtime,
             on_conflict=on_conflict,
-            progress_callback=None
         )
 
     def preview_files(self, src_dirs, recursive=True, extensions=None,
@@ -89,7 +88,6 @@ class FileController:
             case_conversion=case_conversion,
             remove_accents=remove_accents,
             replace_spaces_with=replace_spaces_with,
-            progress_callback=None
         )
 
     def preview_rename(self, file_paths, prefix='', suffix='', start_number=1,

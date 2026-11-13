@@ -16,6 +16,7 @@ from routes.file_routes import file_bp
 from routes.pdf_routes import pdf_bp
 from routes.word_routes import word_bp
 from routes.excel_routes import excel_bp
+from routes.jobs_routes import jobs_bp
 from utils.errors import register_error_handlers
 
 app = Flask(__name__)
@@ -32,6 +33,7 @@ app.register_blueprint(file_bp, url_prefix='/api/files')
 app.register_blueprint(pdf_bp, url_prefix='/api/pdf')
 app.register_blueprint(word_bp, url_prefix='/api/word')
 app.register_blueprint(excel_bp, url_prefix='/api/excel')
+app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
 
 @app.route('/api/health', methods=['GET'])
 def health():

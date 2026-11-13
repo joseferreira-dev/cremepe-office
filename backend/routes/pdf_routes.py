@@ -1,18 +1,21 @@
 from flask import Blueprint, jsonify
 from controllers.pdf_controller import PDFController
 from utils.validation import require
+from utils.job_routes import as_job
 
 pdf_bp = Blueprint('pdf', __name__)
 controller = PDFController()
 
 @pdf_bp.route('/merge', methods=['POST'])
 @require('pdf_paths', 'output_path')
+@as_job()
 def merge(data):
     result = controller.merge(data['pdf_paths'], data['output_path'])
     return jsonify({"success": True, "output_path": result}), 200
 
 @pdf_bp.route('/merge-by-size', methods=['POST'])
 @require('source_dir', 'dest_dir', 'max_size_mb')
+@as_job()
 def merge_by_size(data):
     result = controller.merge_by_size(
         source_dir=data['source_dir'],
@@ -26,6 +29,7 @@ def merge_by_size(data):
 
 @pdf_bp.route('/split-custom', methods=['POST'])
 @require('pdf_path', 'output_dir', 'intervals_str')
+@as_job()
 def split_custom(data):
     result = controller.split_custom(
         pdf_path=data['pdf_path'],
@@ -39,6 +43,7 @@ def split_custom(data):
 
 @pdf_bp.route('/split-fixed', methods=['POST'])
 @require('pdf_path', 'output_dir', 'pages_per_file')
+@as_job()
 def split_fixed(data):
     result = controller.split_fixed(
         pdf_path=data['pdf_path'],
@@ -52,6 +57,7 @@ def split_fixed(data):
 
 @pdf_bp.route('/split-by-size', methods=['POST'])
 @require('pdf_path', 'output_dir', 'max_size_mb')
+@as_job()
 def split_by_size(data):
     result = controller.split_by_size(
         pdf_path=data['pdf_path'],
@@ -63,6 +69,7 @@ def split_by_size(data):
 
 @pdf_bp.route('/extract-all-pages', methods=['POST'])
 @require('pdf_path', 'output_dir')
+@as_job()
 def extract_all_pages(data):
     result = controller.extract_all_pages(
         pdf_path=data['pdf_path'],
@@ -73,6 +80,7 @@ def extract_all_pages(data):
 
 @pdf_bp.route('/extract-selected-pages', methods=['POST'])
 @require('pdf_path', 'output_dir', 'pages_selection')
+@as_job()
 def extract_selected_pages(data):
     result = controller.extract_selected_pages(
         pdf_path=data['pdf_path'],
@@ -86,6 +94,7 @@ def extract_selected_pages(data):
 
 @pdf_bp.route('/remove-pages', methods=['POST'])
 @require('pdf_path', 'output_path', 'pages_to_remove_str')
+@as_job()
 def remove_pages(data):
     result = controller.remove_pages(
         pdf_path=data['pdf_path'],
@@ -98,6 +107,7 @@ def remove_pages(data):
 
 @pdf_bp.route('/reorder-pages', methods=['POST'])
 @require('pdf_path', 'output_path', 'new_order_str')
+@as_job()
 def reorder_pages(data):
     result = controller.reorder_pages(
         pdf_path=data['pdf_path'],
@@ -108,6 +118,7 @@ def reorder_pages(data):
 
 @pdf_bp.route('/add-page-numbers', methods=['POST'])
 @require('input_path', 'output_path')
+@as_job()
 def add_page_numbers(data):
     end_page = data.get('end_page')
     if end_page is not None:
@@ -130,6 +141,7 @@ def add_page_numbers(data):
 
 @pdf_bp.route('/convert-to-word', methods=['POST'])
 @require('pdf_path', 'output_path')
+@as_job()
 def convert_to_word(data):
     result = controller.convert_to_word(
         pdf_path=data['pdf_path'],
@@ -141,6 +153,7 @@ def convert_to_word(data):
 
 @pdf_bp.route('/convert-images-to-pdf', methods=['POST'])
 @require('image_paths', 'output_path')
+@as_job()
 def images_to_pdf(data):
     result = controller.convert_images_to_pdf(
         image_paths=data['image_paths'],
@@ -156,6 +169,7 @@ def images_to_pdf(data):
 
 @pdf_bp.route('/convert-pdf-to-images', methods=['POST'])
 @require('pdf_paths', 'output_dir')
+@as_job()
 def pdf_to_images(data):
     result = controller.convert_pdf_to_images(
         pdf_paths=data['pdf_paths'],
@@ -168,6 +182,7 @@ def pdf_to_images(data):
 
 @pdf_bp.route('/compress', methods=['POST'])
 @require('input_path', 'output_path')
+@as_job()
 def compress(data):
     compression_level = data.get('compression_level', 'medium')
     if compression_level not in ('low', 'medium', 'high'):
@@ -192,6 +207,7 @@ def compress(data):
 
 @pdf_bp.route('/protect-password', methods=['POST'])
 @require('input_path', 'output_path', 'password')
+@as_job()
 def protect_password(data):
     result = controller.protect_password(
         input_path=data['input_path'],
@@ -203,6 +219,7 @@ def protect_password(data):
 
 @pdf_bp.route('/remove-password', methods=['POST'])
 @require('input_path', 'output_path', 'password')
+@as_job()
 def remove_password(data):
     result = controller.remove_password(
         input_path=data['input_path'],

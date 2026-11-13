@@ -2,6 +2,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import List, Optional
+from utils.jobs import report_progress
 
 def split_file(
     file_path: str,
@@ -73,7 +74,8 @@ def merge_parts(
     parts_list = sorted(parts_list, key=lambda p: int(Path(p).stem.split('.part')[-1]))
 
     with open(output_path, 'wb') as outfile:
-        for part in parts_list:
+        for i_part, part in enumerate(parts_list, 1):
+            report_progress(i_part, len(parts_list))
             part_path = Path(part)
             if not part_path.exists():
                 raise FileNotFoundError(f"Parte não encontrada: {part}")

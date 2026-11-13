@@ -9,6 +9,7 @@ import pythoncom
 import win32com.client
 from docx import Document
 from docxcompose.composer import Composer
+from utils.jobs import report_progress
 
 # ==================== CONVERSÃO .doc -> .docx ====================
 def convert_doc_to_docx(doc_path: Path) -> Path:
@@ -56,6 +57,7 @@ def merge_documents(docx_paths: List[str], output_path: str, insert_page_breaks:
                 docx_files.append(str(src_path))
         composer = Composer(docx_files[0])
         for i, doc_path in enumerate(docx_files[1:], start=1):
+            report_progress(i, len(docx_files))
             composer.append(doc_path, page_break=insert_page_breaks)
         composer.save(str(output_path))
         return str(output_path)

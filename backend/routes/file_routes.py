@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify
 from controllers.file_controller import FileController
 from utils.validation import require
+from utils.job_routes import as_job
 from datetime import datetime, timedelta
 import os
 
@@ -9,6 +10,7 @@ controller = FileController()
 
 @file_bp.route('/preview', methods=['POST'])
 @require('src_dirs')
+@as_job()
 def preview_files(data):
     extensions = data.get('extensions')
     if extensions and isinstance(extensions, str):
@@ -27,6 +29,7 @@ def preview_files(data):
 
 @file_bp.route('/collect', methods=['POST'])
 @require('src_dirs', 'dst_dir')
+@as_job()
 def collect_files(data):
     extensions = data.get('extensions')
     if extensions and isinstance(extensions, str):
@@ -51,6 +54,7 @@ def collect_files(data):
 
 @file_bp.route('/list', methods=['POST'])
 @require('dir')
+@as_job()
 def list_files(data):
     dir_path = data['dir']
     files = [f for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))]
@@ -58,6 +62,7 @@ def list_files(data):
 
 @file_bp.route('/rename-preview', methods=['POST'])
 @require('file_paths')
+@as_job()
 def rename_preview(data):
     extensions = data.get('extensions')
     if extensions and isinstance(extensions, str):
@@ -79,6 +84,7 @@ def rename_preview(data):
 
 @file_bp.route('/rename', methods=['POST'])
 @require('file_paths')
+@as_job()
 def rename_files(data):
     extensions = data.get('extensions')
     if extensions and isinstance(extensions, str):
@@ -100,6 +106,7 @@ def rename_files(data):
     
 @file_bp.route('/duplicates', methods=['POST'])
 @require('dir')
+@as_job()
 def find_duplicates(data):
     recursive = data.get('recursive', True)
     match_by = data.get('match_by', 'hash')
@@ -110,6 +117,7 @@ def find_duplicates(data):
 
 @file_bp.route('/duplicates/remove', methods=['POST'])
 @require('groups')
+@as_job()
 def remove_duplicates(data):
     action = data.get('action', 'delete')
     destination = data.get('destination')
@@ -118,6 +126,7 @@ def remove_duplicates(data):
     
 @file_bp.route('/organize/preview', methods=['POST'])
 @require('dir')
+@as_job()
 def preview_organize(data):
     recursive = data.get('recursive', True)
     move_others = data.get('move_others', False)
@@ -130,6 +139,7 @@ def preview_organize(data):
 
 @file_bp.route('/organize', methods=['POST'])
 @require('dir')
+@as_job()
 def organize_files(data):
     result = controller.organize_by_extension(
         dir_path=data['dir'],
@@ -143,6 +153,7 @@ def organize_files(data):
 
 @file_bp.route('/rename-by-content/preview', methods=['POST'])
 @require('dir')
+@as_job()
 def preview_rename_by_content(data):
     recursive = data.get('recursive', True)
     pattern = data.get('pattern', 'auto')
@@ -156,6 +167,7 @@ def preview_rename_by_content(data):
 
 @file_bp.route('/rename-by-content', methods=['POST'])
 @require('dir')
+@as_job()
 def rename_by_content(data):
     recursive = data.get('recursive', True)
     pattern = data.get('pattern', 'auto')
@@ -169,6 +181,7 @@ def rename_by_content(data):
     
 @file_bp.route('/attributes', methods=['POST'])
 @require('dir')
+@as_job()
 def set_attributes(data):
     recursive = data.get('recursive', True)
     options = {
@@ -190,6 +203,7 @@ def set_attributes(data):
 
 @file_bp.route('/report', methods=['POST'])
 @require('dir')
+@as_job()
 def generate_report(data):
     recursive = data.get('recursive', True)
     include_files = data.get('include_files', True)
@@ -206,6 +220,7 @@ def generate_report(data):
 
 @file_bp.route('/compare', methods=['POST'])
 @require('source_dir', 'target_dir')
+@as_job()
 def compare_directories(data):
     result = controller.compare_directories(
         source_dir=data['source_dir'],
@@ -218,6 +233,7 @@ def compare_directories(data):
 
 @file_bp.route('/sync', methods=['POST'])
 @require('source_dir', 'target_dir')
+@as_job()
 def sync_directories(data):
     result = controller.sync_directories(
         source_dir=data['source_dir'],
@@ -231,6 +247,7 @@ def sync_directories(data):
 
 @file_bp.route('/compress', methods=['POST'])
 @require('source_paths', 'output_path')
+@as_job()
 def archive_compress(data):
     result = controller.archive_compress(
         source_paths=data['source_paths'],
@@ -247,6 +264,7 @@ def archive_compress(data):
 
 @file_bp.route('/extract', methods=['POST'])
 @require('archive_path', 'extract_dir')
+@as_job()
 def archive_extract(data):
     result = controller.archive_extract(
         archive_path=data['archive_path'],
@@ -257,6 +275,7 @@ def archive_extract(data):
 
 @file_bp.route('/split', methods=['POST'])
 @require('file_path', 'output_dir')
+@as_job()
 def split_file(data):
     part_size_mb = data.get('part_size_mb', 100)
     overwrite = data.get('overwrite', False)
@@ -270,6 +289,7 @@ def split_file(data):
 
 @file_bp.route('/merge', methods=['POST'])
 @require('parts_list', 'output_path')
+@as_job()
 def merge_parts(data):
     overwrite = data.get('overwrite', False)
     result = controller.merge_parts(

@@ -1,5 +1,44 @@
 const API_BASE = 'http://127.0.0.1:5000/api';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Acompanha um job do backend (POSTs respondem 202 {job_id}).
+ * Enquanto o job roda, atualiza a barra de progresso VISIVEL da feature
+ * atual com o percentual real reportado pelos services (antes a barra
+ * so pulava 0% -> 100%). Devolve o result no MESMO formato que a
+ * resposta sincronica devolvia — as features nao precisam mudar.
+ *
+ * A barra e capturada uma unica vez: se o usuario trocar de tela, o
+ * elemento fica detached e as escritas viram no-op (sem barra errada).
+ */
+async function pollJob(jobId) {
+    const bar = document.querySelector('.progress-bar');
+    const startedAt = Date.now();
+    let delay = 0;
+
+    for (;;) {
+        if (delay) await sleep(delay);
+        if (Date.now() - startedAt > 10 * 60 * 1000) {
+            throw new Error('Tempo esgotado aguardando a operação (10 min)');
+        }
+
+        const response = await fetch(`${API_BASE}/jobs/${jobId}`);
+        const job = await response.json();
+        if (!response.ok) {
+            throw new Error(job.error || 'Job não encontrado ou expirado');
+        }
+        if (job.status === 'done') return job.result;
+        if (job.status === 'error') throw new Error(job.error || 'Erro na operação');
+
+        if (bar && typeof job.progress === 'number') {
+            bar.style.width = `${job.progress}%`;
+        }
+        // backoff: 100ms -> 500ms (operacoes rapidas terminam no 1o poll)
+        delay = delay === 0 ? 100 : Math.min(delay + 50, 500);
+    }
+}
+
 async function apiRequest(endpoint, method = 'GET', body = null) {
     const url = `${API_BASE}${endpoint}`;
     const options = { method, headers: { 'Content-Type': 'application/json' } };
@@ -8,6 +47,10 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
         const response = await fetch(url, options);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Erro na requisição');
+        // POSTs assincronos: 202 {job_id, status} -> acompanha o job
+        if (data && data.job_id && data.status) {
+            return await pollJob(data.job_id);
+        }
         return data;
     } catch (error) { console.error('API Error:', error); throw error; }
 }

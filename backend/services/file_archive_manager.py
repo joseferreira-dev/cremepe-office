@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 import zipfile
 import fnmatch
+from utils.jobs import report_progress
 
 try:
     import pyzipper
@@ -123,7 +124,8 @@ def _create_zip_with_pyzipper(source_paths: List[str], output_path: Path,
             zf.setpassword(password.encode('utf-8'))
             zf.encryption = pyzipper.WZ_AES
 
-        for file_path in source_paths:
+        for i_arc, file_path in enumerate(source_paths, 1):
+            report_progress(i_arc, len(source_paths))
             path = Path(file_path)
             if path.is_dir():
                 for root, dirs, files in os.walk(path):

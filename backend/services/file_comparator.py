@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Tuple, Optional
+from utils.jobs import report_progress
 
 def get_file_hash(filepath: Path, chunk_size=8192) -> str:
     """Calcula o hash MD5 de um arquivo."""
@@ -145,8 +146,15 @@ def sync_folders(
     removed = 0
     skipped = 0
 
+    to_copy = comparison['only_in_source'] + comparison['modified_in_source']
+    to_remove = comparison['only_in_target'] if action == 'mirror' else []
+    sync_total = len(to_copy) + len(to_remove)
+    sync_done = 0
+
     # Copiar arquivos novos ou modificados para destino
-    for rel_path in comparison['only_in_source'] + comparison['modified_in_source']:
+    for rel_path in to_copy:
+        sync_done += 1
+        report_progress(sync_done, sync_total)
         src_file = Path(comparison['source_files'][rel_path]['path'])
         dest_file = target_path / rel_path
         dest_file.parent.mkdir(parents=True, exist_ok=True)
@@ -158,7 +166,9 @@ def sync_folders(
 
     # Se mirror, remover arquivos que estão apenas no destino
     if action == 'mirror':
-        for rel_path in comparison['only_in_target']:
+        for rel_path in to_remove:
+            sync_done += 1
+            report_progress(sync_done, sync_total)
             dest_file = target_path / rel_path
             try:
                 if dest_file.exists():

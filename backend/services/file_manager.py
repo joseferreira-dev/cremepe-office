@@ -3,8 +3,9 @@ import shutil
 import re
 import unicodedata
 from pathlib import Path
-from typing import List, Callable, Optional, Union
+from typing import List, Optional, Union
 from datetime import datetime, timedelta
+from utils.jobs import report_progress
 
 # ===================== COLETA =====================
 def collect_files(
@@ -19,7 +20,6 @@ def collect_files(
     include_hidden: bool = False,
     min_mtime: Union[datetime, None] = None,
     on_conflict: str = 'skip',  # 'skip', 'overwrite', 'rename'
-    progress_callback: Optional[Callable[[int, int], None]] = None
 ) -> int:
     """
     Coleta arquivos de uma ou mais pastas origem para um destino.
@@ -74,8 +74,7 @@ def collect_files(
         # Conflito
         if dest_file.exists():
             if on_conflict == 'skip':
-                if progress_callback:
-                    progress_callback(idx + 1, total)
+                report_progress(idx + 1, total)
                 continue
             elif on_conflict == 'rename':
                 base = dest_file.stem
@@ -94,8 +93,7 @@ def collect_files(
             shutil.move(str(file_path), str(dest_file))
         processed += 1
 
-        if progress_callback:
-            progress_callback(idx + 1, total)
+        report_progress(idx + 1, total)
 
     # Exclui pastas vazias (se mover e delete_empty_dirs=True)
     if not copy and delete_empty_dirs:
@@ -122,7 +120,6 @@ def rename_files_in_batch(
     case_conversion: str = 'none',                    # 'none', 'lower', 'upper', 'title'
     remove_accents: bool = False,                     # novo: remover acentos
     replace_spaces_with: str = None,                  # novo: substituir espaços por outro caractere
-    progress_callback: Optional[Callable[[int, int], None]] = None
 ) -> int:
     """
     Renomeia uma lista de arquivos aplicando transformações.
@@ -140,8 +137,7 @@ def rename_files_in_batch(
         # Filtro por extensão
         if extensions:
             if not any(path.suffix.lower() == ext.lower() for ext in extensions):
-                if progress_callback:
-                    progress_callback(idx + 1, total)
+                report_progress(idx + 1, total)
                 continue
 
         # Nome base (sem extensão) e extensão
@@ -194,7 +190,6 @@ def rename_files_in_batch(
 
         path.rename(new_path)
         renamed_count += 1
-        if progress_callback:
-            progress_callback(idx + 1, total)
+        report_progress(idx + 1, total)
 
     return renamed_count

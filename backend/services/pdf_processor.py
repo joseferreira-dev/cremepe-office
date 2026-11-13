@@ -12,6 +12,7 @@ import tempfile
 import fitz
 import pikepdf
 import secrets
+from utils.jobs import report_progress
 
 def merge(pdf_paths, output_path):
     """
@@ -118,7 +119,8 @@ def merge_by_size(
         groups.append(current_group)
     
     # Processar cada grupo
-    for group in groups:
+    for i_grp, group in enumerate(groups, 1):
+        report_progress(i_grp, len(groups))
         if isinstance(group, tuple) and group[0] == 'copy':
             _, pdf_path = group
             dest_file = dest_path / pdf_path.name
@@ -337,7 +339,8 @@ def split_fixed(pdf_path: str, output_dir: str, pages_per_file: int,
         # Gerar apenas o arquivo combinado
         try:
             writer = PdfWriter()
-            for page_num in range(total_pages):
+            for i_page, page_num in enumerate(range(total_pages), 1):
+                report_progress(i_page, total_pages)
                 writer.add_page(reader.pages[page_num])
             
             combine_file = output_path / f"{combine_name}.pdf"
@@ -357,10 +360,13 @@ def split_fixed(pdf_path: str, output_dir: str, pages_per_file: int,
             stats['errors'].append(f"Erro ao gerar arquivo combinado: {str(e)}")
     else:
         # Gerar partes individuais
+        pages_done = 0
         for start in range(0, total_pages, pages_per_file):
             end = min(start + pages_per_file, total_pages)
             part_writer = PdfWriter()
             for page_num in range(start, end):
+                pages_done += 1
+                report_progress(pages_done, total_pages)
                 part_writer.add_page(reader.pages[page_num])
             
             output_file = output_path / f"{part_prefix}_{start+1:04d}-{end:04d}.pdf"
@@ -900,8 +906,10 @@ def add_page_numbers(
     _, _, h_ref, v_ref = position_map[position]
 
     page_counter = start_number
+    pages_total = end_page - (start_page - 1)
 
     for page_num in range(start_page - 1, end_page):
+        report_progress(page_num - (start_page - 1) + 1, pages_total)
         page = doc[page_num]
         rect = page.rect
 
