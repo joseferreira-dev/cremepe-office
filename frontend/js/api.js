@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'http://127.0.0.1:5000/api';
 
 async function apiRequest(endpoint, method = 'GET', body = null) {
     const url = `${API_BASE}${endpoint}`;

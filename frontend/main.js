@@ -111,7 +111,7 @@ function createMainWindow() {
 
 // Health check do backend
 async function waitForBackend(maxAttempts = 30, intervalMs = 500) {
-    const url = 'http://localhost:5000/api/health';
+    const url = 'http://127.0.0.1:5000/api/health';
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
             const response = await fetch(url);

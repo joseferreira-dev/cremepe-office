@@ -41,7 +41,9 @@ logger.info("Backend iniciado | logs em %s", log_dir)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    # TODO(item 3): debug condicional — hoje é sempre True (sobe reloader)
-    debug = True
+    # Somente localhost: a API não deve ficar exposta na rede local.
+    # Debug somente com FLASK_DEBUG=1 (padrão: desligado). Em produção o
+    # backend é iniciado por __main__.py (backend.exe), que nunca usa debug.
+    debug = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
     logger.info("Servidor em http://127.0.0.1:%s (debug=%s)", port, debug)
-    app.run(host='0.0.0.0', port=port, debug=debug)
+    app.run(host='127.0.0.1', port=port, debug=debug)

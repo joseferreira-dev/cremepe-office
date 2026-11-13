@@ -39,7 +39,13 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
    npm start
    ```
 
-> **Nota**: O frontend espera o backend rodando em `http://localhost:5000`. Certifique‑se de que a porta esteja livre.
+> **Nota**: O frontend espera o backend rodando em `http://127.0.0.1:5000` (somente localhost). Certifique‑se de que a porta esteja livre.
+>
+> **Debug**: por padrão o backend sobe **sem** debug (mais seguro e sem reloader). Para desenvolvimento com auto‑reload e debugger, use:
+> ```bash
+> FLASK_DEBUG=1 python backend/app.py    # Linux/Mac
+> set FLASK_DEBUG=1 && python backend/app.py   # Windows
+> ```
 
 ---
 
