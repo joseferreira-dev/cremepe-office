@@ -1,4 +1,7 @@
-class PDFReorderFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class PDFReorderFeature extends Feature {
     constructor() {
         super('reorder');
     }
@@ -113,7 +116,7 @@ class PDFReorderFeature extends Feature {
         this.log(`Reordenando páginas: ${orderStr}...`);
 
         try {
-            const result = await window.API.pdf.reorderPages({
+            const result = await API.pdf.reorderPages({
                 pdf_path: inputFile,
                 output_path: outputFile,
                 new_order_str: orderStr
@@ -135,4 +138,3 @@ class PDFReorderFeature extends Feature {
     }
 }
 
-window.PDFReorderFeature = PDFReorderFeature;

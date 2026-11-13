@@ -12,7 +12,7 @@ async function apiRequest(endpoint, method = 'GET', body = null) {
     } catch (error) { console.error('API Error:', error); throw error; }
 }
 
-window.API = {
+export const API = {
     file: {
         collect: (params) => apiRequest('/files/collect', 'POST', params),
         rename: (params) => apiRequest('/files/rename', 'POST', params),

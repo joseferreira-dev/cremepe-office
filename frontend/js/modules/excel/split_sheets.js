@@ -1,4 +1,8 @@
-class ExcelSplitSheetsFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class ExcelSplitSheetsFeature extends Feature {
     constructor() {
         super('split-sheets');
     }
@@ -100,7 +104,7 @@ class ExcelSplitSheetsFeature extends Feature {
         this.log(`Extraindo abas para ${outputFormat.toUpperCase()}...`);
 
         try {
-            const result = await window.API.excel.splitSheets({
+            const result = await API.excel.splitSheets({
                 input_file: inputFile,
                 output_dir: outputDir,
                 output_format: outputFormat
@@ -122,4 +126,3 @@ class ExcelSplitSheetsFeature extends Feature {
     }
 }
 
-window.ExcelSplitSheetsFeature = ExcelSplitSheetsFeature;

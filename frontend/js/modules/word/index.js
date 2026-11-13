@@ -1,4 +1,11 @@
-class WordModule {
+import { DocCompareFeature } from './compare.js';
+import { ConvertFeature } from './convert.js';
+import { ExtractImagesFeature } from './extract_images.js';
+import { FilePathFeature } from './filepath.js';
+import { MergeFeature } from './merge.js';
+import { WatermarkFeature } from './watermark.js';
+
+export class WordModule {
     constructor(container) {
         this.container = container;
         this.currentFeature = 'merge';
@@ -80,4 +87,3 @@ class WordModule {
     }
 }
 
-window.WordModule = WordModule;

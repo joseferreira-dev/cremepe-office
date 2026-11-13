@@ -1,4 +1,8 @@
-class ExtractImagesFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class ExtractImagesFeature extends Feature {
     constructor(module) {
         super('extract');
         this.module = module;
@@ -93,7 +97,7 @@ class ExtractImagesFeature extends Feature {
         this.log('Extraindo imagens...');
 
         try {
-            const result = await window.API.word.extractImages({
+            const result = await API.word.extractImages({
                 input_path: inputPath,
                 output_dir: outputDir,
                 prefix: prefix

@@ -1,4 +1,7 @@
-class PDFConvertToWordFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class PDFConvertToWordFeature extends Feature {
     constructor() {
         super('convert');
         this.direction = 'pdf_to_word'; // 'pdf_to_word' | 'word_to_pdf'
@@ -137,14 +140,14 @@ class PDFConvertToWordFeature extends Feature {
         try {
             if (this.direction === 'pdf_to_word') {
                 this.log('Convertendo PDF → Word...');
-                const result = await window.API.pdf.convertToWord({
+                const result = await API.pdf.convertToWord({
                     pdf_path: inputFile,
                     output_path: outputFile
                 });
                 this.log(`Concluído! Arquivo salvo em: ${result.output_path}`);
             } else {
                 this.log('Convertendo Word → PDF...');
-                const result = await window.API.word.convert({
+                const result = await API.word.convert({
                     input_path: inputFile,
                     output_path: outputFile,
                     output_format: 'pdf'
@@ -160,4 +163,3 @@ class PDFConvertToWordFeature extends Feature {
     }
 }
 
-window.PDFConvertToWordFeature = PDFConvertToWordFeature;

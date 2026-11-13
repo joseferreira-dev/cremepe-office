@@ -1,4 +1,8 @@
-class PDFSplitBySizeFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class PDFSplitBySizeFeature extends Feature {
     constructor() {
         super('split-size');
     }
@@ -99,7 +103,7 @@ class PDFSplitBySizeFeature extends Feature {
         this.log(`Iniciando divisão por tamanho (máx: ${maxSize} MB)...`);
 
         try {
-            const result = await window.API.pdf.splitBySize({
+            const result = await API.pdf.splitBySize({
                 pdf_path: inputFile,
                 output_dir: outputDir,
                 max_size_mb: maxSize,
@@ -122,4 +126,3 @@ class PDFSplitBySizeFeature extends Feature {
     }
 }
 
-window.PDFSplitBySizeFeature = PDFSplitBySizeFeature;

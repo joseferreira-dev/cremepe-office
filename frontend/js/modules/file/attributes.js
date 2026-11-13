@@ -1,4 +1,8 @@
-class AttributesFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class AttributesFeature extends Feature {
     constructor(module) {
         super('attr');
         this.module = module;
@@ -121,7 +125,7 @@ class AttributesFeature extends Feature {
         this.log('Aplicando atributos...');
 
         try {
-            const result = await window.API.file.setAttributes({
+            const result = await API.file.setAttributes({
                 dir,
                 recursive,
                 readonly,

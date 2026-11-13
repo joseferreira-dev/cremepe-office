@@ -25,7 +25,9 @@
  * Os IDs gerados ('{prefix}-log' / '{prefix}-progress') sao os MESMOS
  * usados antes da refactoracao — nada muda no DOM final.
  */
-class Feature {
+import { FileUtils } from './file/utils.js';
+
+export class Feature {
     constructor(prefix) {
         this.prefix = prefix;
         this.logId = `${prefix}-log`;
@@ -108,4 +110,3 @@ class Feature {
     }
 }
 
-window.Feature = Feature;

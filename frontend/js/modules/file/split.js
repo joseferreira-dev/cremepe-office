@@ -1,4 +1,8 @@
-class SplitFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class SplitFeature extends Feature {
     constructor(module) {
         super('split');
         this.module = module;
@@ -181,7 +185,7 @@ class SplitFeature extends Feature {
         this.log('Dividindo arquivo...');
 
         try {
-            const result = await window.API.file.split({
+            const result = await API.file.split({
                 file_path: filePath,
                 output_dir: outputDir,
                 part_size_mb: partSize,
@@ -213,7 +217,7 @@ class SplitFeature extends Feature {
         this.log('Remontando arquivo...');
 
         try {
-            const result = await window.API.file.merge({
+            const result = await API.file.merge({
                 parts_list: partsList,
                 output_path: outputPath,
                 overwrite

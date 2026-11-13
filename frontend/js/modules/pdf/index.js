@@ -1,4 +1,17 @@
-class PDFModule {
+import { PDFAddPageNumbersFeature } from './add_page_numbers.js';
+import { PDFCompressFeature } from './compress.js';
+import { PDFConvertToImageFeature } from './convert_to_image.js';
+import { PDFConvertToWordFeature } from './convert_to_word.js';
+import { PDFExtractPagesFeature } from './extract_pages.js';
+import { PDFMergeFeature } from './merge.js';
+import { PDFMergeBySizeFeature } from './merge_by_size.js';
+import { PDFProtectFeature } from './protect.js';
+import { PDFRemovePagesFeature } from './remove_pages.js';
+import { PDFReorderFeature } from './reorder.js';
+import { PDFSplitFeature } from './split.js';
+import { PDFSplitBySizeFeature } from './split_by_size.js';
+
+export class PDFModule {
     constructor(container) {
         this.container = container;
         this.currentFeature = 'merge';
@@ -79,4 +92,3 @@ class PDFModule {
     }
 }
 
-window.PDFModule = PDFModule;

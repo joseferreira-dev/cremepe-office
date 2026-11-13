@@ -1,4 +1,8 @@
-class RenameFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class RenameFeature extends Feature {
     constructor(module) {
         super('rename');
         this.module = module;
@@ -69,7 +73,7 @@ class RenameFeature extends Feature {
                     <div id="custom-regex-area" style="display:none;">
                         <div class="mb-2">
                             <label class="form-label">Buscar (regex)</label>
-                            <input type="text" id="regex-search" class="form-control" placeholder="ex: \s+">
+                            <input type="text" id="regex-search" class="form-control" placeholder="ex: \\s+">
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Substituir por</label>
@@ -163,9 +167,9 @@ class RenameFeature extends Feature {
             this.log('Nenhum diretório selecionado.');
             return;
         }
-        if (window.API && window.API.file && window.API.file.list) {
+        if (API && API.file && API.file.list) {
             this.log('Carregando lista de arquivos...');
-            window.API.file.list({ dir })
+            API.file.list({ dir })
                 .then(result => {
                     this.renameFilePaths = result.files.map(f => `${dir}/${f}`);
                     this.log(`Arquivos encontrados: ${this.renameFilePaths.length}`);
@@ -183,7 +187,7 @@ class RenameFeature extends Feature {
         // Se não tiver carregado, carrega agora
         if (this.renameFilePaths.length === 0) {
             try {
-                const result = await window.API.file.list({ dir });
+                const result = await API.file.list({ dir });
                 this.renameFilePaths = result.files.map(f => `${dir}/${f}`);
                 if (this.renameFilePaths.length === 0) {
                     this.log('Nenhum arquivo encontrado.');
@@ -234,7 +238,7 @@ class RenameFeature extends Feature {
         this.log('Carregando pré-visualização...');
 
         try {
-            const result = await window.API.file.renamePreview(params);
+            const result = await API.file.renamePreview(params);
             const previewArea = document.getElementById('rename-preview-area');
             previewArea.style.display = 'block';
             document.getElementById('rename-preview-count').textContent = result.count;
@@ -307,7 +311,7 @@ class RenameFeature extends Feature {
         this.log(`Renomeando arquivos...`);
 
         try {
-            const result = await window.API.file.rename(params);
+            const result = await API.file.rename(params);
             this.log(`Concluído! ${result.renamed_count} arquivos renomeados.`);
             this.setProgress(100);
             document.getElementById('rename-preview-area').style.display = 'none';

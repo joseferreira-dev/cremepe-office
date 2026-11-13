@@ -1,4 +1,7 @@
-class PDFMergeFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class PDFMergeFeature extends Feature {
     constructor() {
         super('pdf-merge');
         this.files = []; // array de objetos { path, name, thumbnail }
@@ -260,7 +263,7 @@ class PDFMergeFeature extends Feature {
         this.log(`Juntando ${files.length} PDFs na ordem definida...`);
 
         try {
-            const result = await window.API.pdf.merge({
+            const result = await API.pdf.merge({
                 pdf_paths: files,
                 output_path: output
             });
@@ -274,4 +277,3 @@ class PDFMergeFeature extends Feature {
     }
 }
 
-window.PDFMergeFeature = PDFMergeFeature;

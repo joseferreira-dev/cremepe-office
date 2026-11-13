@@ -1,4 +1,7 @@
-class PDFProtectFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class PDFProtectFeature extends Feature {
     constructor() {
         super('protect');
         this.mode = 'protect';
@@ -187,15 +190,11 @@ class PDFProtectFeature extends Feature {
         this.log('Protegendo PDF...');
 
         try {
-            const result = await window.API.pdf.protectPassword({
+            const result = await API.pdf.protectPassword({
                 input_path: inputPath,
                 output_path: outputPath,
                 password: password
             });
-
-            const orig = (result.original_size / 1024).toFixed(2);
-            const newSize = (result.protected_size / 1024).toFixed(2);
-            const reduction = ((1 - result.ratio) * 100).toFixed(1);
 
             document.getElementById('protect-result').style.display = 'block';
             document.getElementById('password-info').innerHTML = `<div><strong>Senha:</strong> ${result.password}</div>`;
@@ -225,15 +224,11 @@ class PDFProtectFeature extends Feature {
         this.log('Removendo senha...');
 
         try {
-            const result = await window.API.pdf.removePassword({
+            const result = await API.pdf.removePassword({
                 input_path: inputPath,
                 output_path: outputPath,
                 password: password
             });
-
-            const orig = (result.original_size / 1024).toFixed(2);
-            const newSize = (result.unprotected_size / 1024).toFixed(2);
-            const reduction = ((1 - result.ratio) * 100).toFixed(1);
 
             document.getElementById('password-info').innerHTML = '';
 
@@ -247,4 +242,3 @@ class PDFProtectFeature extends Feature {
     }
 }
 
-window.PDFProtectFeature = PDFProtectFeature;

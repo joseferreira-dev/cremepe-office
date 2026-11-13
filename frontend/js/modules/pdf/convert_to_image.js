@@ -1,4 +1,8 @@
-class PDFConvertToImageFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class PDFConvertToImageFeature extends Feature {
     constructor() {
         super('convert-image');
         this.mode = 'images_to_pdf'; // 'images_to_pdf' | 'pdf_to_images'
@@ -355,7 +359,7 @@ class PDFConvertToImageFeature extends Feature {
 
         this.log(`Convertendo ${imagePaths.length} imagens para PDF (modo: ${combine ? 'combinado' : 'separado'})...`);
 
-        const result = await window.API.pdf.convertImagesToPDF({
+        const result = await API.pdf.convertImagesToPDF({
             image_paths: imagePaths,
             output_path: outputPath,
             combine: combine,
@@ -397,7 +401,7 @@ class PDFConvertToImageFeature extends Feature {
         }
 
         this.log(`Convertendo ${pdfPaths.length} PDF(s) para imagens...`);
-        const result = await window.API.pdf.convertPdfToImages({
+        const result = await API.pdf.convertPdfToImages({
             pdf_paths: pdfPaths,
             output_dir: outputDir,
             pages_selection: pagesSelection || 'all',
@@ -420,4 +424,3 @@ class PDFConvertToImageFeature extends Feature {
     }
 }
 
-window.PDFConvertToImageFeature = PDFConvertToImageFeature;

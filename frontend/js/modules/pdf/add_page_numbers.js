@@ -1,4 +1,7 @@
-class PDFAddPageNumbersFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class PDFAddPageNumbersFeature extends Feature {
     constructor() {
         super('pn');
         this.updateTimeout = null;
@@ -304,7 +307,7 @@ class PDFAddPageNumbersFeature extends Feature {
         this.log('Inserindo numeração...');
 
         try {
-            const result = await window.API.pdf.addPageNumbers({
+            const result = await API.pdf.addPageNumbers({
                 input_path: inputPath,
                 output_path: outputPath,
                 start_page: startPage,
@@ -332,4 +335,3 @@ class PDFAddPageNumbersFeature extends Feature {
     }
 }
 
-window.PDFAddPageNumbersFeature = PDFAddPageNumbersFeature;

@@ -1,4 +1,8 @@
-class CollectFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class CollectFeature extends Feature {
     constructor(module) {
         super('collect');
         this.module = module;
@@ -186,7 +190,7 @@ class CollectFeature extends Feature {
             if (extensions) params.extensions = extensions;
             if (daysBack) params.days_back = parseInt(daysBack);
 
-            const result = await window.API.file.preview(params);
+            const result = await API.file.preview(params);
             this.module.previewData = result.files;
             const previewArea = document.getElementById('preview-area');
             previewArea.style.display = 'block';
@@ -250,7 +254,7 @@ class CollectFeature extends Feature {
             if (extensions) params.extensions = extensions;
             if (daysBack) params.days_back = parseInt(daysBack);
 
-            const result = await window.API.file.collect(params);
+            const result = await API.file.collect(params);
             this.log(`Concluído! ${result.processed_count} arquivos coletados.`);
             this.setProgress(100);
             document.getElementById('preview-area').style.display = 'none';

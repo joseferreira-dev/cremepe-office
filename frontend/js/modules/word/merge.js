@@ -1,4 +1,7 @@
-class MergeFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class MergeFeature extends Feature {
     constructor(module) {
         super('merge');
         this.module = module;
@@ -121,7 +124,7 @@ class MergeFeature extends Feature {
         this.log(`Juntando ${docxPaths.length} documentos...`);
 
         try {
-            const result = await window.API.word.merge({
+            const result = await API.word.merge({
                 docx_paths: docxPaths,
                 output_path: outputPath,
                 insert_page_breaks: insertPageBreaks

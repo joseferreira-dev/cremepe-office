@@ -1,4 +1,10 @@
-class ExcelModule {
+import { ExcelConvertFeature } from './convert.js';
+import { ExcelExtractCellsFeature } from './extract_cells.js';
+import { ExcelMergeAllFeature } from './merge_all.js';
+import { ExcelSplitFeature } from './split_by_column.js';
+import { ExcelSplitSheetsFeature } from './split_sheets.js';
+
+export class ExcelModule {
     constructor(container) {
         this.container = container;
         this.currentFeature = 'convert';
@@ -72,4 +78,3 @@ class ExcelModule {
     }
 }
 
-window.ExcelModule = ExcelModule;

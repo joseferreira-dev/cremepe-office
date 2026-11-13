@@ -1,4 +1,4 @@
-const FileUtils = {
+export const FileUtils = {
     _dialogOpen: false, // impede múltiplas aberturas simultâneas
 
     selectDirectory: function (inputId) {

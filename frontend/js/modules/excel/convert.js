@@ -1,4 +1,8 @@
-class ExcelConvertFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class ExcelConvertFeature extends Feature {
     constructor() {
         super('excel');
     }
@@ -119,7 +123,7 @@ class ExcelConvertFeature extends Feature {
         this.log(`Iniciando conversão de ${inputFormat.toUpperCase()} → ${outputFormat.toUpperCase()}...`);
 
         try {
-            const result = await window.API.excel.convertBatch({
+            const result = await API.excel.convertBatch({
                 source_dir: sourceDir,
                 dest_dir: destDir,
                 input_format: inputFormat,
@@ -143,4 +147,3 @@ class ExcelConvertFeature extends Feature {
     }
 }
 
-window.ExcelConvertFeature = ExcelConvertFeature;

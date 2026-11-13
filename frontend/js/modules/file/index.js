@@ -1,4 +1,15 @@
-class FileModule {
+import { ArchiveFeature } from './archive.js';
+import { AttributesFeature } from './attributes.js';
+import { CollectFeature } from './collect.js';
+import { CompareFeature } from './compare.js';
+import { DuplicatesFeature } from './duplicates.js';
+import { OrganizeFeature } from './organize.js';
+import { RenameFeature } from './rename.js';
+import { RenameByContentFeature } from './rename_by_content.js';
+import { ReportFeature } from './report.js';
+import { SplitFeature } from './split.js';
+
+export class FileModule {
     constructor(container) {
         this.container = container;
         this.currentFeature = 'collect';
@@ -90,4 +101,3 @@ class FileModule {
     }
 }
 
-window.FileModule = FileModule;

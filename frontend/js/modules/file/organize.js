@@ -1,4 +1,8 @@
-class OrganizeFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class OrganizeFeature extends Feature {
     constructor(module) {
         super('organize');
         this.module = module;
@@ -99,7 +103,7 @@ class OrganizeFeature extends Feature {
         this.log('Carregando pré-visualização...');
 
         try {
-            const result = await window.API.file.organizePreview({
+            const result = await API.file.organizePreview({
                 dir,
                 recursive,
                 move_others: moveOthers
@@ -153,7 +157,7 @@ class OrganizeFeature extends Feature {
         this.log(`Organizando arquivos em ${dir}...`);
 
         try {
-            const result = await window.API.file.organize({
+            const result = await API.file.organize({
                 dir,
                 recursive,
                 copy,

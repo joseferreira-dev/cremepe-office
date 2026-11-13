@@ -1,4 +1,7 @@
-class PDFRemovePagesFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class PDFRemovePagesFeature extends Feature {
     constructor() {
         super('remove-pages');
         this.saveRemoved = false;
@@ -156,7 +159,7 @@ class PDFRemovePagesFeature extends Feature {
         this.log(`Removendo páginas: ${pagesSelection}...`);
 
         try {
-            const result = await window.API.pdf.removePages({
+            const result = await API.pdf.removePages({
                 pdf_path: inputFile,
                 output_path: outputFile,
                 pages_to_remove_str: pagesSelection,
@@ -183,4 +186,3 @@ class PDFRemovePagesFeature extends Feature {
     }
 }
 
-window.PDFRemovePagesFeature = PDFRemovePagesFeature;

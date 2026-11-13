@@ -1,4 +1,8 @@
-class ExcelSplitFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class ExcelSplitFeature extends Feature {
     constructor() {
         super('split');
     }
@@ -109,7 +113,7 @@ class ExcelSplitFeature extends Feature {
 
         try {
             // Usamos a rota existente de leitura (read) para obter cabeçalhos
-            const result = await window.API.excel.read({ file_path: inputFile });
+            const result = await API.excel.read({ file_path: inputFile });
             if (!result.data || result.data.length === 0) {
                 this.log('Arquivo sem dados.');
                 return;
@@ -155,7 +159,7 @@ class ExcelSplitFeature extends Feature {
         this.log(`Dividindo por coluna "${column}"...`);
 
         try {
-            const result = await window.API.excel.splitByColumn({
+            const result = await API.excel.splitByColumn({
                 input_file: inputFile,
                 output_dir: outputDir,
                 column: columnParam,
@@ -181,4 +185,3 @@ class ExcelSplitFeature extends Feature {
     }
 }
 
-window.ExcelSplitFeature = ExcelSplitFeature;

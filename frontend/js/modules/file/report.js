@@ -1,4 +1,8 @@
-class ReportFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class ReportFeature extends Feature {
     constructor(module) {
         super('report');
         this.module = module;
@@ -120,7 +124,7 @@ class ReportFeature extends Feature {
         this.log('Gerando relatório...');
 
         try {
-            const result = await window.API.file.generateReport({
+            const result = await API.file.generateReport({
                 dir,
                 recursive,
                 include_files: includeFiles,

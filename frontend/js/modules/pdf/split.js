@@ -1,4 +1,8 @@
-class PDFSplitFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class PDFSplitFeature extends Feature {
     constructor() {
         super('split-pdf');
         this.mode = 'custom'; // 'custom' ou 'fixed'
@@ -159,7 +163,7 @@ class PDFSplitFeature extends Feature {
         previewArea.style.display = 'block';
         const listDiv = document.getElementById('split-preview-list');
 
-        let html = '';
+        let html;
         if (mode === 'custom') {
             const parts = intervalsStr.split(',').map(s => s.trim()).filter(Boolean);
             if (parts.length === 0) {
@@ -208,7 +212,7 @@ class PDFSplitFeature extends Feature {
                     btn.disabled = false;
                     return;
                 }
-                result = await window.API.pdf.splitCustom({
+                result = await API.pdf.splitCustom({
                     pdf_path: inputFile,
                     output_dir: outputDir,
                     intervals_str: intervalsStr,
@@ -223,7 +227,7 @@ class PDFSplitFeature extends Feature {
                     btn.disabled = false;
                     return;
                 }
-                result = await window.API.pdf.splitFixed({
+                result = await API.pdf.splitFixed({
                     pdf_path: inputFile,
                     output_dir: outputDir,
                     pages_per_file: pagesPerFile,
@@ -255,4 +259,3 @@ class PDFSplitFeature extends Feature {
     }
 }
 
-window.PDFSplitFeature = PDFSplitFeature;

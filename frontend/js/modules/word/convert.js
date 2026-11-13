@@ -1,4 +1,7 @@
-class ConvertFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class ConvertFeature extends Feature {
     constructor(module) {
         super('convert');
         this.module = module;
@@ -137,7 +140,7 @@ class ConvertFeature extends Feature {
         this.log(`Convertendo para ${format.toUpperCase()}...`);
 
         try {
-            const result = await window.API.word.convert({
+            const result = await API.word.convert({
                 input_path: inputPath,
                 output_path: outputPath,
                 output_format: format

@@ -1,4 +1,8 @@
-class ExcelMergeAllFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class ExcelMergeAllFeature extends Feature {
     constructor() {
         super('merge-all');
     }
@@ -122,7 +126,7 @@ class ExcelMergeAllFeature extends Feature {
         this.log(`Iniciando mesclagem (modo: ${mode})...`);
 
         try {
-            const result = await window.API.excel.mergeAll({
+            const result = await API.excel.mergeAll({
                 source_dir: sourceDir,
                 dest_file: destFile,
                 mode: mode,
@@ -149,4 +153,3 @@ class ExcelMergeAllFeature extends Feature {
     }
 }
 
-window.ExcelMergeAllFeature = ExcelMergeAllFeature;

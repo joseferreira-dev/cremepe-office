@@ -1,4 +1,8 @@
-class PDFExtractPagesFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class PDFExtractPagesFeature extends Feature {
     constructor() {
         super('extract');
         this.mode = 'all'; // 'all' ou 'selected'
@@ -154,7 +158,7 @@ class PDFExtractPagesFeature extends Feature {
 
             if (mode === 'all') {
                 this.log('Extraindo todas as páginas...');
-                result = await window.API.pdf.extractAllPages({
+                result = await API.pdf.extractAllPages({
                     pdf_path: inputFile,
                     output_dir: outputDir,
                     prefix: prefix
@@ -170,7 +174,7 @@ class PDFExtractPagesFeature extends Feature {
                 const combineName = document.getElementById('extract-combine-name').value.trim() || undefined;
 
                 this.log('Extraindo páginas selecionadas...');
-                result = await window.API.pdf.extractSelectedPages({
+                result = await API.pdf.extractSelectedPages({
                     pdf_path: inputFile,
                     output_dir: outputDir,
                     pages_selection: pagesSelection,
@@ -205,4 +209,3 @@ class PDFExtractPagesFeature extends Feature {
     }
 }
 
-window.PDFExtractPagesFeature = PDFExtractPagesFeature;

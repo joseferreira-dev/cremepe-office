@@ -1,4 +1,6 @@
-class HomePage extends Feature {
+import { Feature } from './feature.js';
+
+export class HomePage extends Feature {
     constructor(container) {
         super('home');
         this.container = container;
@@ -85,7 +87,7 @@ class HomePage extends Feature {
         this.cards = await this.getCards();
         const cardIds = this.cards.map(c => c.id);
 
-        let cardsHtml = '';
+        let cardsHtml;
         if (this.cards.length === 0) {
             cardsHtml = `
                 <div class="text-center text-muted py-4">
@@ -158,7 +160,7 @@ class HomePage extends Feature {
                     <div class="list-group list-group-flush">
                         <div class="list-group-item d-flex justify-content-between align-items-center">
                             <strong><i class="bi bi-folder2-open me-2 text-success"></i>Coletar Arquivos</strong>
-                            <span class="flex-grow-1 mx-2">Coletados 247 arquivos → C:\Destino</span>
+                            <span class="flex-grow-1 mx-2">Coletados 247 arquivos → C:\\Destino</span>
                             <small class="text-muted">14:32</small>
                         </div>
                         <div class="list-group-item d-flex justify-content-between align-items-center">
@@ -346,4 +348,3 @@ class HomePage extends Feature {
     }
 }
 
-window.HomePage = HomePage;

@@ -1,3 +1,12 @@
+import { API } from './api.js';
+import { ExcelModule } from './modules/excel/index.js';
+import { FileModule } from './modules/file/index.js';
+import { HomePage } from './modules/home.js';
+import { PDFModule } from './modules/pdf/index.js';
+// eslint-disable-next-line no-unused-vars -- settings desativado temporariamente; import necessário para reativar
+import { SettingsPage } from './modules/settings.js';
+import { WordModule } from './modules/word/index.js';
+
 console.log('App iniciado');
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -58,8 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = document.getElementById('status-text');
         if (!dot || !text) return;
 
-        if (window.API && window.API.health) {
-            window.API.health()
+        if (API && API.health) {
+            API.health()
                 .then(() => {
                     dot.className = 'badge bg-success';
                     dot.style.width = '10px';

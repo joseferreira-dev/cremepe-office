@@ -1,4 +1,8 @@
-class DuplicatesFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class DuplicatesFeature extends Feature {
     constructor(module) {
         super('duplicates');
         this.module = module;
@@ -97,7 +101,7 @@ class DuplicatesFeature extends Feature {
         this.clearLog();
         this.log('Procurando duplicatas...');
         try {
-            const result = await window.API.file.findDuplicates({
+            const result = await API.file.findDuplicates({
                 dir,
                 recursive,
                 match_by: matchBy,
@@ -146,7 +150,7 @@ class DuplicatesFeature extends Feature {
         btn.disabled = true;
         this.log(`Aplicando ação (${action})...`);
         try {
-            const result = await window.API.file.removeDuplicates({
+            const result = await API.file.removeDuplicates({
                 groups: this.groups.map(g => g.files),
                 action,
                 destination

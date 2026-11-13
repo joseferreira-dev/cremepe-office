@@ -1,4 +1,7 @@
-class ArchiveFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class ArchiveFeature extends Feature {
     constructor(module) {
         super('archive');
         this.module = module;
@@ -256,7 +259,7 @@ class ArchiveFeature extends Feature {
         this.log('Compactando...');
 
         try {
-            const result = await window.API.file.compress({
+            const result = await API.file.compress({
                 source_paths: sources,
                 output_path: output,
                 password,
@@ -292,7 +295,7 @@ class ArchiveFeature extends Feature {
         this.log('Extraindo...');
 
         try {
-            const result = await window.API.file.extract({
+            const result = await API.file.extract({
                 archive_path: archivePath,
                 extract_dir: extractDir,
                 password

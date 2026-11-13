@@ -1,4 +1,8 @@
-class RenameByContentFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class RenameByContentFeature extends Feature {
     constructor(module) {
         super('rename-content');
         this.module = module;
@@ -98,7 +102,7 @@ class RenameByContentFeature extends Feature {
         this.log('Carregando pré-visualização...');
 
         try {
-            const result = await window.API.file.renameByContentPreview({
+            const result = await API.file.renameByContentPreview({
                 dir,
                 recursive,
                 pattern
@@ -153,7 +157,7 @@ class RenameByContentFeature extends Feature {
         this.log(`Renomeando arquivos em ${dir}...`);
 
         try {
-            const result = await window.API.file.renameByContent({
+            const result = await API.file.renameByContent({
                 dir,
                 recursive,
                 pattern

@@ -1,4 +1,7 @@
-class FilePathFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class FilePathFeature extends Feature {
     constructor(module) {
         super('fp');
         this.module = module;
@@ -191,7 +194,7 @@ class FilePathFeature extends Feature {
         this.log('Inserindo caminho do arquivo...');
 
         try {
-            const result = await window.API.word.filepath({
+            const result = await API.word.filepath({
                 input_path: inputPath,
                 output_path: outputPath,
                 position: position,

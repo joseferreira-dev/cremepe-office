@@ -1,3 +1,0 @@
-const WordUtils = {
-    // Utilitários futuros
-};

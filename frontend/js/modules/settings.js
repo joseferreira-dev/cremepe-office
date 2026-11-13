@@ -1,4 +1,4 @@
-class SettingsPage {
+export class SettingsPage {
     constructor(container) {
         this.container = container;
     }
@@ -71,4 +71,3 @@ class SettingsPage {
         });
     }
 }
-window.SettingsPage = SettingsPage;

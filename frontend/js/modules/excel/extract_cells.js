@@ -1,4 +1,8 @@
-class ExcelExtractCellsFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class ExcelExtractCellsFeature extends Feature {
     constructor() {
         super('extract');
         this.fields = [];
@@ -183,14 +187,14 @@ class ExcelExtractCellsFeature extends Feature {
         this.log(`Extraindo dados...`);
 
         try {
-            const result = await window.API.excel.extractCells({
+            const result = await API.excel.extractCells({
                 source_dir: sourceDir,
                 fields: fields.map(f => ({ name: f.name, source: f.source })),
                 recursive: recursive,
                 output_file: outputFile
             });
 
-            const { results, errors, total_files } = result;
+            const { results, errors } = result;
 
             if (errors.length) {
                 this.log(`Erros: ${errors.length}`);
@@ -248,4 +252,3 @@ class ExcelExtractCellsFeature extends Feature {
     }
 }
 
-window.ExcelExtractCellsFeature = ExcelExtractCellsFeature;

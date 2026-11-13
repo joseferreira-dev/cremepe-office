@@ -1,4 +1,8 @@
-class CompareFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from './utils.js';
+
+export class CompareFeature extends Feature {
     constructor(module) {
         super('compare');
         this.module = module;
@@ -114,7 +118,7 @@ class CompareFeature extends Feature {
         this.log('Comparando pastas...');
 
         try {
-            const result = await window.API.file.compare({
+            const result = await API.file.compare({
                 source_dir: source,
                 target_dir: target,
                 recursive,
@@ -194,7 +198,7 @@ class CompareFeature extends Feature {
         this.log(`Sincronizando (${actionLabel})...`);
 
         try {
-            const result = await window.API.file.sync({
+            const result = await API.file.sync({
                 source_dir: source,
                 target_dir: target,
                 recursive,

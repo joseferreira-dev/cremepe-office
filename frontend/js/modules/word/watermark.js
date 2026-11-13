@@ -1,4 +1,7 @@
-class WatermarkFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class WatermarkFeature extends Feature {
     constructor(module) {
         super('wm');
         this.module = module;
@@ -252,7 +255,7 @@ class WatermarkFeature extends Feature {
         const marginTop = parseFloat(document.getElementById('wm-margin-top').value) || 0;
 
         try {
-            const result = await window.API.word.watermarkPreview({
+            const result = await API.word.watermarkPreview({
                 position: position,
                 width_cm: width,
                 height_cm: height,
@@ -371,7 +374,7 @@ class WatermarkFeature extends Feature {
                 margin_left_cm: marginLeft,
                 margin_top_cm: marginTop
             };
-            const result = await window.API.word.watermark(params);
+            const result = await API.word.watermark(params);
             this.log(`Marca d'água inserida em: ${result.output_path}`);
             this.setProgress(100);
         } catch (err) {

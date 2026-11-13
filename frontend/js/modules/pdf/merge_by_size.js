@@ -1,4 +1,8 @@
-class PDFMergeBySizeFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class PDFMergeBySizeFeature extends Feature {
     constructor() {
         super('pdf-merge-size');
     }
@@ -115,7 +119,7 @@ class PDFMergeBySizeFeature extends Feature {
         this.log(`Iniciando combinação com limite de ${maxSize} MB...`);
 
         try {
-            const result = await window.API.pdf.mergeBySize({
+            const result = await API.pdf.mergeBySize({
                 source_dir: sourceDir,
                 dest_dir: destDir,
                 max_size_mb: maxSize,
@@ -141,4 +145,3 @@ class PDFMergeBySizeFeature extends Feature {
     }
 }
 
-window.PDFMergeBySizeFeature = PDFMergeBySizeFeature;

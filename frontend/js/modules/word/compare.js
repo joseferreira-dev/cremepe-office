@@ -1,4 +1,7 @@
-class DocCompareFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class DocCompareFeature extends Feature {
     constructor(module) {
         super('compare');
         this.module = module;
@@ -98,7 +101,7 @@ class DocCompareFeature extends Feature {
         this.log('Comparando documentos...');
 
         try {
-            const result = await window.API.word.compare({
+            const result = await API.word.compare({
                 doc1_path: doc1,
                 doc2_path: doc2
             });

@@ -1,4 +1,7 @@
-class PDFCompressFeature extends Feature {
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+
+export class PDFCompressFeature extends Feature {
     constructor() {
         super('compress');
         this.compressionLevels = [
@@ -159,7 +162,7 @@ class PDFCompressFeature extends Feature {
         this.log('Comprimindo PDF...');
 
         try {
-            const result = await window.API.pdf.compress({
+            const result = await API.pdf.compress({
                 input_path: inputPath,
                 output_path: outputPath,
                 compression_level: compressionLevel,
@@ -187,4 +190,3 @@ class PDFCompressFeature extends Feature {
     }
 }
 
-window.PDFCompressFeature = PDFCompressFeature;
