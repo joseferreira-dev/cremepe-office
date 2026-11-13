@@ -119,9 +119,11 @@ class JobManager:
 
     def create(self, label: str) -> Job:
         with self._lock:
-            self._prune()
             job = Job(uuid.uuid4().hex, label)
             self._jobs[job.id] = job
+            # poda DEPOIS de inserir: o teto JOB_MAX_COUNT e exato
+            # (podar antes faria o dicionario crescer ate COUNT+1)
+            self._prune()
             return job
 
     def get(self, job_id: str):

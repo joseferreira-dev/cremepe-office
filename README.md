@@ -49,6 +49,40 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
 
 ---
 
+## Testes
+
+O backend tem uma suíte **pytest** na raiz do repositório (a
+configuração está no `pyproject.toml`: `pythonpath` resolve os imports
+absolutos e `testpaths` aponta para `tests/`).
+
+```bash
+# instala as dependências de teste (extra dev do pyproject)
+pip install -e ".[dev]"
+
+pytest                  # suíte completa
+pytest -m "not slow"    # só os testes rápidos (sem spawn de processo)
+pytest tests/test_jobs.py   # um arquivo específico
+```
+
+Cobertura:
+
+- **erros globais** — formatos 404/405/400 em JSON e o mapeamento
+  exceção → status (`describe_exception`, fonte única)
+- **validação das 47 rotas** — `@require` síncrono (400 imediato),
+  mensagens singular/plural, valores falsy, validações inline
+- **jobs assíncronos** — ciclo de vida 202 → poll → done/error,
+  preservação de `error_status`, progresso intermediário real,
+  poda do JobManager
+- **logging em arquivo** — criação do log, registro de requisições,
+  health check excluído, traceback de erro em execução
+- **services com fixtures** — merge/split de PDF, conversão Excel e
+  coleta de arquivos reportando progresso
+- **integração com servidor real** (marker `slow`) — bind apenas em
+  `127.0.0.1`, debug condicional (`FLASK_DEBUG`) e não-bloqueio do
+  health check durante operação longa
+
+---
+
 ## Gerar o instalador para Windows (distribuição)
 
 O instalador final (`.exe`) inclui o frontend Electron e o backend Python empacotado como um executável único. **Nenhuma dependência externa (Python ou Node.js) é necessária** no computador do usuário final.

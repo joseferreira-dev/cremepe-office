@@ -54,3 +54,6 @@ where = ["backend"]
 [tool.pytest.ini_options]
 pythonpath = ["backend"]
 testpaths = ["tests"]
+markers = [
+    "slow: sobe o servidor real como subprocesso (bind/debug/nao-bloqueio)",
+]
