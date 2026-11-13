@@ -1,5 +1,6 @@
-class MergeFeature {
+class MergeFeature extends Feature {
     constructor(module) {
+        super('merge');
         this.module = module;
         this.docxPaths = [];
     }
@@ -47,12 +48,9 @@ class MergeFeature {
 
             <button class="btn btn-success" id="btn-merge"><i class="bi bi-play-fill"></i> Juntar</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="merge-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="merge-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -113,14 +111,14 @@ class MergeFeature {
         const insertPageBreaks = document.getElementById('merge-page-breaks').checked;
 
         if (!docxPaths.length || !outputPath) {
-            FileUtils.log('Selecione os documentos e defina o destino.', 'merge-log');
+            this.log('Selecione os documentos e defina o destino.');
             return;
         }
 
         const btn = document.getElementById('btn-merge');
         btn.disabled = true;
-        FileUtils.clearLog('merge-log');
-        FileUtils.log(`Juntando ${docxPaths.length} documentos...`, 'merge-log');
+        this.clearLog();
+        this.log(`Juntando ${docxPaths.length} documentos...`);
 
         try {
             const result = await window.API.word.merge({
@@ -128,10 +126,10 @@ class MergeFeature {
                 output_path: outputPath,
                 insert_page_breaks: insertPageBreaks
             });
-            FileUtils.log(`Documentos juntados em: ${result.output_path}`, 'merge-log');
-            document.getElementById('merge-progress').style.width = '100%';
+            this.log(`Documentos juntados em: ${result.output_path}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'merge-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

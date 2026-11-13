@@ -1,4 +1,8 @@
-class PDFMergeBySizeFeature {
+class PDFMergeBySizeFeature extends Feature {
+    constructor() {
+        super('pdf-merge-size');
+    }
+
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
@@ -62,12 +66,9 @@ class PDFMergeBySizeFeature {
 
             <button class="btn btn-success" id="btn-pdf-merge-size"><i class="bi bi-play-fill"></i> Combinar</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="pdf-merge-size-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="pdf-merge-size-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents();
@@ -96,22 +97,22 @@ class PDFMergeBySizeFeature {
         const recursive = document.getElementById('pdf-merge-size-recursive').checked;
 
         if (!sourceDir || !destDir) {
-            FileUtils.log('Selecione as pastas de origem e destino.', 'pdf-merge-size-log');
+            this.log('Selecione as pastas de origem e destino.');
             return;
         }
         if (sourceDir === destDir) {
-            FileUtils.log('Origem e destino não podem ser iguais.', 'pdf-merge-size-log');
+            this.log('Origem e destino não podem ser iguais.');
             return;
         }
         if (isNaN(maxSize) || maxSize <= 0) {
-            FileUtils.log('Informe um tamanho máximo válido.', 'pdf-merge-size-log');
+            this.log('Informe um tamanho máximo válido.');
             return;
         }
 
         const btn = document.getElementById('btn-pdf-merge-size');
         btn.disabled = true;
-        FileUtils.clearLog('pdf-merge-size-log');
-        FileUtils.log(`Iniciando combinação com limite de ${maxSize} MB...`, 'pdf-merge-size-log');
+        this.clearLog();
+        this.log(`Iniciando combinação com limite de ${maxSize} MB...`);
 
         try {
             const result = await window.API.pdf.mergeBySize({
@@ -124,16 +125,16 @@ class PDFMergeBySizeFeature {
             });
 
             const { processed, merged_groups, copied_files, errors } = result;
-            FileUtils.log(`Concluído! ${processed} arquivos processados.`, 'pdf-merge-size-log');
-            FileUtils.log(`  ${merged_groups} grupos combinados`, 'pdf-merge-size-log');
-            FileUtils.log(`  ${copied_files} arquivos individuais copiados (excederam o limite)`, 'pdf-merge-size-log');
+            this.log(`Concluído! ${processed} arquivos processados.`);
+            this.log(`  ${merged_groups} grupos combinados`);
+            this.log(`  ${copied_files} arquivos individuais copiados (excederam o limite)`);
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'pdf-merge-size-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'pdf-merge-size-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
-            document.getElementById('pdf-merge-size-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'pdf-merge-size-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

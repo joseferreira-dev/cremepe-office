@@ -1,5 +1,6 @@
-class ReportFeature {
+class ReportFeature extends Feature {
     constructor(module) {
+        super('report');
         this.module = module;
     }
 
@@ -63,17 +64,14 @@ class ReportFeature {
 
             <button class="btn btn-success" id="btn-generate-report"><i class="bi bi-play-fill"></i> Gerar Relatório</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="report-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
             <div id="report-result" style="display:none;" class="mt-3">
                 <label class="fw-bold text-success">Resultado</label>
                 <div id="report-content" class="border rounded p-2" style="max-height:400px; overflow:auto; font-family:monospace; font-size:0.85rem; white-space:pre-wrap;"></div>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="report-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -106,7 +104,7 @@ class ReportFeature {
     async generateReport() {
         const dir = document.getElementById('report-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'report-log');
+            this.log('Selecione uma pasta.');
             return;
         }
 
@@ -118,8 +116,8 @@ class ReportFeature {
 
         const btn = document.getElementById('btn-generate-report');
         btn.disabled = true;
-        FileUtils.clearLog('report-log');
-        FileUtils.log('Gerando relatório...', 'report-log');
+        this.clearLog();
+        this.log('Gerando relatório...');
 
         try {
             const result = await window.API.file.generateReport({
@@ -131,16 +129,16 @@ class ReportFeature {
             });
 
             if (result.saved_path) {
-                FileUtils.log(`Relatório salvo em: ${result.saved_path}`, 'report-log');
+                this.log(`Relatório salvo em: ${result.saved_path}`);
             } else {
                 const contentDiv = document.getElementById('report-result');
                 contentDiv.style.display = 'block';
                 document.getElementById('report-content').textContent = result.content;
-                FileUtils.log('Relatório gerado com sucesso.', 'report-log');
+                this.log('Relatório gerado com sucesso.');
             }
-            document.getElementById('report-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'report-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

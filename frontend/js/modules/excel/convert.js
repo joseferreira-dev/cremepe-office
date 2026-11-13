@@ -1,4 +1,8 @@
-class ExcelConvertFeature {
+class ExcelConvertFeature extends Feature {
+    constructor() {
+        super('excel');
+    }
+
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
@@ -70,12 +74,9 @@ class ExcelConvertFeature {
 
             <button class="btn btn-success" id="btn-excel-convert"><i class="bi bi-play-fill"></i> Converter</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="excel-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="excel-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents();
@@ -104,18 +105,18 @@ class ExcelConvertFeature {
         const overwrite = document.getElementById('excel-overwrite').checked;
 
         if (!sourceDir || !destDir) {
-            FileUtils.log('Selecione as pastas de origem e destino.', 'excel-log');
+            this.log('Selecione as pastas de origem e destino.');
             return;
         }
         if (sourceDir === destDir) {
-            FileUtils.log('Origem e destino não podem ser iguais.', 'excel-log');
+            this.log('Origem e destino não podem ser iguais.');
             return;
         }
 
         const btn = document.getElementById('btn-excel-convert');
         btn.disabled = true;
-        FileUtils.clearLog('excel-log');
-        FileUtils.log(`Iniciando conversão de ${inputFormat.toUpperCase()} → ${outputFormat.toUpperCase()}...`, 'excel-log');
+        this.clearLog();
+        this.log(`Iniciando conversão de ${inputFormat.toUpperCase()} → ${outputFormat.toUpperCase()}...`);
 
         try {
             const result = await window.API.excel.convertBatch({
@@ -128,14 +129,14 @@ class ExcelConvertFeature {
             });
 
             const { processed, skipped, errors } = result;
-            FileUtils.log(`Concluído! ${processed} arquivos convertidos, ${skipped} ignorados.`, 'excel-log');
+            this.log(`Concluído! ${processed} arquivos convertidos, ${skipped} ignorados.`);
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'excel-log');
-                errors.forEach(e => FileUtils.log(`  ${e.file}: ${e.error}`, 'excel-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e.file}: ${e.error}`));
             }
-            document.getElementById('excel-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'excel-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

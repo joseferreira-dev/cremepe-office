@@ -1,5 +1,6 @@
-class ExtractImagesFeature {
+class ExtractImagesFeature extends Feature {
     constructor(module) {
+        super('extract');
         this.module = module;
     }
 
@@ -42,12 +43,9 @@ class ExtractImagesFeature {
 
             <button class="btn btn-success" id="btn-extract"><i class="bi bi-play-fill"></i> Extrair</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="extract-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="extract-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
 
             <div id="extract-result" style="display:none;" class="mt-3">
                 <label class="fw-bold text-success">Imagens extraídas</label>
@@ -85,14 +83,14 @@ class ExtractImagesFeature {
         const prefix = document.getElementById('extract-prefix').value.trim() || undefined;
 
         if (!inputPath || !outputDir) {
-            FileUtils.log('Selecione o documento e a pasta de destino.', 'extract-log');
+            this.log('Selecione o documento e a pasta de destino.');
             return;
         }
 
         const btn = document.getElementById('btn-extract');
         btn.disabled = true;
-        FileUtils.clearLog('extract-log');
-        FileUtils.log('Extraindo imagens...', 'extract-log');
+        this.clearLog();
+        this.log('Extraindo imagens...');
 
         try {
             const result = await window.API.word.extractImages({
@@ -100,15 +98,15 @@ class ExtractImagesFeature {
                 output_dir: outputDir,
                 prefix: prefix
             });
-            FileUtils.log(`Extraídas ${result.count} imagens.`, 'extract-log');
-            document.getElementById('extract-progress').style.width = '100%';
+            this.log(`Extraídas ${result.count} imagens.`);
+            this.setProgress(100);
 
             const resultDiv = document.getElementById('extract-result');
             resultDiv.style.display = 'block';
             const listDiv = document.getElementById('extract-list');
             listDiv.innerHTML = result.images.map(img => `<div><i class="bi bi-image me-1"></i> ${img}</div>`).join('');
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'extract-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

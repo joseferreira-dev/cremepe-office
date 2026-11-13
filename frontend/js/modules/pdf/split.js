@@ -1,5 +1,6 @@
-class PDFSplitFeature {
+class PDFSplitFeature extends Feature {
     constructor() {
+        super('split-pdf');
         this.mode = 'custom'; // 'custom' ou 'fixed'
         this.previewData = null;
     }
@@ -102,12 +103,9 @@ class PDFSplitFeature {
                 <div id="split-preview-list" class="border rounded p-2" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="split-pdf-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="split-pdf-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         // Eventos para alternar entre modos
@@ -180,7 +178,7 @@ class PDFSplitFeature {
         }
 
         listDiv.innerHTML = html;
-        FileUtils.log('Pré-visualização gerada.', 'split-pdf-log');
+        this.log('Pré-visualização gerada.');
     }
 
     async executeSplit() {
@@ -192,21 +190,21 @@ class PDFSplitFeature {
         const combineName = document.getElementById('split-combine-name').value.trim() || 'combined';
 
         if (!inputFile || !outputDir) {
-            FileUtils.log('Selecione o PDF e a pasta de destino.', 'split-pdf-log');
+            this.log('Selecione o PDF e a pasta de destino.');
             return;
         }
 
         const btn = document.getElementById('btn-split-execute');
         btn.disabled = true;
-        FileUtils.clearLog('split-pdf-log');
-        FileUtils.log('Iniciando divisão...', 'split-pdf-log');
+        this.clearLog();
+        this.log('Iniciando divisão...');
 
         try {
             let result;
             if (mode === 'custom') {
                 const intervalsStr = document.getElementById('split-intervals').value.trim();
                 if (!intervalsStr) {
-                    FileUtils.log('Digite os intervalos.', 'split-pdf-log');
+                    this.log('Digite os intervalos.');
                     btn.disabled = false;
                     return;
                 }
@@ -221,7 +219,7 @@ class PDFSplitFeature {
             } else {
                 const pagesPerFile = parseInt(document.getElementById('split-pages-per-file').value);
                 if (isNaN(pagesPerFile) || pagesPerFile < 1) {
-                    FileUtils.log('Informe um número válido de páginas por arquivo.', 'split-pdf-log');
+                    this.log('Informe um número válido de páginas por arquivo.');
                     btn.disabled = false;
                     return;
                 }
@@ -237,20 +235,20 @@ class PDFSplitFeature {
 
             const { total_pages, total_files, output_files, combined_file, errors } = result;
             if (combine) {
-                FileUtils.log(`Concluído! Arquivo combinado gerado: ${combined_file} (${total_pages} páginas)`, 'split-pdf-log');
+                this.log(`Concluído! Arquivo combinado gerado: ${combined_file} (${total_pages} páginas)`);
             } else {
-                FileUtils.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`, 'split-pdf-log');
+                this.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`);
                 if (output_files.length) {
-                    FileUtils.log(`Arquivos:\n${output_files.join('\n')}`, 'split-pdf-log');
+                    this.log(`Arquivos:\n${output_files.join('\n')}`);
                 }
             }
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'split-pdf-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'split-pdf-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
-            document.getElementById('split-pdf-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'split-pdf-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

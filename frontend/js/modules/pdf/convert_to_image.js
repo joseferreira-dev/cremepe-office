@@ -1,5 +1,6 @@
-class PDFConvertToImageFeature {
+class PDFConvertToImageFeature extends Feature {
     constructor() {
+        super('convert-image');
         this.mode = 'images_to_pdf'; // 'images_to_pdf' | 'pdf_to_images'
         this.imagePaths = [];
     }
@@ -174,12 +175,9 @@ class PDFConvertToImageFeature {
 
             <button class="btn btn-success" id="btn-convert-image"><i class="bi bi-play-fill me-1"></i>Converter</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="convert-image-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="convert-image-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         // Eventos para alternar modos
@@ -305,7 +303,7 @@ class PDFConvertToImageFeature {
         const mode = this.mode;
         const btn = document.getElementById('btn-convert-image');
         btn.disabled = true;
-        FileUtils.clearLog('convert-image-log');
+        this.clearLog();
 
         try {
             if (mode === 'images_to_pdf') {
@@ -314,7 +312,7 @@ class PDFConvertToImageFeature {
                 await this.convertPdfToImages();
             }
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'convert-image-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -329,7 +327,7 @@ class PDFConvertToImageFeature {
         if (combine) {
             outputPath = document.getElementById('image-to-pdf-output').value.trim();
             if (!outputPath) {
-                FileUtils.log('Defina o caminho do arquivo PDF de saída.', 'convert-image-log');
+                this.log('Defina o caminho do arquivo PDF de saída.');
                 throw new Error('Caminho de saída ausente');
             }
             naming = 'prefix'; // não usado
@@ -337,7 +335,7 @@ class PDFConvertToImageFeature {
         } else {
             outputPath = document.getElementById('image-to-pdf-folder').value.trim();
             if (!outputPath) {
-                FileUtils.log('Selecione a pasta de destino.', 'convert-image-log');
+                this.log('Selecione a pasta de destino.');
                 throw new Error('Pasta de destino ausente');
             }
             const namingRadio = document.querySelector('input[name="naming-mode"]:checked');
@@ -348,14 +346,14 @@ class PDFConvertToImageFeature {
         resizeMode = document.getElementById('resize-mode').value; // 'cover' ou 'fit'
 
         if (imagePaths.length === 0) {
-            FileUtils.log('Selecione pelo menos uma imagem.', 'convert-image-log');
+            this.log('Selecione pelo menos uma imagem.');
             throw new Error('Nenhuma imagem selecionada');
         }
 
         const margin = parseFloat(document.getElementById('margin-cm').value) || 0.5;
         const orientation = document.getElementById('orientation-select').value;
 
-        FileUtils.log(`Convertendo ${imagePaths.length} imagens para PDF (modo: ${combine ? 'combinado' : 'separado'})...`, 'convert-image-log');
+        this.log(`Convertendo ${imagePaths.length} imagens para PDF (modo: ${combine ? 'combinado' : 'separado'})...`);
 
         const result = await window.API.pdf.convertImagesToPDF({
             image_paths: imagePaths,
@@ -370,20 +368,20 @@ class PDFConvertToImageFeature {
 
         const { total_images, output_files, combined_file, errors } = result;
         if (combined_file) {
-            FileUtils.log(`Concluído! PDF combinado salvo em: ${combined_file}`, 'convert-image-log');
+            this.log(`Concluído! PDF combinado salvo em: ${combined_file}`);
         } else {
-            FileUtils.log(`Concluído! ${total_images} PDFs gerados na pasta ${outputPath}.`, 'convert-image-log');
+            this.log(`Concluído! ${total_images} PDFs gerados na pasta ${outputPath}.`);
             if (output_files.length <= 10) {
-                output_files.forEach(f => FileUtils.log(`  ${f}`, 'convert-image-log'));
+                output_files.forEach(f => this.log(`  ${f}`));
             } else {
-                FileUtils.log(`  ${output_files.length} arquivos gerados.`, 'convert-image-log');
+                this.log(`  ${output_files.length} arquivos gerados.`);
             }
         }
         if (errors.length) {
-            FileUtils.log(`Erros: ${errors.length}`, 'convert-image-log');
-            errors.forEach(e => FileUtils.log(`  ${e}`, 'convert-image-log'));
+            this.log(`Erros: ${errors.length}`);
+            errors.forEach(e => this.log(`  ${e}`));
         }
-        document.getElementById('convert-image-progress').style.width = '100%';
+        this.setProgress(100);
     }
 
     async convertPdfToImages() {
@@ -394,11 +392,11 @@ class PDFConvertToImageFeature {
         const prefix = document.getElementById('image-prefix-pdf').value.trim();
 
         if (pdfPaths.length === 0 || !outputDir) {
-            FileUtils.log('Selecione PDFs e a pasta de destino.', 'convert-image-log');
+            this.log('Selecione PDFs e a pasta de destino.');
             throw new Error('Dados incompletos');
         }
 
-        FileUtils.log(`Convertendo ${pdfPaths.length} PDF(s) para imagens...`, 'convert-image-log');
+        this.log(`Convertendo ${pdfPaths.length} PDF(s) para imagens...`);
         const result = await window.API.pdf.convertPdfToImages({
             pdf_paths: pdfPaths,
             output_dir: outputDir,
@@ -408,17 +406,17 @@ class PDFConvertToImageFeature {
         });
 
         const { total_pdfs, total_images, output_files, errors } = result;
-        FileUtils.log(`Concluído! ${total_images} imagens geradas a partir de ${total_pdfs} PDF(s).`, 'convert-image-log');
+        this.log(`Concluído! ${total_images} imagens geradas a partir de ${total_pdfs} PDF(s).`);
         if (output_files.length <= 20) {
-            output_files.forEach(f => FileUtils.log(`  ${f}`, 'convert-image-log'));
+            output_files.forEach(f => this.log(`  ${f}`));
         } else {
-            FileUtils.log(`  ${output_files.length} imagens salvas em ${outputDir}`, 'convert-image-log');
+            this.log(`  ${output_files.length} imagens salvas em ${outputDir}`);
         }
         if (errors.length) {
-            FileUtils.log(`Erros: ${errors.length}`, 'convert-image-log');
-            errors.forEach(e => FileUtils.log(`  ${e}`, 'convert-image-log'));
+            this.log(`Erros: ${errors.length}`);
+            errors.forEach(e => this.log(`  ${e}`));
         }
-        document.getElementById('convert-image-progress').style.width = '100%';
+        this.setProgress(100);
     }
 }
 

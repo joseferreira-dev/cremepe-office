@@ -1,4 +1,8 @@
-class PDFReorderFeature {
+class PDFReorderFeature extends Feature {
+    constructor() {
+        super('reorder');
+    }
+
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
@@ -39,12 +43,9 @@ class PDFReorderFeature {
 
             <button class="btn btn-success" id="btn-reorder-execute"><i class="bi bi-play-fill me-1"></i>Reordenar</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="reorder-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="reorder-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents();
@@ -97,19 +98,19 @@ class PDFReorderFeature {
         const orderStr = document.getElementById('reorder-order').value.trim();
 
         if (!inputFile || !outputFile) {
-            FileUtils.log('Selecione o PDF de entrada e defina o arquivo de saída.', 'reorder-log');
+            this.log('Selecione o PDF de entrada e defina o arquivo de saída.');
             return;
         }
 
         if (!orderStr) {
-            FileUtils.log('Defina a nova ordem das páginas.', 'reorder-log');
+            this.log('Defina a nova ordem das páginas.');
             return;
         }
 
         const btn = document.getElementById('btn-reorder-execute');
         btn.disabled = true;
-        FileUtils.clearLog('reorder-log');
-        FileUtils.log(`Reordenando páginas: ${orderStr}...`, 'reorder-log');
+        this.clearLog();
+        this.log(`Reordenando páginas: ${orderStr}...`);
 
         try {
             const result = await window.API.pdf.reorderPages({
@@ -119,15 +120,15 @@ class PDFReorderFeature {
             });
 
             const { total_pages, output_file, errors } = result;
-            FileUtils.log(`Concluído! PDF reordenado salvo em: ${output_file}`, 'reorder-log');
-            FileUtils.log(`Total de páginas: ${total_pages}`, 'reorder-log');
+            this.log(`Concluído! PDF reordenado salvo em: ${output_file}`);
+            this.log(`Total de páginas: ${total_pages}`);
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'reorder-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'reorder-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
-            document.getElementById('reorder-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'reorder-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

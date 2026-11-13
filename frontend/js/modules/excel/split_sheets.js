@@ -1,4 +1,8 @@
-class ExcelSplitSheetsFeature {
+class ExcelSplitSheetsFeature extends Feature {
+    constructor() {
+        super('split-sheets');
+    }
+
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
@@ -48,12 +52,9 @@ class ExcelSplitSheetsFeature {
 
             <button class="btn btn-success" id="btn-split-sheets"><i class="bi bi-play-fill"></i> Extrair Abas</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="split-sheets-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="split-sheets-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents();
@@ -89,14 +90,14 @@ class ExcelSplitSheetsFeature {
         const outputFormat = formatRadio ? formatRadio.value : 'xlsx';
 
         if (!inputFile || !outputDir) {
-            FileUtils.log('Selecione o arquivo e a pasta de destino.', 'split-sheets-log');
+            this.log('Selecione o arquivo e a pasta de destino.');
             return;
         }
 
         const btn = document.getElementById('btn-split-sheets');
         btn.disabled = true;
-        FileUtils.clearLog('split-sheets-log');
-        FileUtils.log(`Extraindo abas para ${outputFormat.toUpperCase()}...`, 'split-sheets-log');
+        this.clearLog();
+        this.log(`Extraindo abas para ${outputFormat.toUpperCase()}...`);
 
         try {
             const result = await window.API.excel.splitSheets({
@@ -106,15 +107,15 @@ class ExcelSplitSheetsFeature {
             });
 
             const { processed, files, errors } = result;
-            FileUtils.log(`Concluído! ${processed} abas extraídas.`, 'split-sheets-log');
-            files.forEach(f => FileUtils.log(`  ${f}`, 'split-sheets-log'));
+            this.log(`Concluído! ${processed} abas extraídas.`);
+            files.forEach(f => this.log(`  ${f}`));
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'split-sheets-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'split-sheets-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
-            document.getElementById('split-sheets-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'split-sheets-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

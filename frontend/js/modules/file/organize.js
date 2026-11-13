@@ -1,5 +1,6 @@
-class OrganizeFeature {
+class OrganizeFeature extends Feature {
     constructor(module) {
+        super('organize');
         this.module = module;
         this.previewData = null;
     }
@@ -64,12 +65,9 @@ class OrganizeFeature {
                 <div id="organize-preview-list" class="border rounded p-2" style="max-height:300px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="organize-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="organize-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -88,7 +86,7 @@ class OrganizeFeature {
     async previewOrganize() {
         const dir = document.getElementById('organize-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'organize-log');
+            this.log('Selecione uma pasta.');
             return;
         }
 
@@ -97,8 +95,8 @@ class OrganizeFeature {
 
         const btn = document.getElementById('btn-organize-preview');
         btn.disabled = true;
-        FileUtils.clearLog('organize-log');
-        FileUtils.log('Carregando pré-visualização...', 'organize-log');
+        this.clearLog();
+        this.log('Carregando pré-visualização...');
 
         try {
             const result = await window.API.file.organizePreview({
@@ -127,10 +125,10 @@ class OrganizeFeature {
                     `;
                 });
                 listDiv.innerHTML = html;
-                FileUtils.log(`Pré-visualização: ${total} arquivos serão organizados em ${this.previewData.length} pastas.`, 'organize-log');
+                this.log(`Pré-visualização: ${total} arquivos serão organizados em ${this.previewData.length} pastas.`);
             }
         } catch (err) {
-            FileUtils.log(`Erro na pré-visualização: ${err.message}`, 'organize-log');
+            this.log(`Erro na pré-visualização: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -139,7 +137,7 @@ class OrganizeFeature {
     async executeOrganize() {
         const dir = document.getElementById('organize-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'organize-log');
+            this.log('Selecione uma pasta.');
             return;
         }
 
@@ -151,8 +149,8 @@ class OrganizeFeature {
 
         const btn = document.getElementById('btn-organize');
         btn.disabled = true;
-        FileUtils.clearLog('organize-log');
-        FileUtils.log(`Organizando arquivos em ${dir}...`, 'organize-log');
+        this.clearLog();
+        this.log(`Organizando arquivos em ${dir}...`);
 
         try {
             const result = await window.API.file.organize({
@@ -163,11 +161,11 @@ class OrganizeFeature {
                 move_others: moveOthers,
                 delete_empty_folders: deleteEmpty
             });
-            FileUtils.log(`Concluído! ${result.processed_count} arquivos organizados.`, 'organize-log');
-            document.getElementById('organize-progress').style.width = '100%';
+            this.log(`Concluído! ${result.processed_count} arquivos organizados.`);
+            this.setProgress(100);
             document.getElementById('organize-preview-area').style.display = 'none';
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'organize-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

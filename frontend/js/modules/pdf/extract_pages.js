@@ -1,5 +1,6 @@
-class PDFExtractPagesFeature {
+class PDFExtractPagesFeature extends Feature {
     constructor() {
+        super('extract');
         this.mode = 'all'; // 'all' ou 'selected'
     }
 
@@ -86,12 +87,9 @@ class PDFExtractPagesFeature {
 
             <button class="btn btn-success" id="btn-extract-execute"><i class="bi bi-play-fill me-1"></i>Extrair</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="extract-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="extract-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         // Eventos para alternar entre modos
@@ -143,19 +141,19 @@ class PDFExtractPagesFeature {
         const prefix = document.getElementById('extract-prefix').value.trim();
 
         if (!inputFile || !outputDir) {
-            FileUtils.log('Selecione o PDF e a pasta de destino.', 'extract-log');
+            this.log('Selecione o PDF e a pasta de destino.');
             return;
         }
 
         const btn = document.getElementById('btn-extract-execute');
         btn.disabled = true;
-        FileUtils.clearLog('extract-log');
+        this.clearLog();
 
         try {
             let result;
 
             if (mode === 'all') {
-                FileUtils.log('Extraindo todas as páginas...', 'extract-log');
+                this.log('Extraindo todas as páginas...');
                 result = await window.API.pdf.extractAllPages({
                     pdf_path: inputFile,
                     output_dir: outputDir,
@@ -164,14 +162,14 @@ class PDFExtractPagesFeature {
             } else {
                 const pagesSelection = document.getElementById('extract-pages-selection').value.trim();
                 if (!pagesSelection) {
-                    FileUtils.log('Selecione pelo menos uma página.', 'extract-log');
+                    this.log('Selecione pelo menos uma página.');
                     btn.disabled = false;
                     return;
                 }
                 const combine = document.getElementById('extract-combine').checked;
                 const combineName = document.getElementById('extract-combine-name').value.trim() || undefined;
 
-                FileUtils.log('Extraindo páginas selecionadas...', 'extract-log');
+                this.log('Extraindo páginas selecionadas...');
                 result = await window.API.pdf.extractSelectedPages({
                     pdf_path: inputFile,
                     output_dir: outputDir,
@@ -184,23 +182,23 @@ class PDFExtractPagesFeature {
 
             const { total_pages, total_files, output_files, combined_file, errors } = result;
             if (combined_file) {
-                FileUtils.log(`Concluído! ${total_files} arquivos gerados.`, 'extract-log');
-                FileUtils.log(`Arquivos combinados em: ${combined_file}`, 'extract-log');
+                this.log(`Concluído! ${total_files} arquivos gerados.`);
+                this.log(`Arquivos combinados em: ${combined_file}`);
             } else {
-                FileUtils.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`, 'extract-log');
+                this.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`);
                 if (output_files.length <= 10) {
-                    output_files.forEach(f => FileUtils.log(`  ${f}`, 'extract-log'));
+                    output_files.forEach(f => this.log(`  ${f}`));
                 } else {
-                    FileUtils.log(`  ${output_files.length} arquivos gerados na pasta ${outputDir}`, 'extract-log');
+                    this.log(`  ${output_files.length} arquivos gerados na pasta ${outputDir}`);
                 }
             }
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'extract-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'extract-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
-            document.getElementById('extract-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'extract-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

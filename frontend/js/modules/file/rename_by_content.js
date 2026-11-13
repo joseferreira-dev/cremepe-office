@@ -1,5 +1,6 @@
-class RenameByContentFeature {
+class RenameByContentFeature extends Feature {
     constructor(module) {
+        super('rename-content');
         this.module = module;
         this.previewData = null;
     }
@@ -63,12 +64,9 @@ class RenameByContentFeature {
                 </div>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="rename-content-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="rename-content-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -87,7 +85,7 @@ class RenameByContentFeature {
     async previewRename() {
         const dir = document.getElementById('rename-content-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'rename-content-log');
+            this.log('Selecione uma pasta.');
             return;
         }
 
@@ -96,8 +94,8 @@ class RenameByContentFeature {
 
         const btn = document.getElementById('btn-rename-content-preview');
         btn.disabled = true;
-        FileUtils.clearLog('rename-content-log');
-        FileUtils.log('Carregando pré-visualização...', 'rename-content-log');
+        this.clearLog();
+        this.log('Carregando pré-visualização...');
 
         try {
             const result = await window.API.file.renameByContentPreview({
@@ -131,9 +129,9 @@ class RenameByContentFeature {
                 html = '<tr><td colspan="3" class="text-muted">Nenhum arquivo processado.</td></tr>';
             }
             tbody.innerHTML = html;
-            FileUtils.log(`Pré-visualização: ${renamed.length} arquivos serão renomeados.`, 'rename-content-log');
+            this.log(`Pré-visualização: ${renamed.length} arquivos serão renomeados.`);
         } catch (err) {
-            FileUtils.log(`Erro na pré-visualização: ${err.message}`, 'rename-content-log');
+            this.log(`Erro na pré-visualização: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -142,7 +140,7 @@ class RenameByContentFeature {
     async executeRename() {
         const dir = document.getElementById('rename-content-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'rename-content-log');
+            this.log('Selecione uma pasta.');
             return;
         }
 
@@ -151,8 +149,8 @@ class RenameByContentFeature {
 
         const btn = document.getElementById('btn-rename-content');
         btn.disabled = true;
-        FileUtils.clearLog('rename-content-log');
-        FileUtils.log(`Renomeando arquivos em ${dir}...`, 'rename-content-log');
+        this.clearLog();
+        this.log(`Renomeando arquivos em ${dir}...`);
 
         try {
             const result = await window.API.file.renameByContent({
@@ -160,11 +158,11 @@ class RenameByContentFeature {
                 recursive,
                 pattern
             });
-            FileUtils.log(`Concluído! ${result.renamed.length} arquivos renomeados, ${result.skipped.length} ignorados, ${result.errors.length} erros.`, 'rename-content-log');
-            document.getElementById('rename-content-progress').style.width = '100%';
+            this.log(`Concluído! ${result.renamed.length} arquivos renomeados, ${result.skipped.length} ignorados, ${result.errors.length} erros.`);
+            this.setProgress(100);
             document.getElementById('rename-content-preview-area').style.display = 'none';
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'rename-content-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

@@ -1,5 +1,6 @@
-class CompareFeature {
+class CompareFeature extends Feature {
     constructor(module) {
+        super('compare');
         this.module = module;
         this.compareResult = null;
     }
@@ -70,10 +71,7 @@ class CompareFeature {
                 </div>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="compare-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -98,11 +96,11 @@ class CompareFeature {
         const source = document.getElementById('compare-source').value.trim();
         const target = document.getElementById('compare-target').value.trim();
         if (!source || !target) {
-            FileUtils.log('Selecione ambas as pastas.', 'compare-log');
+            this.log('Selecione ambas as pastas.');
             return;
         }
         if (source === target) {
-            FileUtils.log('Origem e destino não podem ser iguais.', 'compare-log');
+            this.log('Origem e destino não podem ser iguais.');
             return;
         }
 
@@ -112,8 +110,8 @@ class CompareFeature {
 
         const btn = document.getElementById('btn-compare');
         btn.disabled = true;
-        FileUtils.clearLog('compare-log');
-        FileUtils.log('Comparando pastas...', 'compare-log');
+        this.clearLog();
+        this.log('Comparando pastas...');
 
         try {
             const result = await window.API.file.compare({
@@ -163,9 +161,9 @@ class CompareFeature {
             document.getElementById('btn-sync').disabled = false;
             document.getElementById('btn-mirror').disabled = false;
 
-            FileUtils.log(`Comparação concluída. ${result.only_in_source.length + result.modified_in_source.length} arquivos para copiar.`, 'compare-log');
+            this.log(`Comparação concluída. ${result.only_in_source.length + result.modified_in_source.length} arquivos para copiar.`);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'compare-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -173,7 +171,7 @@ class CompareFeature {
 
     async syncFolders(action) {
         if (!this.compareResult) {
-            FileUtils.log('Execute a comparação primeiro.', 'compare-log');
+            this.log('Execute a comparação primeiro.');
             return;
         }
 
@@ -192,8 +190,8 @@ class CompareFeature {
             return;
         }
 
-        FileUtils.clearLog('compare-log');
-        FileUtils.log(`Sincronizando (${actionLabel})...`, 'compare-log');
+        this.clearLog();
+        this.log(`Sincronizando (${actionLabel})...`);
 
         try {
             const result = await window.API.file.sync({
@@ -204,11 +202,11 @@ class CompareFeature {
                 compare_by_hash: compareByHash,
                 action
             });
-            FileUtils.log(`Concluído! ${result.copied} arquivos copiados, ${result.removed} removidos, ${result.skipped} ignorados.`, 'compare-log');
+            this.log(`Concluído! ${result.copied} arquivos copiados, ${result.removed} removidos, ${result.skipped} ignorados.`);
             // Recarregar comparação automaticamente
             await this.compareFolders();
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'compare-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

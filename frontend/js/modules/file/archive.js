@@ -1,5 +1,6 @@
-class ArchiveFeature {
+class ArchiveFeature extends Feature {
     constructor(module) {
+        super('archive');
         this.module = module;
         this.mode = 'compress'; // 'compress' | 'extract'
     }
@@ -131,12 +132,9 @@ class ArchiveFeature {
                 <button class="btn btn-success" id="btn-extract"><i class="bi bi-play-fill"></i> Extrair</button>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="archive-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="archive-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -240,7 +238,7 @@ class ArchiveFeature {
         const sources = document.getElementById('archive-sources').value.split(',').map(s => s.trim()).filter(Boolean);
         const output = document.getElementById('archive-output').value.trim();
         if (!sources.length || !output) {
-            FileUtils.log('Selecione os arquivos/pastas e defina o destino.', 'archive-log');
+            this.log('Selecione os arquivos/pastas e defina o destino.');
             return;
         }
 
@@ -254,8 +252,8 @@ class ArchiveFeature {
 
         const btn = document.getElementById('btn-compress');
         btn.disabled = true;
-        FileUtils.clearLog('archive-log');
-        FileUtils.log('Compactando...', 'archive-log');
+        this.clearLog();
+        this.log('Compactando...');
 
         try {
             const result = await window.API.file.compress({
@@ -269,10 +267,10 @@ class ArchiveFeature {
                 include_patterns: includePatterns ? includePatterns.split(',').map(s => s.trim()) : undefined,
                 exclude_patterns: excludePatterns ? excludePatterns.split(',').map(s => s.trim()) : undefined
             });
-            FileUtils.log(`Compactação concluída: ${result.output_path}`, 'archive-log');
-            document.getElementById('archive-progress').style.width = '100%';
+            this.log(`Compactação concluída: ${result.output_path}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'archive-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -282,7 +280,7 @@ class ArchiveFeature {
         const archivePath = document.getElementById('extract-archive').value.trim();
         const extractDir = document.getElementById('extract-dir').value.trim();
         if (!archivePath || !extractDir) {
-            FileUtils.log('Selecione o arquivo e o destino.', 'archive-log');
+            this.log('Selecione o arquivo e o destino.');
             return;
         }
 
@@ -290,8 +288,8 @@ class ArchiveFeature {
 
         const btn = document.getElementById('btn-extract');
         btn.disabled = true;
-        FileUtils.clearLog('archive-log');
-        FileUtils.log('Extraindo...', 'archive-log');
+        this.clearLog();
+        this.log('Extraindo...');
 
         try {
             const result = await window.API.file.extract({
@@ -299,10 +297,10 @@ class ArchiveFeature {
                 extract_dir: extractDir,
                 password
             });
-            FileUtils.log(`Extraído para: ${result.extract_dir}`, 'archive-log');
-            document.getElementById('archive-progress').style.width = '100%';
+            this.log(`Extraído para: ${result.extract_dir}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'archive-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

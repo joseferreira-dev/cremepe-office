@@ -1,5 +1,6 @@
-class ExcelExtractCellsFeature {
+class ExcelExtractCellsFeature extends Feature {
     constructor() {
+        super('extract');
         this.fields = [];
         this.cellCounter = 1;
         this.previewResults = null;
@@ -58,17 +59,14 @@ class ExcelExtractCellsFeature {
 
             <button class="btn btn-success" id="btn-extract-run"><i class="bi bi-play-fill"></i> Extrair</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="extract-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
             <div id="extract-preview" style="display:none;" class="mt-3">
                 <label class="fw-bold text-success">Pré-visualização (<span id="extract-count">0</span> arquivos)</label>
                 <div id="extract-table-container" style="max-height:400px; overflow:auto; border:1px solid #dee2e6; border-radius:0.375rem;"></div>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="extract-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents();
@@ -135,7 +133,7 @@ class ExcelExtractCellsFeature {
             if (container.children.length > 1) {
                 row.remove();
             } else {
-                FileUtils.log('Mantenha pelo menos um campo.', 'extract-log');
+                this.log('Mantenha pelo menos um campo.');
             }
         });
 
@@ -163,26 +161,26 @@ class ExcelExtractCellsFeature {
         const fields = this.getFields();
 
         if (!sourceDir) {
-            FileUtils.log('Selecione a pasta de origem.', 'extract-log');
+            this.log('Selecione a pasta de origem.');
             return;
         }
         if (fields.length === 0) {
-            FileUtils.log('Adicione pelo menos um campo.', 'extract-log');
+            this.log('Adicione pelo menos um campo.');
             return;
         }
 
         // Valida campos
         for (let f of fields) {
             if (f.type === 'cell' && !/^[A-Z]+[0-9]+$/i.test(f.source)) {
-                FileUtils.log(`Campo "${f.name}" tem referência inválida (ex: A1).`, 'extract-log');
+                this.log(`Campo "${f.name}" tem referência inválida (ex: A1).`);
                 return;
             }
         }
 
         const btn = document.getElementById('btn-extract-run');
         btn.disabled = true;
-        FileUtils.clearLog('extract-log');
-        FileUtils.log(`Extraindo dados...`, 'extract-log');
+        this.clearLog();
+        this.log(`Extraindo dados...`);
 
         try {
             const result = await window.API.excel.extractCells({
@@ -195,26 +193,26 @@ class ExcelExtractCellsFeature {
             const { results, errors, total_files } = result;
 
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'extract-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'extract-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
 
             if (results.length === 0) {
-                FileUtils.log('Nenhum dado extraído.', 'extract-log');
+                this.log('Nenhum dado extraído.');
             } else {
-                FileUtils.log(`${results.length} arquivos processados.`, 'extract-log');
+                this.log(`${results.length} arquivos processados.`);
                 // Mostrar pré-visualização
                 this.showPreview(results, fields);
             }
 
             if (outputFile) {
-                FileUtils.log(`Relatório salvo em: ${outputFile}`, 'extract-log');
+                this.log(`Relatório salvo em: ${outputFile}`);
             }
 
-            document.getElementById('extract-progress').style.width = '100%';
+            this.setProgress(100);
 
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'extract-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

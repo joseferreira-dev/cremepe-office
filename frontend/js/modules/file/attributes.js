@@ -1,5 +1,6 @@
-class AttributesFeature {
+class AttributesFeature extends Feature {
     constructor(module) {
+        super('attr');
         this.module = module;
     }
 
@@ -75,12 +76,9 @@ class AttributesFeature {
 
             <button class="btn btn-success" id="btn-apply-attributes"><i class="bi bi-play-fill"></i> Aplicar</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="attr-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="attr-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -98,7 +96,7 @@ class AttributesFeature {
     async applyAttributes() {
         const dir = document.getElementById('attr-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'attr-log');
+            this.log('Selecione uma pasta.');
             return;
         }
 
@@ -113,14 +111,14 @@ class AttributesFeature {
         // Validação: pelo menos uma opção
         if (readonly === undefined && hidden === undefined && system === undefined &&
             !permissions && !modification_date && !creation_date) {
-            FileUtils.log('Selecione pelo menos uma opção para alterar.', 'attr-log');
+            this.log('Selecione pelo menos uma opção para alterar.');
             return;
         }
 
         const btn = document.getElementById('btn-apply-attributes');
         btn.disabled = true;
-        FileUtils.clearLog('attr-log');
-        FileUtils.log('Aplicando atributos...', 'attr-log');
+        this.clearLog();
+        this.log('Aplicando atributos...');
 
         try {
             const result = await window.API.file.setAttributes({
@@ -133,10 +131,10 @@ class AttributesFeature {
                 modification_date,
                 creation_date
             });
-            FileUtils.log(`Concluído! ${result.processed_count} arquivos processados.`, 'attr-log');
-            document.getElementById('attr-progress').style.width = '100%';
+            this.log(`Concluído! ${result.processed_count} arquivos processados.`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'attr-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

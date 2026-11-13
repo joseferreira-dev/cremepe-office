@@ -1,5 +1,6 @@
-class ConvertFeature {
+class ConvertFeature extends Feature {
     constructor(module) {
+        super('convert');
         this.module = module;
     }
 
@@ -64,12 +65,9 @@ class ConvertFeature {
 
             <button class="btn btn-success" id="btn-convert"><i class="bi bi-play-fill"></i> Converter</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="convert-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="convert-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -129,14 +127,14 @@ class ConvertFeature {
         const format = document.querySelector('input[name="convert-format"]:checked').value;
 
         if (!inputPath || !outputPath) {
-            FileUtils.log('Selecione o arquivo de entrada e defina o destino.', 'convert-log');
+            this.log('Selecione o arquivo de entrada e defina o destino.');
             return;
         }
 
         const btn = document.getElementById('btn-convert');
         btn.disabled = true;
-        FileUtils.clearLog('convert-log');
-        FileUtils.log(`Convertendo para ${format.toUpperCase()}...`, 'convert-log');
+        this.clearLog();
+        this.log(`Convertendo para ${format.toUpperCase()}...`);
 
         try {
             const result = await window.API.word.convert({
@@ -144,10 +142,10 @@ class ConvertFeature {
                 output_path: outputPath,
                 output_format: format
             });
-            FileUtils.log(`Convertido para: ${result.output_path}`, 'convert-log');
-            document.getElementById('convert-progress').style.width = '100%';
+            this.log(`Convertido para: ${result.output_path}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'convert-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

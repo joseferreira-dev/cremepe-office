@@ -1,4 +1,8 @@
-class PDFSplitBySizeFeature {
+class PDFSplitBySizeFeature extends Feature {
+    constructor() {
+        super('split-size');
+    }
+
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
@@ -44,12 +48,9 @@ class PDFSplitBySizeFeature {
 
             <button class="btn btn-success" id="btn-split-size-execute"><i class="bi bi-play-fill me-1"></i>Dividir</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="split-size-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="split-size-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents();
@@ -83,19 +84,19 @@ class PDFSplitBySizeFeature {
         const prefix = document.getElementById('split-size-prefix').value.trim();
 
         if (!inputFile || !outputDir) {
-            FileUtils.log('Selecione o PDF e a pasta de destino.', 'split-size-log');
+            this.log('Selecione o PDF e a pasta de destino.');
             return;
         }
 
         if (isNaN(maxSize) || maxSize <= 0) {
-            FileUtils.log('Informe um tamanho máximo válido.', 'split-size-log');
+            this.log('Informe um tamanho máximo válido.');
             return;
         }
 
         const btn = document.getElementById('btn-split-size-execute');
         btn.disabled = true;
-        FileUtils.clearLog('split-size-log');
-        FileUtils.log(`Iniciando divisão por tamanho (máx: ${maxSize} MB)...`, 'split-size-log');
+        this.clearLog();
+        this.log(`Iniciando divisão por tamanho (máx: ${maxSize} MB)...`);
 
         try {
             const result = await window.API.pdf.splitBySize({
@@ -106,15 +107,15 @@ class PDFSplitBySizeFeature {
             });
 
             const { total_pages, total_files, output_files, errors } = result;
-            FileUtils.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`, 'split-size-log');
-            output_files.forEach(f => FileUtils.log(`  ${f}`, 'split-size-log'));
+            this.log(`Concluído! ${total_files} arquivos gerados a partir de ${total_pages} páginas.`);
+            output_files.forEach(f => this.log(`  ${f}`));
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'split-size-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'split-size-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
-            document.getElementById('split-size-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'split-size-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

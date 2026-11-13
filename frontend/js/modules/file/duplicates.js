@@ -1,5 +1,6 @@
-class DuplicatesFeature {
+class DuplicatesFeature extends Feature {
     constructor(module) {
+        super('duplicates');
         this.module = module;
         this.groups = [];
     }
@@ -61,10 +62,7 @@ class DuplicatesFeature {
                 <button class="btn btn-danger mt-2" id="btn-remove-duplicates">Aplicar Ação</button>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="duplicates-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -89,15 +87,15 @@ class DuplicatesFeature {
     async findDuplicates() {
         const dir = document.getElementById('duplicates-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'duplicates-log');
+            this.log('Selecione uma pasta.');
             return;
         }
         const recursive = document.getElementById('duplicates-recursive').checked;
         const matchBy = document.getElementById('duplicates-match').value;
         const includeHidden = document.getElementById('duplicates-hidden').checked;
 
-        FileUtils.clearLog('duplicates-log');
-        FileUtils.log('Procurando duplicatas...', 'duplicates-log');
+        this.clearLog();
+        this.log('Procurando duplicatas...');
         try {
             const result = await window.API.file.findDuplicates({
                 dir,
@@ -122,15 +120,15 @@ class DuplicatesFeature {
                     </div>
                 `).join('');
             }
-            FileUtils.log(`Encontrados ${result.total_groups} grupos de duplicatas.`, 'duplicates-log');
+            this.log(`Encontrados ${result.total_groups} grupos de duplicatas.`);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'duplicates-log');
+            this.log(`Erro: ${err.message}`);
         }
     }
 
     async removeDuplicates() {
         if (!this.groups || this.groups.length === 0) {
-            FileUtils.log('Nenhum grupo para processar.', 'duplicates-log');
+            this.log('Nenhum grupo para processar.');
             return;
         }
         const action = document.getElementById('duplicates-action').value;
@@ -138,7 +136,7 @@ class DuplicatesFeature {
         if (action === 'move') {
             destination = document.getElementById('duplicates-destination').value.trim();
             if (!destination) {
-                FileUtils.log('Selecione a pasta de destino.', 'duplicates-log');
+                this.log('Selecione a pasta de destino.');
                 return;
             }
         }
@@ -146,18 +144,18 @@ class DuplicatesFeature {
 
         const btn = document.getElementById('btn-remove-duplicates');
         btn.disabled = true;
-        FileUtils.log(`Aplicando ação (${action})...`, 'duplicates-log');
+        this.log(`Aplicando ação (${action})...`);
         try {
             const result = await window.API.file.removeDuplicates({
                 groups: this.groups.map(g => g.files),
                 action,
                 destination
             });
-            FileUtils.log(`Concluído! ${result.removed_count} arquivos ${action === 'delete' ? 'excluídos' : 'movidos'}.`, 'duplicates-log');
+            this.log(`Concluído! ${result.removed_count} arquivos ${action === 'delete' ? 'excluídos' : 'movidos'}.`);
             document.getElementById('duplicates-result').style.display = 'none';
             this.groups = [];
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'duplicates-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

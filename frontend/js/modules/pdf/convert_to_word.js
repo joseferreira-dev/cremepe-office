@@ -1,5 +1,6 @@
-class PDFConvertToWordFeature {
+class PDFConvertToWordFeature extends Feature {
     constructor() {
+        super('convert');
         this.direction = 'pdf_to_word'; // 'pdf_to_word' | 'word_to_pdf'
     }
 
@@ -52,12 +53,9 @@ class PDFConvertToWordFeature {
 
             <button class="btn btn-success" id="btn-convert-execute"><i class="bi bi-play-fill me-1"></i>Converter</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="convert-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="convert-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         // Eventos para alternar direção
@@ -128,34 +126,34 @@ class PDFConvertToWordFeature {
         const outputFile = document.getElementById('convert-output-file').value.trim();
 
         if (!inputFile || !outputFile) {
-            FileUtils.log('Selecione o arquivo de entrada e defina o de saída.', 'convert-log');
+            this.log('Selecione o arquivo de entrada e defina o de saída.');
             return;
         }
 
         const btn = document.getElementById('btn-convert-execute');
         btn.disabled = true;
-        FileUtils.clearLog('convert-log');
+        this.clearLog();
 
         try {
             if (this.direction === 'pdf_to_word') {
-                FileUtils.log('Convertendo PDF → Word...', 'convert-log');
+                this.log('Convertendo PDF → Word...');
                 const result = await window.API.pdf.convertToWord({
                     pdf_path: inputFile,
                     output_path: outputFile
                 });
-                FileUtils.log(`Concluído! Arquivo salvo em: ${result.output_path}`, 'convert-log');
+                this.log(`Concluído! Arquivo salvo em: ${result.output_path}`);
             } else {
-                FileUtils.log('Convertendo Word → PDF...', 'convert-log');
+                this.log('Convertendo Word → PDF...');
                 const result = await window.API.word.convert({
                     input_path: inputFile,
                     output_path: outputFile,
                     output_format: 'pdf'
                 });
-                FileUtils.log(`Concluído! Arquivo salvo em: ${result.output_path}`, 'convert-log');
+                this.log(`Concluído! Arquivo salvo em: ${result.output_path}`);
             }
-            document.getElementById('convert-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'convert-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

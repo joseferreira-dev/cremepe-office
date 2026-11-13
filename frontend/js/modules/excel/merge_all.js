@@ -1,4 +1,8 @@
-class ExcelMergeAllFeature {
+class ExcelMergeAllFeature extends Feature {
+    constructor() {
+        super('merge-all');
+    }
+
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
@@ -52,12 +56,9 @@ class ExcelMergeAllFeature {
 
             <button class="btn btn-success" id="btn-merge-all"><i class="bi bi-play-fill"></i> Mesclar</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="merge-all-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="merge-all-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         // Mostrar/ocultar opção de cabeçalho conforme modo
@@ -102,7 +103,7 @@ class ExcelMergeAllFeature {
         const recursive = document.getElementById('merge-recursive').checked;
 
         if (!sourceDir || !destFile) {
-            FileUtils.log('Selecione a pasta de origem e o arquivo de destino.', 'merge-all-log');
+            this.log('Selecione a pasta de origem e o arquivo de destino.');
             return;
         }
 
@@ -111,14 +112,14 @@ class ExcelMergeAllFeature {
         const normalizedDest = destFile.replace(/\\/g, '/');
         const destDir = normalizedDest.substring(0, normalizedDest.lastIndexOf('/'));
         if (destDir === normalizedSource) {
-            FileUtils.log('O arquivo de destino não pode estar dentro da pasta de origem.', 'merge-all-log');
+            this.log('O arquivo de destino não pode estar dentro da pasta de origem.');
             return;
         }
 
         const btn = document.getElementById('btn-merge-all');
         btn.disabled = true;
-        FileUtils.clearLog('merge-all-log');
-        FileUtils.log(`Iniciando mesclagem (modo: ${mode})...`, 'merge-all-log');
+        this.clearLog();
+        this.log(`Iniciando mesclagem (modo: ${mode})...`);
 
         try {
             const result = await window.API.excel.mergeAll({
@@ -131,17 +132,17 @@ class ExcelMergeAllFeature {
 
             const { processed, total_rows, total_sheets, errors } = result;
             if (mode === 'sheets') {
-                FileUtils.log(`Concluído! ${processed} arquivos processados, ${total_sheets} abas criadas.`, 'merge-all-log');
+                this.log(`Concluído! ${processed} arquivos processados, ${total_sheets} abas criadas.`);
             } else {
-                FileUtils.log(`Concluído! ${processed} arquivos processados, ${total_rows} linhas consolidadas.`, 'merge-all-log');
+                this.log(`Concluído! ${processed} arquivos processados, ${total_rows} linhas consolidadas.`);
             }
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'merge-all-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'merge-all-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
-            document.getElementById('merge-all-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'merge-all-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

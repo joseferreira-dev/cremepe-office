@@ -1,5 +1,6 @@
-class CollectFeature {
+class CollectFeature extends Feature {
     constructor(module) {
+        super('collect');
         this.module = module;
         this.srcDirs = [''];
     }
@@ -76,12 +77,9 @@ class CollectFeature {
                 <div id="preview-list" class="border rounded p-2" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="collect-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="collect-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.renderSrcDirs(container);
@@ -163,7 +161,7 @@ class CollectFeature {
     async previewFiles() {
         const srcDirs = this.srcDirs.filter(s => s.trim() !== '');
         if (!srcDirs.length) {
-            FileUtils.log('Adicione pelo menos uma origem.', 'collect-log');
+            this.log('Adicione pelo menos uma origem.');
             return;
         }
         const recursive = document.getElementById('recursive').checked;
@@ -173,8 +171,8 @@ class CollectFeature {
 
         const btn = document.getElementById('btn-preview');
         btn.disabled = true;
-        FileUtils.clearLog('collect-log');
-        FileUtils.log('Carregando pré-visualização...', 'collect-log');
+        this.clearLog();
+        this.log('Carregando pré-visualização...');
 
         try {
             const params = {
@@ -198,9 +196,9 @@ class CollectFeature {
                     <div><i class="bi bi-file-earmark me-1"></i> ${f.relative} (${(f.size / 1024).toFixed(1)} KB)</div>
                 `).join('');
             }
-            FileUtils.log(`Pré-visualização: ${result.count} arquivos encontrados.`, 'collect-log');
+            this.log(`Pré-visualização: ${result.count} arquivos encontrados.`);
         } catch (err) {
-            FileUtils.log(`Erro na pré-visualização: ${err.message}`, 'collect-log');
+            this.log(`Erro na pré-visualização: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -210,13 +208,13 @@ class CollectFeature {
         const srcDirs = this.srcDirs.filter(s => s.trim() !== '');
         const dst = document.getElementById('dst-dir').value.trim();
         if (!srcDirs.length || !dst) {
-            FileUtils.log('Erro: Adicione pelo menos uma origem e um destino.', 'collect-log');
+            this.log('Erro: Adicione pelo menos uma origem e um destino.');
             return;
         }
 
         for (let s of srcDirs) {
             if (s === dst) {
-                FileUtils.log('Erro: Uma origem não pode ser igual ao destino.', 'collect-log');
+                this.log('Erro: Uma origem não pode ser igual ao destino.');
                 return;
             }
         }
@@ -232,8 +230,8 @@ class CollectFeature {
 
         const btn = document.getElementById('btn-collect');
         btn.disabled = true;
-        FileUtils.clearLog('collect-log');
-        FileUtils.log('Iniciando coleta...', 'collect-log');
+        this.clearLog();
+        this.log('Iniciando coleta...');
 
         try {
             const params = {
@@ -250,11 +248,11 @@ class CollectFeature {
             if (daysBack) params.days_back = parseInt(daysBack);
 
             const result = await window.API.file.collect(params);
-            FileUtils.log(`Concluído! ${result.processed_count} arquivos coletados.`, 'collect-log');
-            document.getElementById('collect-progress').style.width = '100%';
+            this.log(`Concluído! ${result.processed_count} arquivos coletados.`);
+            this.setProgress(100);
             document.getElementById('preview-area').style.display = 'none';
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'collect-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

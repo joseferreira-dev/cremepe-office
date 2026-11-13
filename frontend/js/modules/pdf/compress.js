@@ -1,5 +1,6 @@
-class PDFCompressFeature {
+class PDFCompressFeature extends Feature {
     constructor() {
+        super('compress');
         this.compressionLevels = [
             { value: 'low', label: 'Baixa (150 DPI)' },
             { value: 'medium', label: 'Média (100 DPI)' },
@@ -77,7 +78,7 @@ class PDFCompressFeature {
 
             <button class="btn btn-success" id="btn-compress"><i class="bi bi-play-fill me-1"></i>Comprimir</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="compress-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
             <div id="compress-result" style="display:none;" class="mt-3">
                 <div class="row g-2">
@@ -87,10 +88,7 @@ class PDFCompressFeature {
                 <div class="mt-2"><span class="badge bg-info">Redução: <span id="comp-ratio">0</span>%</span></div>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="compress-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         // Atualizar label do slider de qualidade
@@ -151,14 +149,14 @@ class PDFCompressFeature {
         const downscaleImages = document.getElementById('compress-downscale').checked;
 
         if (!inputPath || !outputPath) {
-            FileUtils.log('Selecione o PDF de entrada e defina o de saída.', 'compress-log');
+            this.log('Selecione o PDF de entrada e defina o de saída.');
             return;
         }
 
         const btn = document.getElementById('btn-compress');
         btn.disabled = true;
-        FileUtils.clearLog('compress-log');
-        FileUtils.log('Comprimindo PDF...', 'compress-log');
+        this.clearLog();
+        this.log('Comprimindo PDF...');
 
         try {
             const result = await window.API.pdf.compress({
@@ -179,10 +177,10 @@ class PDFCompressFeature {
             document.getElementById('comp-ratio').textContent = reduction;
             document.getElementById('compress-result').style.display = 'block';
 
-            FileUtils.log(`Comprimido com sucesso! Tamanho original: ${orig} KB, comprimido: ${comp} KB (redução de ${reduction}%)`, 'compress-log');
-            document.getElementById('compress-progress').style.width = '100%';
+            this.log(`Comprimido com sucesso! Tamanho original: ${orig} KB, comprimido: ${comp} KB (redução de ${reduction}%)`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'compress-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

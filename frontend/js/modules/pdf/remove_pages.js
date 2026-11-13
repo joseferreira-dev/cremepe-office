@@ -1,5 +1,6 @@
-class PDFRemovePagesFeature {
+class PDFRemovePagesFeature extends Feature {
     constructor() {
+        super('remove-pages');
         this.saveRemoved = false;
     }
 
@@ -60,12 +61,9 @@ class PDFRemovePagesFeature {
 
             <button class="btn btn-success" id="btn-remove-pages-execute"><i class="bi bi-play-fill me-1"></i>Remover Páginas</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="remove-pages-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="remove-pages-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         // Evento para mostrar/ocultar campo do arquivo de removidas
@@ -143,19 +141,19 @@ class PDFRemovePagesFeature {
         const removedOutput = document.getElementById('remove-pages-removed-output').value.trim() || undefined;
 
         if (!inputFile || !outputFile) {
-            FileUtils.log('Selecione o PDF de entrada e defina o arquivo de saída.', 'remove-pages-log');
+            this.log('Selecione o PDF de entrada e defina o arquivo de saída.');
             return;
         }
 
         if (!pagesSelection) {
-            FileUtils.log('Informe as páginas a remover.', 'remove-pages-log');
+            this.log('Informe as páginas a remover.');
             return;
         }
 
         const btn = document.getElementById('btn-remove-pages-execute');
         btn.disabled = true;
-        FileUtils.clearLog('remove-pages-log');
-        FileUtils.log(`Removendo páginas: ${pagesSelection}...`, 'remove-pages-log');
+        this.clearLog();
+        this.log(`Removendo páginas: ${pagesSelection}...`);
 
         try {
             const result = await window.API.pdf.removePages({
@@ -167,18 +165,18 @@ class PDFRemovePagesFeature {
             });
 
             const { total_pages, remaining_pages, removed_pages, output_file, removed_file, errors } = result;
-            FileUtils.log(`Concluído! Total: ${total_pages} páginas, Removidas: ${removed_pages}, Restantes: ${remaining_pages}`, 'remove-pages-log');
-            FileUtils.log(`Arquivo sem páginas: ${output_file}`, 'remove-pages-log');
+            this.log(`Concluído! Total: ${total_pages} páginas, Removidas: ${removed_pages}, Restantes: ${remaining_pages}`);
+            this.log(`Arquivo sem páginas: ${output_file}`);
             if (removed_file) {
-                FileUtils.log(`Páginas removidas salvas em: ${removed_file}`, 'remove-pages-log');
+                this.log(`Páginas removidas salvas em: ${removed_file}`);
             }
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'remove-pages-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'remove-pages-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
-            document.getElementById('remove-pages-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'remove-pages-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

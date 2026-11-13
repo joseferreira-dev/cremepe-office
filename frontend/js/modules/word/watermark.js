@@ -1,5 +1,6 @@
-class WatermarkFeature {
+class WatermarkFeature extends Feature {
     constructor(module) {
+        super('wm');
         this.module = module;
         this.updateTimeout = null;
     }
@@ -140,12 +141,9 @@ class WatermarkFeature {
 
                 <button class="btn btn-success" id="btn-wm-apply"><i class="bi bi-play-fill"></i> Inserir Marca d'Água</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="wm-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="wm-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -340,24 +338,24 @@ class WatermarkFeature {
         const marginTop = parseFloat(document.getElementById('wm-margin-top').value) || 0;
 
         if (!inputPath || !outputPath) {
-            FileUtils.log('Selecione o documento de entrada e defina o de saída.', 'wm-log');
+            this.log('Selecione o documento de entrada e defina o de saída.');
             return;
         }
 
         if (isText && !text) {
-            FileUtils.log('Digite o texto da marca d\'água.', 'wm-log');
+            this.log('Digite o texto da marca d\'água.');
             return;
         }
 
         if (!isText && !imagePath) {
-            FileUtils.log('Selecione uma imagem.', 'wm-log');
+            this.log('Selecione uma imagem.');
             return;
         }
 
         const btn = document.getElementById('btn-wm-apply');
         btn.disabled = true;
-        FileUtils.clearLog('wm-log');
-        FileUtils.log('Inserindo marca d\'água...', 'wm-log');
+        this.clearLog();
+        this.log('Inserindo marca d\'água...');
 
         try {
             const params = {
@@ -374,10 +372,10 @@ class WatermarkFeature {
                 margin_top_cm: marginTop
             };
             const result = await window.API.word.watermark(params);
-            FileUtils.log(`Marca d'água inserida em: ${result.output_path}`, 'wm-log');
-            document.getElementById('wm-progress').style.width = '100%';
+            this.log(`Marca d'água inserida em: ${result.output_path}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'wm-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

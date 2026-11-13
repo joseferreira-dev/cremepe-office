@@ -1,5 +1,6 @@
-class PDFMergeFeature {
+class PDFMergeFeature extends Feature {
     constructor() {
+        super('pdf-merge');
         this.files = []; // array de objetos { path, name, thumbnail }
         this.thumbnailCache = {}; // cache de thumbnails
         this.draggedIndex = null;
@@ -49,12 +50,9 @@ class PDFMergeFeature {
                 <button class="btn btn-outline-secondary" id="btn-pdf-merge-preview"><i class="bi bi-eye me-1"></i> Pré-visualizar ordem</button>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="pdf-merge-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="pdf-merge-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         // Atualiza lista com os arquivos existentes (se houver)
@@ -105,7 +103,7 @@ class PDFMergeFeature {
                 // Carregar thumbnails em lote
                 await this.loadThumbnails();
                 this.updateList();
-                FileUtils.log(`${this.files.length} PDF(s) adicionados.`, 'pdf-merge-log');
+                this.log(`${this.files.length} PDF(s) adicionados.`);
             }
         }
     }
@@ -116,7 +114,7 @@ class PDFMergeFeature {
         this.files = [];
         this.thumbnailCache = {};
         this.updateList();
-        FileUtils.log('Lista limpa.', 'pdf-merge-log');
+        this.log('Lista limpa.');
     }
 
     async loadThumbnails() {
@@ -203,7 +201,7 @@ class PDFMergeFeature {
         this.files.splice(index, 1);
         // Limpar cache de thumbnail (opcional)
         this.updateList();
-        FileUtils.log(`PDF removido da lista.`, 'pdf-merge-log');
+        this.log(`PDF removido da lista.`);
     }
 
     // Drag and Drop handlers
@@ -235,12 +233,12 @@ class PDFMergeFeature {
         this.files.splice(targetIndex, 0, removed);
         this.draggedIndex = null;
         this.updateList();
-        FileUtils.log('Ordem dos PDFs alterada.', 'pdf-merge-log');
+        this.log('Ordem dos PDFs alterada.');
     }
 
     previewOrder() {
         if (this.files.length === 0) {
-            FileUtils.log('Adicione PDFs primeiro.', 'pdf-merge-log');
+            this.log('Adicione PDFs primeiro.');
             return;
         }
         const order = this.files.map((f, i) => `${i + 1}. ${f.name}`).join('\n');
@@ -252,24 +250,24 @@ class PDFMergeFeature {
         const output = document.getElementById('pdf-merge-output').value.trim();
 
         if (!files.length || !output) {
-            FileUtils.log('Selecione os PDFs e defina o destino.', 'pdf-merge-log');
+            this.log('Selecione os PDFs e defina o destino.');
             return;
         }
 
         const btn = document.getElementById('btn-pdf-merge');
         btn.disabled = true;
-        FileUtils.clearLog('pdf-merge-log');
-        FileUtils.log(`Juntando ${files.length} PDFs na ordem definida...`, 'pdf-merge-log');
+        this.clearLog();
+        this.log(`Juntando ${files.length} PDFs na ordem definida...`);
 
         try {
             const result = await window.API.pdf.merge({
                 pdf_paths: files,
                 output_path: output
             });
-            FileUtils.log(`Concluído! PDF salvo em: ${result.output_path}`, 'pdf-merge-log');
-            document.getElementById('pdf-merge-progress').style.width = '100%';
+            this.log(`Concluído! PDF salvo em: ${result.output_path}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'pdf-merge-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

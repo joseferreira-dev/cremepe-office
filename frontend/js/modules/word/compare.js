@@ -1,5 +1,6 @@
-class DocCompareFeature {
+class DocCompareFeature extends Feature {
     constructor(module) {
+        super('compare');
         this.module = module;
         this.result = null;
     }
@@ -33,7 +34,7 @@ class DocCompareFeature {
 
             <button class="btn btn-success" id="btn-compare"><i class="bi bi-play-fill"></i> Comparar</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="compare-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
             <div id="compare-result" style="display:none;" class="mt-3">
                 <div class="row g-2 mb-2">
@@ -46,10 +47,7 @@ class DocCompareFeature {
                 </div>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="compare-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -90,14 +88,14 @@ class DocCompareFeature {
         const doc2 = document.getElementById('compare-doc2').value.trim();
 
         if (!doc1 || !doc2) {
-            FileUtils.log('Selecione ambos os documentos.', 'compare-log');
+            this.log('Selecione ambos os documentos.');
             return;
         }
 
         const btn = document.getElementById('btn-compare');
         btn.disabled = true;
-        FileUtils.clearLog('compare-log');
-        FileUtils.log('Comparando documentos...', 'compare-log');
+        this.clearLog();
+        this.log('Comparando documentos...');
 
         try {
             const result = await window.API.word.compare({
@@ -126,10 +124,10 @@ class DocCompareFeature {
             detailsDiv.innerHTML = html;
 
             document.getElementById('compare-result').style.display = 'block';
-            FileUtils.log('Comparação concluída.', 'compare-log');
-            document.getElementById('compare-progress').style.width = '100%';
+            this.log('Comparação concluída.');
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'compare-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

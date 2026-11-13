@@ -1,5 +1,6 @@
-class PDFAddPageNumbersFeature {
+class PDFAddPageNumbersFeature extends Feature {
     constructor() {
+        super('pn');
         this.updateTimeout = null;
         this.previewCanvasId = 'page-number-preview-canvas';
     }
@@ -121,7 +122,7 @@ class PDFAddPageNumbersFeature {
 
             <button class="btn btn-success" id="btn-pn-apply"><i class="bi bi-play-fill me-1"></i>Inserir Numeração</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="pn-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
             <div id="pn-result" style="display:none;" class="mt-3">
                 <div class="row g-2">
@@ -130,10 +131,7 @@ class PDFAddPageNumbersFeature {
                 </div>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG</label>
-                <div class="log-area" id="pn-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML('LOG')}
         `;
 
         // Atualiza preview ao alterar estes controles
@@ -296,14 +294,14 @@ class PDFAddPageNumbersFeature {
         const marginCm = parseFloat(document.getElementById('pn-margin').value) || 1.0;
 
         if (!inputPath || !outputPath) {
-            FileUtils.log('Selecione o PDF de entrada e defina o de saída.', 'pn-log');
+            this.log('Selecione o PDF de entrada e defina o de saída.');
             return;
         }
 
         const btn = document.getElementById('btn-pn-apply');
         btn.disabled = true;
-        FileUtils.clearLog('pn-log');
-        FileUtils.log('Inserindo numeração...', 'pn-log');
+        this.clearLog();
+        this.log('Inserindo numeração...');
 
         try {
             const result = await window.API.pdf.addPageNumbers({
@@ -324,10 +322,10 @@ class PDFAddPageNumbersFeature {
             document.getElementById('pn-processed').textContent = result.processed_pages;
             document.getElementById('pn-result').style.display = 'block';
 
-            FileUtils.log(`Numeração inserida! ${result.processed_pages} páginas numeradas.`, 'pn-log');
-            document.getElementById('pn-progress').style.width = '100%';
+            this.log(`Numeração inserida! ${result.processed_pages} páginas numeradas.`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'pn-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

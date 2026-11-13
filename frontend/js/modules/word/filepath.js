@@ -1,5 +1,6 @@
-class FilePathFeature {
+class FilePathFeature extends Feature {
     constructor(module) {
+        super('fp');
         this.module = module;
     }
 
@@ -115,12 +116,9 @@ class FilePathFeature {
 
             <button class="btn btn-success" id="btn-fp-apply"><i class="bi bi-play-fill"></i> Inserir Caminho</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="fp-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="fp-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -183,14 +181,14 @@ class FilePathFeature {
         const useFullPath = document.getElementById('fp-full-path').checked;
 
         if (!inputPath || !outputPath) {
-            FileUtils.log('Selecione o documento de entrada e defina o de saída.', 'fp-log');
+            this.log('Selecione o documento de entrada e defina o de saída.');
             return;
         }
 
         const btn = document.getElementById('btn-fp-apply');
         btn.disabled = true;
-        FileUtils.clearLog('fp-log');
-        FileUtils.log('Inserindo caminho do arquivo...', 'fp-log');
+        this.clearLog();
+        this.log('Inserindo caminho do arquivo...');
 
         try {
             const result = await window.API.word.filepath({
@@ -205,10 +203,10 @@ class FilePathFeature {
                 transparency: transparency,
                 use_full_path: useFullPath
             });
-            FileUtils.log(`Caminho inserido em: ${result.output_path}`, 'fp-log');
-            document.getElementById('fp-progress').style.width = '100%';
+            this.log(`Caminho inserido em: ${result.output_path}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'fp-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

@@ -1,5 +1,6 @@
-class RenameFeature {
+class RenameFeature extends Feature {
     constructor(module) {
+        super('rename');
         this.module = module;
         this.renameFilePaths = [];
     }
@@ -101,12 +102,9 @@ class RenameFeature {
                 </div>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="rename-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="rename-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -162,24 +160,24 @@ class RenameFeature {
         const dir = document.getElementById('rename-dir').value.trim();
         if (!dir) {
             this.renameFilePaths = [];
-            FileUtils.log('Nenhum diretório selecionado.', 'rename-log');
+            this.log('Nenhum diretório selecionado.');
             return;
         }
         if (window.API && window.API.file && window.API.file.list) {
-            FileUtils.log('Carregando lista de arquivos...', 'rename-log');
+            this.log('Carregando lista de arquivos...');
             window.API.file.list({ dir })
                 .then(result => {
                     this.renameFilePaths = result.files.map(f => `${dir}/${f}`);
-                    FileUtils.log(`Arquivos encontrados: ${this.renameFilePaths.length}`, 'rename-log');
+                    this.log(`Arquivos encontrados: ${this.renameFilePaths.length}`);
                 })
-                .catch(err => FileUtils.log(`Erro ao listar: ${err.message}`, 'rename-log'));
+                .catch(err => this.log(`Erro ao listar: ${err.message}`));
         }
     }
 
     async previewRename() {
         const dir = document.getElementById('rename-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'rename-log');
+            this.log('Selecione uma pasta.');
             return;
         }
         // Se não tiver carregado, carrega agora
@@ -188,11 +186,11 @@ class RenameFeature {
                 const result = await window.API.file.list({ dir });
                 this.renameFilePaths = result.files.map(f => `${dir}/${f}`);
                 if (this.renameFilePaths.length === 0) {
-                    FileUtils.log('Nenhum arquivo encontrado.', 'rename-log');
+                    this.log('Nenhum arquivo encontrado.');
                     return;
                 }
             } catch (err) {
-                FileUtils.log(`Erro ao listar: ${err.message}`, 'rename-log');
+                this.log(`Erro ao listar: ${err.message}`);
                 return;
             }
         }
@@ -232,8 +230,8 @@ class RenameFeature {
 
         const btn = document.getElementById('btn-rename-preview');
         btn.disabled = true;
-        FileUtils.clearLog('rename-log');
-        FileUtils.log('Carregando pré-visualização...', 'rename-log');
+        this.clearLog();
+        this.log('Carregando pré-visualização...');
 
         try {
             const result = await window.API.file.renamePreview(params);
@@ -251,9 +249,9 @@ class RenameFeature {
                     </tr>
                 `).join('');
             }
-            FileUtils.log(`Pré-visualização: ${result.count} arquivos.`, 'rename-log');
+            this.log(`Pré-visualização: ${result.count} arquivos.`);
         } catch (err) {
-            FileUtils.log(`Erro na pré-visualização: ${err.message}`, 'rename-log');
+            this.log(`Erro na pré-visualização: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -262,11 +260,11 @@ class RenameFeature {
     async executeRename() {
         const dir = document.getElementById('rename-dir').value.trim();
         if (!dir) {
-            FileUtils.log('Selecione uma pasta.', 'rename-log');
+            this.log('Selecione uma pasta.');
             return;
         }
         if (this.renameFilePaths.length === 0) {
-            FileUtils.log('Carregue os arquivos primeiro (selecione a pasta).', 'rename-log');
+            this.log('Carregue os arquivos primeiro (selecione a pasta).');
             return;
         }
 
@@ -305,18 +303,18 @@ class RenameFeature {
 
         const btn = document.getElementById('btn-rename');
         btn.disabled = true;
-        FileUtils.clearLog('rename-log');
-        FileUtils.log(`Renomeando arquivos...`, 'rename-log');
+        this.clearLog();
+        this.log(`Renomeando arquivos...`);
 
         try {
             const result = await window.API.file.rename(params);
-            FileUtils.log(`Concluído! ${result.renamed_count} arquivos renomeados.`, 'rename-log');
-            document.getElementById('rename-progress').style.width = '100%';
+            this.log(`Concluído! ${result.renamed_count} arquivos renomeados.`);
+            this.setProgress(100);
             document.getElementById('rename-preview-area').style.display = 'none';
             // Recarrega a lista para refletir as alterações
             this.loadRenameFiles();
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'rename-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

@@ -1,5 +1,6 @@
-class SplitFeature {
+class SplitFeature extends Feature {
     constructor(module) {
+        super('split');
         this.module = module;
         this.mode = 'split'; // 'split' | 'merge'
     }
@@ -90,12 +91,9 @@ class SplitFeature {
                 <button class="btn btn-success" id="btn-merge"><i class="bi bi-play-fill"></i> Remontar</button>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="split-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="split-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);
@@ -173,14 +171,14 @@ class SplitFeature {
         const overwrite = document.getElementById('split-overwrite').checked;
 
         if (!filePath || !outputDir) {
-            FileUtils.log('Preencha o arquivo e o destino.', 'split-log');
+            this.log('Preencha o arquivo e o destino.');
             return;
         }
 
         const btn = document.getElementById('btn-split');
         btn.disabled = true;
-        FileUtils.clearLog('split-log');
-        FileUtils.log('Dividindo arquivo...', 'split-log');
+        this.clearLog();
+        this.log('Dividindo arquivo...');
 
         try {
             const result = await window.API.file.split({
@@ -189,10 +187,10 @@ class SplitFeature {
                 part_size_mb: partSize,
                 overwrite
             });
-            FileUtils.log(`Dividido em ${result.count} partes:\n${result.parts.join('\n')}`, 'split-log');
-            document.getElementById('split-progress').style.width = '100%';
+            this.log(`Dividido em ${result.count} partes:\n${result.parts.join('\n')}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'split-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -205,14 +203,14 @@ class SplitFeature {
         const overwrite = document.getElementById('merge-overwrite').checked;
 
         if (!partsList.length || !outputPath) {
-            FileUtils.log('Selecione as partes e o destino.', 'split-log');
+            this.log('Selecione as partes e o destino.');
             return;
         }
 
         const btn = document.getElementById('btn-merge');
         btn.disabled = true;
-        FileUtils.clearLog('split-log');
-        FileUtils.log('Remontando arquivo...', 'split-log');
+        this.clearLog();
+        this.log('Remontando arquivo...');
 
         try {
             const result = await window.API.file.merge({
@@ -220,10 +218,10 @@ class SplitFeature {
                 output_path: outputPath,
                 overwrite
             });
-            FileUtils.log(`Arquivo remontado em: ${result.output_path}`, 'split-log');
-            document.getElementById('split-progress').style.width = '100%';
+            this.log(`Arquivo remontado em: ${result.output_path}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'split-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

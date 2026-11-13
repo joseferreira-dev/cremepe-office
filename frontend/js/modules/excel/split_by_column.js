@@ -1,4 +1,8 @@
-class ExcelSplitFeature {
+class ExcelSplitFeature extends Feature {
+    constructor() {
+        super('split');
+    }
+
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
@@ -53,17 +57,14 @@ class ExcelSplitFeature {
 
             <button class="btn btn-success" id="btn-split-execute"><i class="bi bi-play-fill"></i> Dividir</button>
 
-            <div class="progress mt-2"><div class="progress-bar" id="split-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
             <div id="split-preview-area" style="display:none;" class="mt-3">
                 <label class="fw-bold text-success">Pré-visualização</label>
                 <div id="split-preview-list" class="border rounded p-2" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="split-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         this.attachEvents();
@@ -97,20 +98,20 @@ class ExcelSplitFeature {
     async previewColumns() {
         const inputFile = document.getElementById('split-input-file').value.trim();
         if (!inputFile) {
-            FileUtils.log('Selecione o arquivo de entrada.', 'split-log');
+            this.log('Selecione o arquivo de entrada.');
             return;
         }
 
         const btn = document.getElementById('btn-split-preview');
         btn.disabled = true;
-        FileUtils.clearLog('split-log');
-        FileUtils.log('Carregando cabeçalhos...', 'split-log');
+        this.clearLog();
+        this.log('Carregando cabeçalhos...');
 
         try {
             // Usamos a rota existente de leitura (read) para obter cabeçalhos
             const result = await window.API.excel.read({ file_path: inputFile });
             if (!result.data || result.data.length === 0) {
-                FileUtils.log('Arquivo sem dados.', 'split-log');
+                this.log('Arquivo sem dados.');
                 return;
             }
             const headers = Object.keys(result.data[0]);
@@ -122,9 +123,9 @@ class ExcelSplitFeature {
                 ${headers.map((h, i) => `<span class="badge bg-secondary me-1">${i}: ${h}</span>`).join('')}
                 <br><small class="text-muted">Use o nome ou o índice para a coluna chave.</small>
             `;
-            FileUtils.log('Cabeçalhos carregados.', 'split-log');
+            this.log('Cabeçalhos carregados.');
         } catch (err) {
-            FileUtils.log(`Erro ao ler arquivo: ${err.message}`, 'split-log');
+            this.log(`Erro ao ler arquivo: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -138,7 +139,7 @@ class ExcelSplitFeature {
         const includeHeader = document.getElementById('split-include-header').checked;
 
         if (!inputFile || !outputDir || !column) {
-            FileUtils.log('Preencha todos os campos.', 'split-log');
+            this.log('Preencha todos os campos.');
             return;
         }
 
@@ -150,8 +151,8 @@ class ExcelSplitFeature {
 
         const btn = document.getElementById('btn-split-execute');
         btn.disabled = true;
-        FileUtils.clearLog('split-log');
-        FileUtils.log(`Dividindo por coluna "${column}"...`, 'split-log');
+        this.clearLog();
+        this.log(`Dividindo por coluna "${column}"...`);
 
         try {
             const result = await window.API.excel.splitByColumn({
@@ -163,17 +164,17 @@ class ExcelSplitFeature {
             });
 
             const { total_rows, total_groups, output_files, errors } = result;
-            FileUtils.log(`Concluído! ${total_rows} linhas divididas em ${total_groups} arquivos.`, 'split-log');
+            this.log(`Concluído! ${total_rows} linhas divididas em ${total_groups} arquivos.`);
             if (errors.length) {
-                FileUtils.log(`Erros: ${errors.length}`, 'split-log');
-                errors.forEach(e => FileUtils.log(`  ${e}`, 'split-log'));
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach(e => this.log(`  ${e}`));
             }
             if (output_files.length) {
-                FileUtils.log(`Arquivos gerados:\n${output_files.join('\n')}`, 'split-log');
+                this.log(`Arquivos gerados:\n${output_files.join('\n')}`);
             }
-            document.getElementById('split-progress').style.width = '100%';
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'split-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }

@@ -1,5 +1,6 @@
-class PDFProtectFeature {
+class PDFProtectFeature extends Feature {
     constructor() {
+        super('protect');
         this.mode = 'protect';
     }
 
@@ -81,16 +82,13 @@ class PDFProtectFeature {
                 <button class="btn btn-success" id="btn-remove"><i class="bi bi-unlock-fill me-1"></i>Remover Senha</button>
             </div>
 
-            <div class="progress mt-2"><div class="progress-bar" id="protect-progress" style="width:0%"></div></div>
+            ${this.progressHTML()}
 
             <div id="protect-result" style="display:none;" class="mt-3">
                 <div id="password-info" class="mt-2"></div>
             </div>
 
-            <div class="mt-3">
-                <label class="fw-bold text-success">LOG DE OPERAÇÕES</label>
-                <div class="log-area" id="protect-log">Log de operações vazio</div>
-            </div>
+            ${this.logHTML()}
         `;
 
         document.querySelectorAll('.nav-link').forEach(tab => {
@@ -179,14 +177,14 @@ class PDFProtectFeature {
         const password = document.getElementById('protect-pwd').value.trim();
 
         if (!inputPath || !outputPath || !password) {
-            FileUtils.log('Preencha todos os campos.', 'protect-log');
+            this.log('Preencha todos os campos.');
             return;
         }
 
         const btn = document.getElementById('btn-protect');
         btn.disabled = true;
-        FileUtils.clearLog('protect-log');
-        FileUtils.log('Protegendo PDF...', 'protect-log');
+        this.clearLog();
+        this.log('Protegendo PDF...');
 
         try {
             const result = await window.API.pdf.protectPassword({
@@ -202,10 +200,10 @@ class PDFProtectFeature {
             document.getElementById('protect-result').style.display = 'block';
             document.getElementById('password-info').innerHTML = `<div><strong>Senha:</strong> ${result.password}</div>`;
 
-            FileUtils.log(`PDF protegido com sucesso!`, 'protect-log');
-            document.getElementById('protect-progress').style.width = '100%';
+            this.log(`PDF protegido com sucesso!`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'protect-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
@@ -217,14 +215,14 @@ class PDFProtectFeature {
         const password = document.getElementById('remove-pwd').value.trim();
 
         if (!inputPath || !outputPath || !password) {
-            FileUtils.log('Preencha todos os campos.', 'protect-log');
+            this.log('Preencha todos os campos.');
             return;
         }
 
         const btn = document.getElementById('btn-remove');
         btn.disabled = true;
-        FileUtils.clearLog('protect-log');
-        FileUtils.log('Removendo senha...', 'protect-log');
+        this.clearLog();
+        this.log('Removendo senha...');
 
         try {
             const result = await window.API.pdf.removePassword({
@@ -239,10 +237,10 @@ class PDFProtectFeature {
 
             document.getElementById('password-info').innerHTML = '';
 
-            FileUtils.log(`Senha removida! Arquivo salvo em: ${result.output_path}`, 'protect-log');
-            document.getElementById('protect-progress').style.width = '100%';
+            this.log(`Senha removida! Arquivo salvo em: ${result.output_path}`);
+            this.setProgress(100);
         } catch (err) {
-            FileUtils.log(`Erro: ${err.message}`, 'protect-log');
+            this.log(`Erro: ${err.message}`);
         } finally {
             btn.disabled = false;
         }
