@@ -55,10 +55,16 @@ def merge_documents(docx_paths: List[str], output_path: str, insert_page_breaks:
                 docx_files.append(str(docx_temp))
             else:
                 docx_files.append(str(src_path))
-        composer = Composer(docx_files[0])
+        # docxcompose recebe objetos Document, nao strings de caminho, e
+        # append() nao tem parametro page_break (versao pinada 2.2.0) —
+        # ambos os bugs faziam a funcionalidade falhar por completo.
+        composer = Composer(Document(docx_files[0]))
         for i, doc_path in enumerate(docx_files[1:], start=1):
             report_progress(i, len(docx_files))
-            composer.append(doc_path, page_break=insert_page_breaks)
+            if insert_page_breaks:
+                # quebra de pagina adicionada ao fim do documento acumulado
+                composer.doc.add_page_break()
+            composer.append(Document(doc_path))
         composer.save(str(output_path))
         return str(output_path)
     finally:
@@ -248,11 +254,16 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
         doc = Document(input_path)
         images = []
         counter = 1
+        # Partes ja extraidas (o loop de rels do documento e a fonte
+        # primaria; o loop de package NAO pode re-extrair a mesma imagem)
+        extracted_parts = set()
 
         for rel in doc.part.rels.values():
             if "image" in rel.target_ref:
-                image_blob = rel.target_part.blob
-                content_type = rel.target_part.content_type
+                part = rel.target_part
+                extracted_parts.add(str(part.partname))
+                image_blob = part.blob
+                content_type = part.content_type
                 ext = _get_extension_from_content_type(content_type)
                 if ext:
                     filename = f"{prefix or input_path.stem}_img_{counter:04d}{ext}"
@@ -264,18 +275,27 @@ def extract_images(input_path: str, output_dir: str, prefix: Optional[str] = Non
 
         package = doc.part.package
         for part in package.iter_parts():
-            if 'image' in part.content_type:
-                image_blob = part.blob
-                content_type = part.content_type
-                ext = _get_extension_from_content_type(content_type)
-                if ext:
-                    part_name = part.partname.split('/')[-1]
-                    filename = f"{prefix or input_path.stem}_img_{counter:04d}_{part_name}{ext}"
-                    output_path = output_dir / filename
-                    with open(output_path, 'wb') as f:
-                        f.write(image_blob)
-                    images.append(str(output_path))
-                    counter += 1
+            if 'image' not in part.content_type:
+                continue
+            partname = str(part.partname)
+            # ja extraida pelo loop de rels (evita duplicata)
+            if partname in extracted_parts:
+                continue
+            # metadados do pacote (ex.: docProps/thumbnail) nao sao
+            # imagem do documento
+            if 'docProps' in partname:
+                continue
+            image_blob = part.blob
+            content_type = part.content_type
+            ext = _get_extension_from_content_type(content_type)
+            if ext:
+                short_name = partname.split('/')[-1]
+                filename = f"{prefix or input_path.stem}_img_{counter:04d}_{short_name}{ext}"
+                output_path = output_dir / filename
+                with open(output_path, 'wb') as f:
+                    f.write(image_blob)
+                images.append(str(output_path))
+                counter += 1
 
         if not images:
             raise ValueError("Nenhuma imagem encontrada no documento.")
