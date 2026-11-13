@@ -213,7 +213,7 @@ class PDFMergeFeature extends Feature {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', index);
         // Adicionar classe para feedback visual
-        setTimeout(() => item.classList.add('dragging'), 0);
+        this.setTimeout(() => item.classList.add('dragging'), 0);
     }
 
     handleDragOver(e) {

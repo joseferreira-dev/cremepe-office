@@ -1,5 +1,6 @@
-class HomePage {
+class HomePage extends Feature {
     constructor(container) {
+        super('home');
         this.container = container;
         this.storageKey = 'quickAccessCards';
         this.isEditing = false;
@@ -206,7 +207,9 @@ class HomePage {
     // ====== CONFIGURAÇÃO DE EVENTOS (UMA ÚNICA VEZ) ======
     setupEventListeners() {
         // Delegação para todos os eventos do container
-        this.container.addEventListener('click', async (e) => {
+        // this.on() rastreia o listener: o #page-container nunca é destruído,
+        // então sem destroy() cada visita à home acumulava +1 handler.
+        this.on(this.container, 'click', async (e) => {
             const target = e.target;
 
             // 1. Botão "Abrir" no card

@@ -10,12 +10,12 @@ class WordModule {
         this.filePathFeature = new FilePathFeature(this);
 
         this.features = [
-            { id: 'merge', label: 'Juntar Documentos', render: (container) => this.mergeFeature.render(container) },
-            { id: 'convert', label: 'Converter', render: (container) => this.convertFeature.render(container) },
-            { id: 'compare', label: 'Comparar', render: (container) => this.compareFeature.render(container) },
-            { id: 'extract-images', label: 'Extrair Imagens', render: (container) => this.extractImagesFeature.render(container) },
-            { id: 'watermark', label: 'Marca d\'Água', render: (container) => this.watermarkFeature.render(container) },
-            { id: 'filepath', label: 'Caminho do Arquivo', render: (container) => this.filePathFeature.render(container) },
+            { id: 'merge', label: 'Juntar Documentos', render: (container) => this.mount(this.mergeFeature, container) },
+            { id: 'convert', label: 'Converter', render: (container) => this.mount(this.convertFeature, container) },
+            { id: 'compare', label: 'Comparar', render: (container) => this.mount(this.compareFeature, container) },
+            { id: 'extract-images', label: 'Extrair Imagens', render: (container) => this.mount(this.extractImagesFeature, container) },
+            { id: 'watermark', label: 'Marca d\'Água', render: (container) => this.mount(this.watermarkFeature, container) },
+            { id: 'filepath', label: 'Caminho do Arquivo', render: (container) => this.mount(this.filePathFeature, container) },
         ];
     }
 
@@ -53,12 +53,29 @@ class WordModule {
         this.renderCurrentFeature();
     }
 
+    // Monta uma feature no container: destroi a anterior (destroy remove
+    // listeners/timers rastreados), limpa o DOM e renderiza a nova.
+    mount(instance, container) {
+        if (this._active) {
+            this._active.destroy();
+        }
+        container.innerHTML = '';
+        this._active = instance;
+        instance.render(container);
+    }
+
+    // Chamado pelo app ao trocar de pagina: destroi a feature ativa.
+    destroy() {
+        if (this._active) {
+            this._active.destroy();
+            this._active = null;
+        }
+    }
+
     renderCurrentFeature() {
         const feature = this.features.find(f => f.id === this.currentFeature);
         if (feature) {
-            const content = document.getElementById('feature-content');
-            content.innerHTML = '';
-            feature.render(content);
+            feature.render(document.getElementById('feature-content'));
         }
     }
 }

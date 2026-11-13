@@ -30,6 +30,52 @@ class Feature {
         this.prefix = prefix;
         this.logId = `${prefix}-log`;
         this.progressId = `${prefix}-progress`;
+        this._listeners = [];
+        this._timers = [];
+    }
+
+    /**
+     * Registra um listener RASTREADO — removido automaticamente em destroy().
+     * Use para alvos persistentes (container da pagina, document, window).
+     * Listeners em elementos filhos do container nao precisam: morrem junto
+     * com o innerHTML ao trocar de tela.
+     */
+    on(target, event, handler) {
+        target.addEventListener(event, handler);
+        this._listeners.push([target, event, handler]);
+        return handler;
+    }
+
+    /** setTimeout RASTREADO — cancelado em destroy(). */
+    setTimeout(handler, delay) {
+        const id = setTimeout(() => {
+            this._timers = this._timers.filter(t => t !== id);
+            handler();
+        }, delay);
+        this._timers.push(id);
+        return id;
+    }
+
+    /** Cancela um timer rastreado por this.setTimeout(). */
+    clearTimeout(id) {
+        clearTimeout(id);
+        this._timers = this._timers.filter(t => t !== id);
+    }
+
+    /**
+     * Destroi a feature: remove todos os listeners e timers rastreados.
+     * Chamado pelo modulo/app ANTES de a feature ser descartada (troca de
+     * feature ou de pagina). Subclasses podem sobrescrever — chamar super.destroy().
+     */
+    destroy() {
+        for (const [target, event, handler] of this._listeners) {
+            target.removeEventListener(event, handler);
+        }
+        this._listeners = [];
+        for (const id of this._timers) {
+            clearTimeout(id);
+        }
+        this._timers = [];
     }
 
     /** Adiciona uma linha na area de log da feature. */

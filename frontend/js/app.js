@@ -22,6 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
         if (btn) btn.classList.add('active');
 
+        // Destroi a página/módulo anterior: remove listeners e timers
+        // rastreados (sem isso, a Home acumulava handlers a cada visita).
+        if (currentModuleInstance && typeof currentModuleInstance.destroy === 'function') {
+            currentModuleInstance.destroy();
+        }
+        currentModuleInstance = null;
+
         container.innerHTML = '';
 
         if (pages[page]) {

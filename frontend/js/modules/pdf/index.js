@@ -3,18 +3,18 @@ class PDFModule {
         this.container = container;
         this.currentFeature = 'merge';
         this.features = [
-            { id: 'merge', label: 'Combinar', render: (container) => new PDFMergeFeature().render(container) },
-            { id: 'merge-by-size', label: 'Combinar por Tamanho', render: (container) => new PDFMergeBySizeFeature().render(container) },
-            { id: 'split', label: 'Dividir', render: (container) => new PDFSplitFeature().render(container) },
-            { id: 'split-by-size', label: 'Dividir por Tamanho', render: (container) => new PDFSplitBySizeFeature().render(container) },
-            { id: 'extract-pages', label: 'Extrair Páginas', render: (container) => new PDFExtractPagesFeature().render(container) },
-            { id: 'remove-pages', label: 'Remover Páginas', render: (container) => new PDFRemovePagesFeature().render(container) },
-            { id: 'reorder', label: 'Reordenar Páginas', render: (container) => new PDFReorderFeature().render(container) },
-            { id: 'add-page-numbers', label: 'Numerar Páginas', render: (container) => new PDFAddPageNumbersFeature().render(container) },
-            { id: 'convert-to-word', label: 'Converter para Word', render: (container) => new PDFConvertToWordFeature().render(container) },
-            { id: 'convert-to-image', label: 'Converter para Imagem', render: (container) => new PDFConvertToImageFeature().render(container) },
-            { id: 'compress', label: 'Comprimir', render: (container) => new PDFCompressFeature().render(container) },
-            { id: 'protect', label: 'Proteger/Desproteger', render: (container) => new PDFProtectFeature().render(container) },
+            { id: 'merge', label: 'Combinar', render: (container) => this.mount(new PDFMergeFeature(), container) },
+            { id: 'merge-by-size', label: 'Combinar por Tamanho', render: (container) => this.mount(new PDFMergeBySizeFeature(), container) },
+            { id: 'split', label: 'Dividir', render: (container) => this.mount(new PDFSplitFeature(), container) },
+            { id: 'split-by-size', label: 'Dividir por Tamanho', render: (container) => this.mount(new PDFSplitBySizeFeature(), container) },
+            { id: 'extract-pages', label: 'Extrair Páginas', render: (container) => this.mount(new PDFExtractPagesFeature(), container) },
+            { id: 'remove-pages', label: 'Remover Páginas', render: (container) => this.mount(new PDFRemovePagesFeature(), container) },
+            { id: 'reorder', label: 'Reordenar Páginas', render: (container) => this.mount(new PDFReorderFeature(), container) },
+            { id: 'add-page-numbers', label: 'Numerar Páginas', render: (container) => this.mount(new PDFAddPageNumbersFeature(), container) },
+            { id: 'convert-to-word', label: 'Converter para Word', render: (container) => this.mount(new PDFConvertToWordFeature(), container) },
+            { id: 'convert-to-image', label: 'Converter para Imagem', render: (container) => this.mount(new PDFConvertToImageFeature(), container) },
+            { id: 'compress', label: 'Comprimir', render: (container) => this.mount(new PDFCompressFeature(), container) },
+            { id: 'protect', label: 'Proteger/Desproteger', render: (container) => this.mount(new PDFProtectFeature(), container) },
         ];
     }
 
@@ -52,12 +52,29 @@ class PDFModule {
         this.renderCurrentFeature();
     }
 
+    // Monta uma feature no container: destroi a anterior (destroy remove
+    // listeners/timers rastreados), limpa o DOM e renderiza a nova.
+    mount(instance, container) {
+        if (this._active) {
+            this._active.destroy();
+        }
+        container.innerHTML = '';
+        this._active = instance;
+        instance.render(container);
+    }
+
+    // Chamado pelo app ao trocar de pagina: destroi a feature ativa.
+    destroy() {
+        if (this._active) {
+            this._active.destroy();
+            this._active = null;
+        }
+    }
+
     renderCurrentFeature() {
         const feature = this.features.find(f => f.id === this.currentFeature);
         if (feature) {
-            const content = document.getElementById('feature-content');
-            content.innerHTML = '';
-            feature.render(content);
+            feature.render(document.getElementById('feature-content'));
         }
     }
 }

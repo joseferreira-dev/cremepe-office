@@ -236,9 +236,9 @@ class WatermarkFeature extends Feature {
 
     schedulePreviewUpdate() {
         if (this.updateTimeout) {
-            clearTimeout(this.updateTimeout);
+            this.clearTimeout(this.updateTimeout);
         }
-        this.updateTimeout = setTimeout(() => {
+        this.updateTimeout = this.setTimeout(() => {
             this.updatePreview();
             this.updateTimeout = null;
         }, 200); // pequeno atraso para evitar muitas chamadas

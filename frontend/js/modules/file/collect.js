@@ -118,7 +118,10 @@ class CollectFeature extends Feature {
         container.querySelector('#btn-collect').addEventListener('click', () => this.executeCollect());
 
         // Delegação para botões dinâmicos de origem
-        container.addEventListener('click', (e) => {
+        // this.on() rastreia: o #feature-content persiste entre features do
+        // módulo, então sem destroy() cada volta para esta feature acumulava
+        // +1 handler (clique processava N vezes).
+        this.on(container, 'click', (e) => {
             const target = e.target;
             if (target.classList.contains('btn-src-select')) {
                 e.stopPropagation();
@@ -136,7 +139,7 @@ class CollectFeature extends Feature {
         });
 
         // Atualizar array quando o usuário digitar manualmente
-        container.addEventListener('input', (e) => {
+        this.on(container, 'input', (e) => {
             if (e.target.classList.contains('src-dir-input')) {
                 const idx = parseInt(e.target.dataset.idx);
                 this.srcDirs[idx] = e.target.value;
