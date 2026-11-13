@@ -1,4 +1,4 @@
-"""Logging em arquivo da API (item 2)."""
+"""Logging em arquivo da API."""
 from helpers import post_sync
 
 

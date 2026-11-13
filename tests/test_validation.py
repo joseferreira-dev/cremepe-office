@@ -1,4 +1,4 @@
-"""Validacao @require das 47 rotas (item 4)."""
+"""Validacao @require das 47 rotas POST da API."""
 from helpers import post_sync
 
 

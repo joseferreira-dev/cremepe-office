@@ -1,7 +1,7 @@
 """Fixtures da suíte pytest.
 
 CRÍTICO: CREMEPE_LOG_DIR é definido ANTES de importar o app — o logging
-é configurado no import de app.py (item 2) e usa esse diretorio.
+é configurado no import de app.py e usa esse diretorio.
 """
 import os
 import tempfile
@@ -31,7 +31,7 @@ def client(app):
 
 @pytest.fixture()
 def log_file():
-    """Caminho do backend.log da sessao (item 2)."""
+    """Caminho do backend.log da sessao."""
     return Path(os.environ["CREMEPE_LOG_DIR"]) / "backend.log"
 
 

@@ -13,8 +13,8 @@ Ordem dos decoradores da rota (importante):
 seguida, que spawna a thread e responde 202 na hora.
 
 A view roda na thread com um app context PROPRIO (jsonify exige app
-context; nenhum acesso a request/g existe nas views — validado por
-varredura). O resultado (response, status) e capturado como
+context; nenhuma view acessa request/g — elas recebem apenas o payload
+já validado). O resultado (response, status) e capturado como
 job.result, ou transformado em job.error quando status >= 400 —
 preservando as mensagens de erro que o frontend ja exibe.
 """
@@ -82,8 +82,8 @@ def as_job(label: str = None):
 def _finish_job(job, rv) -> None:
     """Captura o retorno da view ((response, status) ou response)."""
     # O status VERDADEIRO e o do tuple (e o que o Flask aplica no fim);
-    # o proprio Response de jsonify nasce com status_code=200, entao nao
-    # pode sobrescrever o tuple — isso marcava validacoes 400 como 'done'.
+    # o proprio Response de jsonify nasce com status_code=200, entao o
+    # tuple tem precedencia — sem isso uma validacao 400 viraria 'done'.
     if isinstance(rv, tuple) and len(rv) == 2 and isinstance(rv[1], int):
         body, status = rv
     elif hasattr(rv, "get_json"):

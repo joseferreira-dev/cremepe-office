@@ -1,4 +1,4 @@
-"""Helpers da suíte — entendem o contrato async da API (item 9).
+"""Helpers da suíte — entendem o contrato async da API.
 
 POSTs de execução respondem 202 {job_id}; validação de campos continua
 400 imediato. post_sync faz o polling e devolve uma resposta

@@ -1,7 +1,7 @@
 """Validação de payload das rotas da API.
 
 Fornece o decorator @require, que unifica a validação de campos
-obrigatórios que antes era repetida em cada rota (47x).
+obrigatórios das rotas POST em uma única declaração por rota.
 """
 
 from functools import wraps

@@ -4,9 +4,36 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
 
 ## Tecnologias
 
-- **Frontend**: Electron (HTML/CSS/JS)
-- **Backend**: Python + Flask (API REST)
+- **Frontend**: Electron + HTML/CSS/JS (ES modules, sem framework)
+- **Backend**: Python + Flask (API REST), escutando apenas em `http://127.0.0.1:5000`
 - **Empacotamento**: PyInstaller (para o backend) + electron-builder (para o instalador)
+- **Qualidade**: pytest (backend) + ESLint (frontend)
+
+---
+
+## Funcionalidades disponíveis
+
+- Coletar e renomear arquivos em lote (com filtros por extensão, regex, caixa e acentos)
+- Mesclar e dividir PDFs (com suporte a intervalos personalizados e tamanho)
+- Converter documentos Word para PDF e vice‑versa; converter PDF para Word
+- Mesclar e manipular planilhas Excel (consolidar, extrair células, dividir por coluna, etc.)
+- Organizar arquivos por extensão
+- Comparar e sincronizar pastas
+- Detectar duplicatas e removê-las (excluir ou mover, com validação antes de alterar o disco)
+- Compactar e extrair arquivos (ZIP, 7z, RAR, TAR)
+- Gerenciar atributos de arquivos (datas, permissões, oculto, etc.)
+- Extrair imagens e texto de documentos/PDFs
+
+> **Conversões Word**: `txt` e `html` a partir de `.docx` funcionam **sem** o
+> Microsoft Word (conversão pura em Python, com tabelas e títulos). As
+> conversões para **PDF/DOC** — e qualquer conversão a partir de **.doc** —
+> exigem o MS Word instalado; sem ele a API responde com mensagem amigável
+> indicando a dependência (em vez do erro cru do COM).
+
+> **Operações longas**: endpoints de execução respondem `202 {job_id}` e o
+> progresso real é consultado em `GET /api/jobs/<id>` (a UI anima a barra de
+> progresso com o percentual reportado). Validação de campos continua
+> `400` imediato, antes de criar o job.
 
 ---
 
@@ -30,13 +57,14 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
    ```bash
    npm install
    ```
-6. Inicie o backend (em um terminal separado) ou use o comando `npm run dev` (se configurado):
+6. Inicie backend e Electron juntos:
    ```bash
-   python backend/app.py
+   npm run dev
    ```
-7. Em outro terminal, inicie o Electron:
+   Ou, em terminais separados:
    ```bash
-   npm start
+   npm run start-backend   # backend Flask
+   npm start               # Electron
    ```
 
 > **Nota**: O frontend espera o backend rodando em `http://127.0.0.1:5000` (somente localhost). Certifique‑se de que a porta esteja livre.
@@ -49,14 +77,16 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
 
 ---
 
-## Testes
+## Testes e qualidade
 
-O backend tem uma suíte **pytest** na raiz do repositório (a
-configuração está no `pyproject.toml`: `pythonpath` resolve os imports
-absolutos e `testpaths` aponta para `tests/`).
+### Backend — pytest
+
+A suíte fica em `tests/` (76 testes) e a configuração está no
+`pyproject.toml`: `pythonpath` resolve os imports absolutos e `testpaths`
+aponta para `tests/`.
 
 ```bash
-# instala as dependências de teste (extra dev do pyproject)
+# instale as dependências de teste (extra dev do pyproject)
 pip install -e ".[dev]"
 
 pytest                  # suíte completa
@@ -68,18 +98,34 @@ Cobertura:
 
 - **erros globais** — formatos 404/405/400 em JSON e o mapeamento
   exceção → status (`describe_exception`, fonte única)
-- **validação das 47 rotas** — `@require` síncrono (400 imediato),
+- **validação das rotas POST** — `@require` síncrono (400 imediato),
   mensagens singular/plural, valores falsy, validações inline
 - **jobs assíncronos** — ciclo de vida 202 → poll → done/error,
   preservação de `error_status`, progresso intermediário real,
   poda do JobManager
 - **logging em arquivo** — criação do log, registro de requisições,
   health check excluído, traceback de erro em execução
-- **services com fixtures** — merge/split de PDF, conversão Excel e
-  coleta de arquivos reportando progresso
+- **services com fixtures** — PDF (merge/split, conversão para Word com
+  aviso de PDF escaneado), Word (conversões `txt`/`html` sem MS Word,
+  merge via docxcompose, extração de imagens), Excel e arquivos
+  (coleta com progresso, `duplicates/remove` com validação e atomicidade)
 - **integração com servidor real** (marker `slow`) — bind apenas em
   `127.0.0.1`, debug condicional (`FLASK_DEBUG`) e não-bloqueio do
   health check durante operação longa
+
+### Frontend — ESLint
+
+```bash
+npm run lint        # eslint frontend/js (0 erros = ok)
+```
+
+### Logs
+
+O backend grava `backend.log` (com rotação) no diretório definido por
+`CREMEPE_LOG_DIR`; sem a variável, usa o diretório default da plataforma
+(`%LOCALAPPDATA%\CREMEPE Office\logs` no Windows) e, em último caso, o
+diretório temporário. O nível pode ser alterado com `LOG_LEVEL` (padrão
+`INFO`).
 
 ---
 
@@ -150,6 +196,14 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
 
 ---
 
+## Segurança
+
+- O backend escuta **apenas** em `127.0.0.1` (não é exposto na rede local).
+- Debug (reloader + debugger do Werkzeug) fica **desligado** por padrão; em produção (`backend.exe`) nunca é ativado.
+- Erros inesperados respondem `500` com mensagem genérica; o traceback fica apenas no `backend.log`.
+
+---
+
 ## Estrutura do Projeto (resumida)
 
 ```
@@ -161,38 +215,24 @@ cremepe-office/
 │   ├── controllers/        # Lógica de negócio
 │   ├── services/           # Processadores de domínio (PDF, Word, Excel, arquivos)
 │   ├── routes/             # Endpoints da API
-│   └── utils/              # Funções auxiliares
+│   └── utils/              # Erros globais, validação, jobs, logging
 ├── frontend/               # Código Electron (HTML/CSS/JS)
 │   ├── index.html          # Página principal
 │   ├── main.js             # Processo principal do Electron
 │   ├── preload.js          # Ponte segura entre main e renderer
 │   ├── assets/             # Imagens, ícones
 │   ├── css/                # Estilos
-│   └── js/                 # JavaScript do renderer (módulos)
+│   └── js/                 # JavaScript do renderer (módulos ES)
+│       ├── app.js          # Entry point do renderer
+│       ├── api.js          # Cliente HTTP + polling de jobs
+│       └── modules/        # Features por domínio (pdf/, word/, excel/, file/)
+├── tests/                  # Suíte pytest (unit + integração)
 ├── scripts/                # Scripts auxiliares (start, etc.)
-├── package.json            # Dependências Node e configuração do electron-builder
+├── eslint.config.mjs       # Configuração do ESLint
+├── package.json            # Dependências Node e scripts (dev, lint, dist)
 ├── pyproject.toml           # Metadados e dependências Python (fonte única)
 └── README.md               # Este arquivo
 ```
-
----
-
-## Funcionalidades disponíveis
-
-- Coletar e renomear arquivos em lote
-- Mesclar e dividir PDFs (com suporte a intervalos personalizados e tamanho)
-- Converter documentos Word para PDF e vice‑versa
-- Mesclar e manipular planilhas Excel (consolidar, extrair células, dividir por coluna, etc.)
-- Organizar arquivos por extensão
-- Comparar e sincronizar pastas
-- Compactar e extrair arquivos (ZIP, 7z, RAR, TAR)
-- Gerenciar atributos de arquivos (datas, permissões, oculto, etc.)
-
-> **Conversões Word**: `txt` e `html` a partir de `.docx` funcionam **sem** o
-> Microsoft Word (conversão pura em Python, com tabelas e títulos). As
-> conversões para **PDF/DOC** — e qualquer conversão a partir de **.doc** —
-> exigem o MS Word instalado; sem ele a API responde com mensagem amigável
-> indicando a dependência (em vez do erro cru do COM).
 
 ---
 

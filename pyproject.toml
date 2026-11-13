@@ -8,7 +8,7 @@ version = "1.0.0"
 description = "Backend Flask do CREMEPE Office: API REST para manipulacao de arquivos, PDFs, Word e Excel."
 readme = "README.md"
 requires-python = ">=3.9"
-# Fonte unica de dependencias (substitui o antigo requirements.txt).
+# Fonte unica de dependencias (arquivo unico no lugar de requirements.txt).
 # Versoes pinadas para reproduzir exatamente o ambiente testado.
 dependencies = [
     "Flask==3.1.3",

@@ -114,12 +114,12 @@ def rename_files_in_batch(
     suffix: str = "",
     start_number: int = 1,
     use_original_name: bool = False,
-    extensions: List[str] = None,                     # novo: filtrar por extensão
-    regex_pattern: str = None,                        # novo: padrão regex para substituir
-    regex_replacement: str = "",                      # novo: substituição
+    extensions: List[str] = None,                     # filtrar por extensão
+    regex_pattern: str = None,                        # padrão regex para substituir
+    regex_replacement: str = "",                      # substituição
     case_conversion: str = 'none',                    # 'none', 'lower', 'upper', 'title'
-    remove_accents: bool = False,                     # novo: remover acentos
-    replace_spaces_with: str = None,                  # novo: substituir espaços por outro caractere
+    remove_accents: bool = False,                     # remover acentos
+    replace_spaces_with: str = None,                  # substituir espaços por outro caractere
 ) -> int:
     """
     Renomeia uma lista de arquivos aplicando transformações.

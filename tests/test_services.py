@@ -1,4 +1,4 @@
-"""Services de dominio com fixtures (item 10 — roadmap: merge/split PDF)."""
+"""Services de dominio (PDF, Word, Excel, arquivos) com fixtures."""
 import pytest
 from PyPDF2 import PdfReader
 
@@ -80,9 +80,9 @@ def test_split_custom_intervalo_fora_do_total_levanta_value_error(pdf_factory, t
         split_custom(str(src), str(tmp_path), "5-9")
 
 
-# ===== PDF: aviso de PDF escaneado no convert-to-word (opcao 2) =====
-# PDF sem texto gera docx vazio silenciosamente — agora a resposta
-# carrega "warning" para a UI mostrar no log da operacao.
+# ===== PDF: aviso de PDF escaneado no convert-to-word =====
+# PDF sem texto gera docx vazio silenciosamente — a resposta carrega
+# "warning" para a UI mostrar no log da operacao.
 
 def test_pdf_to_word_avisa_pdf_sem_texto(tmp_path, pdf_factory):
     from services.pdf_processor import convert_pdf_to_word
@@ -132,9 +132,9 @@ def test_rota_pdf_to_word_expoe_warning(client, pdf_factory, tmp_path):
     assert "warning" in body and "escaneado" in body["warning"], body
 
 
-# ===== files: duplicates/remove com validacao amigavel (opcao 3) =====
-# Antes: caminho inexistente -> erro cru do SO (WinError); acao invalida
-# era contada sem executar nada; exclusoes podiam ficar parciais.
+# ===== files: duplicates/remove com validacao amigavel =====
+# Cobre: acoes invalidas rejeitadas, validacao de todos os caminhos
+# antes de alterar o disco (sem exclusao parcial) e grupos malformados.
 
 def _make_dups(tmp_path):
     """Cria 3 arquivos identicos e devolve (dir, [caminhos])."""
@@ -249,10 +249,10 @@ def test_batch_convert_reporta_progresso(tmp_path, progress_collector):
     assert currents == sorted(currents), f"progresso nao monotono: {currents}"
 
 
-# ===== Word: merge (regressao do bug docxcompose achado na auditoria) =====
+# ===== Word: merge (docxcompose) =====
 # Composer()/append() recebem objetos Document (nao strings) e append()
-# nao tem o parametro page_break na versao pinada 2.2.0 — os dois bugs
-# faziam a funcionalidade "juntar documentos" falhar por completo.
+# nao tem o parametro page_break na versao pinada 2.2.0 — page breaks
+# sao inseridos manualmente entre os documentos.
 
 def _make_docx(path, text):
     from docx import Document
@@ -364,7 +364,7 @@ def test_word_merge_sem_quebra_de_pagina(tmp_path):
     assert b'w:type="page"' not in xml, "insert_page_breaks=False gerou quebra indevida"
 
 
-# ===== Word: demais funcionalidades (cobertura da auditoria) =====
+# ===== Word: demais funcionalidades =====
 # convert/watermark/filepath usam Word COM (win32com) — sao pulados em
 # ambientes sem MS Word; compare/difflib e extract_images sao puros.
 

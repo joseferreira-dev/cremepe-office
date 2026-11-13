@@ -150,8 +150,6 @@ def convert_to_word(data):
     # result pode conter {"warning": ...} (PDF escaneado sem texto)
     return jsonify({"success": True, **result}), 200
 
-# Substitua as duas rotas por estas:
-
 @pdf_bp.route('/convert-images-to-pdf', methods=['POST'])
 @require('image_paths', 'output_path')
 @as_job()

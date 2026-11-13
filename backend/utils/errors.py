@@ -1,8 +1,8 @@
 """Handlers globais de erro da API.
 
 Centraliza a tradução de exceções em respostas JSON no formato
-{"error": "..."} — o mesmo formato que o frontend já espera — e
-elimina os blocos try/except repetidos em todas as rotas.
+{"error": "..."} — o mesmo formato que o frontend já espera — via
+handlers globais do Flask (nenhuma rota precisa de try/except próprio).
 
 Mapeamento de status:
     ValidationError / ValueError          -> 400

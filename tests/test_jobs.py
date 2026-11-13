@@ -1,4 +1,4 @@
-"""Jobs assincronos + progresso real (item 9)."""
+"""Jobs assincronos + progresso real."""
 import time
 
 from utils import jobs as jobs_mod
@@ -25,7 +25,7 @@ def test_job_termina_done_com_progresso_100(client, tmp_path):
 
 
 def test_shape_do_result_e_identico_ao_sincrono(client, tmp_path):
-    """As features nao mudam: result tem {success, files} como antes."""
+    """As features nao mudam: result tem {success, files}."""
     r = post_sync(client, "/api/files/list", json={"dir": str(tmp_path)})
     body = r.get_json()
     assert body["success"] is True
@@ -115,8 +115,8 @@ def test_progresso_intermediario_visivel_durante_execucao(client, monkeypatch):
 
     Substitui a instanciacao do controller (routes.pdf_routes.controller)
     por um fake que reporta progresso (1/4 -> 4/4) com sleeps — o
-    polling deve observar valores entre 0 e 100 (antes da correcao, a
-    barra so pulava 0 -> 100).
+    polling deve observar valores intermediarios entre 0 e 100, e nao
+    apenas o salto final.
     """
     from routes import pdf_routes
 

@@ -1,9 +1,9 @@
 """Integracao com servidor real (spawn) — marcados como slow.
 
 Cobre as garantias que so se provam com o processo de verdade:
-  - bind em 127.0.0.1 (item 3): localhost responde, IP da rede NAO
-  - debug condicional (item 3): off por padrao, on com FLASK_DEBUG=1
-  - nao-bloqueio (item 9): health responde durante operacao longa
+  - bind em 127.0.0.1: localhost responde, IP da rede NAO
+  - debug condicional: off por padrao, on com FLASK_DEBUG=1
+  - nao-bloqueio: health responde durante operacao longa
 """
 import json
 import os
@@ -100,7 +100,7 @@ def read_stdout(proc):
 
 
 def test_bind_apenas_localhost_e_debug_off():
-    """Item 3:127.0.0.1 responde; IP da rede NAO; debug desligado."""
+    """127.0.0.1 responde; IP da rede NAO; debug desligado."""
     port = free_port()
     proc, _ = spawn_server(port, log_name="bind.log")
     try:
@@ -124,7 +124,7 @@ def test_bind_apenas_localhost_e_debug_off():
 
 
 def test_flask_debug_1_liga_debug():
-    """Item 3: FLASK_DEBUG=1 liga reloader/debugger (dev)."""
+    """FLASK_DEBUG=1 liga reloader/debugger (dev)."""
     port = free_port()
     proc, _ = spawn_server(port, extra_env={"FLASK_DEBUG": "1"},
                            log_name="debug.log")
@@ -137,7 +137,7 @@ def test_flask_debug_1_liga_debug():
 
 
 def test_health_nao_bloqueia_durante_operacao_longa():
-    """Item 9: Flask threaded — health responde durante op longa.
+    """Flask threaded — health responde durante operacao longa.
 
     Com jobs, o POST responde 202 na hora; a operacao longa roda na
     thread do job. Medimos a duracao do JOB via polling — durante ela,

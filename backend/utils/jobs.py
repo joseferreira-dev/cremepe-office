@@ -3,14 +3,12 @@
 O Flask já é threaded por padrão (não bloqueia o health check), então o
 job existe como TRANSPORTE DE PROGRESSO: uma operação roda numa thread
 e o cliente consulta o percentual intermediário via GET /api/jobs/<id>
-— algo impossível numa resposta HTTP única (a barra antes pulava 0->100).
+— algo impossível numa resposta HTTP única.
 
 Progresso via ContextVar: o runner do job associa um callback ao
 contexto da thread; services chamam report_progress(current, total)
 direto no loop, sem assinaturas atravessando route -> controller ->
-service (mecanismo que ja existia parcialmente em file_manager com
-progress_callback=None — nunca alimentado). Fora de um job,
-report_progress e um no-op.
+service. Fora de um job, report_progress e um no-op.
 """
 import threading
 import time

@@ -209,8 +209,8 @@ export class HomePage extends Feature {
     // ====== CONFIGURAÇÃO DE EVENTOS (UMA ÚNICA VEZ) ======
     setupEventListeners() {
         // Delegação para todos os eventos do container
-        // this.on() rastreia o listener: o #page-container nunca é destruído,
-        // então sem destroy() cada visita à home acumulava +1 handler.
+        // this.on() rastreia o listener: o #page-container persiste entre
+        // visitas, então destroy() o remove quando a home é descartada.
         this.on(this.container, 'click', async (e) => {
             const target = e.target;
 

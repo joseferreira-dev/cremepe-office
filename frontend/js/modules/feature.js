@@ -1,7 +1,7 @@
 /**
  * Classe base para as features das telas (PDF, Word, Excel, Arquivos).
  *
- * Centraliza o que era repetido em cada uma das 33 features:
+ * Centraliza o comportamento comum das 33 features:
  *   - area de log de operacoes e barra de progresso (HTML identico)
  *   - acesso aos IDs derivados do prefixo da feature
  *
@@ -22,8 +22,8 @@
  *       }
  *   }
  *
- * Os IDs gerados ('{prefix}-log' / '{prefix}-progress') sao os MESMOS
- * usados antes da refactoracao — nada muda no DOM final.
+ * Os IDs gerados sao '{prefix}-log' e '{prefix}-progress', derivados
+ * do prefixo passado ao construtor (toda feature referencia esses IDs).
  */
 import { FileUtils } from './file/utils.js';
 

@@ -62,8 +62,8 @@ def merge_documents(docx_paths: List[str], output_path: str, insert_page_breaks:
             else:
                 docx_files.append(str(src_path))
         # docxcompose recebe objetos Document, nao strings de caminho, e
-        # append() nao tem parametro page_break (versao pinada 2.2.0) —
-        # ambos os bugs faziam a funcionalidade falhar por completo.
+        # append() nao tem parametro page_break (versao pinada 2.2.0):
+        # page breaks sao inseridos manualmente entre os documentos.
         composer = Composer(Document(docx_files[0]))
         for i, doc_path in enumerate(docx_files[1:], start=1):
             report_progress(i, len(docx_files))
@@ -567,7 +567,7 @@ def preview_watermark_position(
         'page_height': page_height_cm
     }
 
-# ==================== CAMINHO DO ARQUIVO (CORRIGIDO) ====================
+# ==================== CAMINHO DO ARQUIVO ====================
 def insert_file_path(
     input_path: str,
     output_path: str,

@@ -1,4 +1,4 @@
-"""Erros globais da API (item 1) + describe_exception (fonte unica)."""
+"""Erros globais da API + describe_exception (fonte unica)."""
 from werkzeug.exceptions import BadRequest, NotFound
 
 from utils.exceptions import NotFoundError, ValidationError

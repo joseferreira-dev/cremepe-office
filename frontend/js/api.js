@@ -5,9 +5,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Acompanha um job do backend (POSTs respondem 202 {job_id}).
  * Enquanto o job roda, atualiza a barra de progresso VISIVEL da feature
- * atual com o percentual real reportado pelos services (antes a barra
- * so pulava 0% -> 100%). Devolve o result no MESMO formato que a
- * resposta sincronica devolvia — as features nao precisam mudar.
+ * atual com o percentual real reportado pelos services. Devolve o result
+ * no MESMO formato que a resposta sincronica devolvia — as features nao
+ * precisam mudar.
  *
  * A barra e capturada uma unica vez: se o usuario trocar de tela, o
  * elemento fica detached e as escritas viram no-op (sem barra errada).
