@@ -1,14 +1,13 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify
 from controllers.word_controller import WordController
+from utils.validation import require
 
 word_bp = Blueprint('word', __name__)
 controller = WordController()
 
 @word_bp.route('/merge', methods=['POST'])
-def merge_documents():
-    data = request.json
-    if not data.get('docx_paths') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: docx_paths, output_path"}), 400
+@require('docx_paths', 'output_path')
+def merge_documents(data):
     insert_page_breaks = data.get('insert_page_breaks', True)
     result = controller.merge_documents(
         docx_paths=data['docx_paths'],
@@ -18,10 +17,8 @@ def merge_documents():
     return jsonify({"success": True, "output_path": result}), 200
 
 @word_bp.route('/convert', methods=['POST'])
-def convert_document():
-    data = request.json
-    if not data.get('input_path') or not data.get('output_path') or not data.get('output_format'):
-        return jsonify({"error": "Campos obrigatórios: input_path, output_path, output_format"}), 400
+@require('input_path', 'output_path', 'output_format')
+def convert_document(data):
     result = controller.convert_document(
         input_path=data['input_path'],
         output_path=data['output_path'],
@@ -30,10 +27,8 @@ def convert_document():
     return jsonify({"success": True, "output_path": result}), 200
 
 @word_bp.route('/compare', methods=['POST'])
-def compare_documents():
-    data = request.json
-    if not data.get('doc1_path') or not data.get('doc2_path'):
-        return jsonify({"error": "Campos obrigatórios: doc1_path, doc2_path"}), 400
+@require('doc1_path', 'doc2_path')
+def compare_documents(data):
     result = controller.compare_documents(
         doc1_path=data['doc1_path'],
         doc2_path=data['doc2_path']
@@ -41,10 +36,8 @@ def compare_documents():
     return jsonify({"success": True, **result}), 200
 
 @word_bp.route('/extract-images', methods=['POST'])
-def extract_images():
-    data = request.json
-    if not data.get('input_path') or not data.get('output_dir'):
-        return jsonify({"error": "Campos obrigatórios: input_path, output_dir"}), 400
+@require('input_path', 'output_dir')
+def extract_images(data):
     prefix = data.get('prefix')
     result = controller.extract_images(
         input_path=data['input_path'],
@@ -54,10 +47,8 @@ def extract_images():
     return jsonify({"success": True, "images": result, "count": len(result)}), 200
 
 @word_bp.route('/watermark', methods=['POST'])
-def add_watermark():
-    data = request.json
-    if not data.get('input_path') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+@require('input_path', 'output_path')
+def add_watermark(data):
     result = controller.add_watermark(
         input_path=data['input_path'],
         output_path=data['output_path'],
@@ -74,8 +65,8 @@ def add_watermark():
     return jsonify({"success": True, "output_path": result}), 200
 
 @word_bp.route('/watermark/preview', methods=['POST'])
-def preview_watermark():
-    data = request.json
+@require()
+def preview_watermark(data):
     result = controller.preview_watermark_position(
         page_width_cm=data.get('page_width_cm', 21.0),
         page_height_cm=data.get('page_height_cm', 29.7),
@@ -88,10 +79,8 @@ def preview_watermark():
     return jsonify({"success": True, **result}), 200
 
 @word_bp.route('/filepath', methods=['POST'])
-def insert_file_path():
-    data = request.json
-    if not data.get('input_path') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
+@require('input_path', 'output_path')
+def insert_file_path(data):
     result = controller.insert_file_path(
         input_path=data['input_path'],
         output_path=data['output_path'],

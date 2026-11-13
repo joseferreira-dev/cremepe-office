@@ -1,25 +1,19 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify
 from controllers.pdf_controller import PDFController
+from utils.validation import require
 
 pdf_bp = Blueprint('pdf', __name__)
 controller = PDFController()
 
 @pdf_bp.route('/merge', methods=['POST'])
-def merge():
-    data = request.json
-    if not data.get('pdf_paths') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: pdf_paths, output_path"}), 400
+@require('pdf_paths', 'output_path')
+def merge(data):
     result = controller.merge(data['pdf_paths'], data['output_path'])
     return jsonify({"success": True, "output_path": result}), 200
 
 @pdf_bp.route('/merge-by-size', methods=['POST'])
-def merge_by_size():
-    data = request.json
-    required = ['source_dir', 'dest_dir', 'max_size_mb']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('source_dir', 'dest_dir', 'max_size_mb')
+def merge_by_size(data):
     result = controller.merge_by_size(
         source_dir=data['source_dir'],
         dest_dir=data['dest_dir'],
@@ -31,13 +25,8 @@ def merge_by_size():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/split-custom', methods=['POST'])
-def split_custom():
-    data = request.json
-    required = ['pdf_path', 'output_dir', 'intervals_str']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_path', 'output_dir', 'intervals_str')
+def split_custom(data):
     result = controller.split_custom(
         pdf_path=data['pdf_path'],
         output_dir=data['output_dir'],
@@ -49,13 +38,8 @@ def split_custom():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/split-fixed', methods=['POST'])
-def split_fixed():
-    data = request.json
-    required = ['pdf_path', 'output_dir', 'pages_per_file']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_path', 'output_dir', 'pages_per_file')
+def split_fixed(data):
     result = controller.split_fixed(
         pdf_path=data['pdf_path'],
         output_dir=data['output_dir'],
@@ -67,13 +51,8 @@ def split_fixed():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/split-by-size', methods=['POST'])
-def split_by_size():
-    data = request.json
-    required = ['pdf_path', 'output_dir', 'max_size_mb']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_path', 'output_dir', 'max_size_mb')
+def split_by_size(data):
     result = controller.split_by_size(
         pdf_path=data['pdf_path'],
         output_dir=data['output_dir'],
@@ -83,13 +62,8 @@ def split_by_size():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/extract-all-pages', methods=['POST'])
-def extract_all_pages():
-    data = request.json
-    required = ['pdf_path', 'output_dir']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_path', 'output_dir')
+def extract_all_pages(data):
     result = controller.extract_all_pages(
         pdf_path=data['pdf_path'],
         output_dir=data['output_dir'],
@@ -98,13 +72,8 @@ def extract_all_pages():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/extract-selected-pages', methods=['POST'])
-def extract_selected_pages():
-    data = request.json
-    required = ['pdf_path', 'output_dir', 'pages_selection']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_path', 'output_dir', 'pages_selection')
+def extract_selected_pages(data):
     result = controller.extract_selected_pages(
         pdf_path=data['pdf_path'],
         output_dir=data['output_dir'],
@@ -116,13 +85,8 @@ def extract_selected_pages():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/remove-pages', methods=['POST'])
-def remove_pages():
-    data = request.json
-    required = ['pdf_path', 'output_path', 'pages_to_remove_str']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_path', 'output_path', 'pages_to_remove_str')
+def remove_pages(data):
     result = controller.remove_pages(
         pdf_path=data['pdf_path'],
         output_path=data['output_path'],
@@ -133,13 +97,8 @@ def remove_pages():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/reorder-pages', methods=['POST'])
-def reorder_pages():
-    data = request.json
-    required = ['pdf_path', 'output_path', 'new_order_str']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_path', 'output_path', 'new_order_str')
+def reorder_pages(data):
     result = controller.reorder_pages(
         pdf_path=data['pdf_path'],
         output_path=data['output_path'],
@@ -148,11 +107,8 @@ def reorder_pages():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/add-page-numbers', methods=['POST'])
-def add_page_numbers():
-    data = request.json
-    if not data.get('input_path') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
-
+@require('input_path', 'output_path')
+def add_page_numbers(data):
     end_page = data.get('end_page')
     if end_page is not None:
         end_page = int(end_page)
@@ -173,13 +129,8 @@ def add_page_numbers():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/convert-to-word', methods=['POST'])
-def convert_to_word():
-    data = request.json
-    required = ['pdf_path', 'output_path']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_path', 'output_path')
+def convert_to_word(data):
     result = controller.convert_to_word(
         pdf_path=data['pdf_path'],
         output_path=data['output_path']
@@ -189,13 +140,8 @@ def convert_to_word():
 # Substitua as duas rotas por estas:
 
 @pdf_bp.route('/convert-images-to-pdf', methods=['POST'])
-def images_to_pdf():
-    data = request.json
-    required = ['image_paths', 'output_path']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('image_paths', 'output_path')
+def images_to_pdf(data):
     result = controller.convert_images_to_pdf(
         image_paths=data['image_paths'],
         output_path=data['output_path'],
@@ -209,13 +155,8 @@ def images_to_pdf():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/convert-pdf-to-images', methods=['POST'])
-def pdf_to_images():
-    data = request.json
-    required = ['pdf_paths', 'output_dir']
-    for field in required:
-        if not data.get(field):
-            return jsonify({"error": f"Campo obrigatório: {field}"}), 400
-
+@require('pdf_paths', 'output_dir')
+def pdf_to_images(data):
     result = controller.convert_pdf_to_images(
         pdf_paths=data['pdf_paths'],
         output_dir=data['output_dir'],
@@ -226,11 +167,8 @@ def pdf_to_images():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/compress', methods=['POST'])
-def compress():
-    data = request.json
-    if not data.get('input_path') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: input_path, output_path"}), 400
-
+@require('input_path', 'output_path')
+def compress(data):
     compression_level = data.get('compression_level', 'medium')
     if compression_level not in ('low', 'medium', 'high'):
         return jsonify({"error": "Nível de compressão inválido. Use 'low', 'medium' ou 'high'"}), 400
@@ -253,11 +191,8 @@ def compress():
     return jsonify({"success": True, **result}), 200
 
 @pdf_bp.route('/protect-password', methods=['POST'])
-def protect_password():
-    data = request.json
-    if not data.get('input_path') or not data.get('output_path') or not data.get('password'):
-        return jsonify({"error": "Campos obrigatórios: input_path, output_path, password"}), 400
-
+@require('input_path', 'output_path', 'password')
+def protect_password(data):
     result = controller.protect_password(
         input_path=data['input_path'],
         output_path=data['output_path'],
@@ -267,11 +202,8 @@ def protect_password():
 
 
 @pdf_bp.route('/remove-password', methods=['POST'])
-def remove_password():
-    data = request.json
-    if not data.get('input_path') or not data.get('output_path') or not data.get('password'):
-        return jsonify({"error": "Campos obrigatórios: input_path, output_path, password"}), 400
-
+@require('input_path', 'output_path', 'password')
+def remove_password(data):
     result = controller.remove_password(
         input_path=data['input_path'],
         output_path=data['output_path'],

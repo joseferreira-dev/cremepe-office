@@ -1,5 +1,6 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify
 from controllers.file_controller import FileController
+from utils.validation import require
 from datetime import datetime, timedelta
 import os
 
@@ -7,10 +8,8 @@ file_bp = Blueprint('file', __name__)
 controller = FileController()
 
 @file_bp.route('/preview', methods=['POST'])
-def preview_files():
-    data = request.json
-    if not data.get('src_dirs'):
-        return jsonify({"error": "Campo 'src_dirs' (lista) obrigatório"}), 400
+@require('src_dirs')
+def preview_files(data):
     extensions = data.get('extensions')
     if extensions and isinstance(extensions, str):
         extensions = [e.strip() for e in extensions.split(',') if e.strip()]
@@ -27,10 +26,8 @@ def preview_files():
     return jsonify({"success": True, "files": result, "count": len(result)}), 200
 
 @file_bp.route('/collect', methods=['POST'])
-def collect_files():
-    data = request.json
-    if not data.get('src_dirs') or not data.get('dst_dir'):
-        return jsonify({"error": "Campos obrigatórios: src_dirs (lista), dst_dir"}), 400
+@require('src_dirs', 'dst_dir')
+def collect_files(data):
     extensions = data.get('extensions')
     if extensions and isinstance(extensions, str):
         extensions = [e.strip() for e in extensions.split(',') if e.strip()]
@@ -53,19 +50,15 @@ def collect_files():
     return jsonify({"success": True, "processed_count": result}), 200
 
 @file_bp.route('/list', methods=['POST'])
-def list_files():
-    data = request.json
-    if not data.get('dir'):
-        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+@require('dir')
+def list_files(data):
     dir_path = data['dir']
     files = [f for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))]
     return jsonify({"success": True, "files": files}), 200
 
 @file_bp.route('/rename-preview', methods=['POST'])
-def rename_preview():
-    data = request.json
-    if not data.get('file_paths'):
-        return jsonify({"error": "Campo 'file_paths' obrigatório"}), 400
+@require('file_paths')
+def rename_preview(data):
     extensions = data.get('extensions')
     if extensions and isinstance(extensions, str):
         extensions = [e.strip() for e in extensions.split(',') if e.strip()]
@@ -85,10 +78,8 @@ def rename_preview():
     return jsonify({"success": True, "preview": result, "count": len(result)}), 200
 
 @file_bp.route('/rename', methods=['POST'])
-def rename_files():
-    data = request.json
-    if not data.get('file_paths'):
-        return jsonify({"error": "Campo 'file_paths' obrigatório"}), 400
+@require('file_paths')
+def rename_files(data):
     extensions = data.get('extensions')
     if extensions and isinstance(extensions, str):
         extensions = [e.strip() for e in extensions.split(',') if e.strip()]
@@ -108,10 +99,8 @@ def rename_files():
     return jsonify({"success": True, "renamed_count": result}), 200
     
 @file_bp.route('/duplicates', methods=['POST'])
-def find_duplicates():
-    data = request.json
-    if not data.get('dir'):
-        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+@require('dir')
+def find_duplicates(data):
     recursive = data.get('recursive', True)
     match_by = data.get('match_by', 'hash')
     include_hidden = data.get('include_hidden', False)
@@ -120,20 +109,16 @@ def find_duplicates():
     return jsonify({"success": True, "groups": result, "total_groups": len(groups)}), 200
 
 @file_bp.route('/duplicates/remove', methods=['POST'])
-def remove_duplicates():
-    data = request.json
-    if not data.get('groups'):
-        return jsonify({"error": "Campo 'groups' obrigatório"}), 400
+@require('groups')
+def remove_duplicates(data):
     action = data.get('action', 'delete')
     destination = data.get('destination')
     count = controller.remove_duplicates(data['groups'], action, destination)
     return jsonify({"success": True, "removed_count": count}), 200
     
 @file_bp.route('/organize/preview', methods=['POST'])
-def preview_organize():
-    data = request.json
-    if not data.get('dir'):
-        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+@require('dir')
+def preview_organize(data):
     recursive = data.get('recursive', True)
     move_others = data.get('move_others', False)
     result = controller.preview_organize(
@@ -144,10 +129,8 @@ def preview_organize():
     return jsonify({"success": True, "preview": result}), 200
 
 @file_bp.route('/organize', methods=['POST'])
-def organize_files():
-    data = request.json
-    if not data.get('dir'):
-        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+@require('dir')
+def organize_files(data):
     result = controller.organize_by_extension(
         dir_path=data['dir'],
         recursive=data.get('recursive', True),
@@ -159,10 +142,8 @@ def organize_files():
     return jsonify({"success": True, "processed_count": result}), 200
 
 @file_bp.route('/rename-by-content/preview', methods=['POST'])
-def preview_rename_by_content():
-    data = request.json
-    if not data.get('dir'):
-        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+@require('dir')
+def preview_rename_by_content(data):
     recursive = data.get('recursive', True)
     pattern = data.get('pattern', 'auto')
     result = controller.rename_by_content(
@@ -174,10 +155,8 @@ def preview_rename_by_content():
     return jsonify({"success": True, **result}), 200
 
 @file_bp.route('/rename-by-content', methods=['POST'])
-def rename_by_content():
-    data = request.json
-    if not data.get('dir'):
-        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+@require('dir')
+def rename_by_content(data):
     recursive = data.get('recursive', True)
     pattern = data.get('pattern', 'auto')
     result = controller.rename_by_content(
@@ -189,10 +168,8 @@ def rename_by_content():
     return jsonify({"success": True, **result}), 200
     
 @file_bp.route('/attributes', methods=['POST'])
-def set_attributes():
-    data = request.json
-    if not data.get('dir'):
-        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+@require('dir')
+def set_attributes(data):
     recursive = data.get('recursive', True)
     options = {
         'readonly': data.get('readonly'),
@@ -212,10 +189,8 @@ def set_attributes():
     return jsonify({"success": True, "processed_count": count}), 200
 
 @file_bp.route('/report', methods=['POST'])
-def generate_report():
-    data = request.json
-    if not data.get('dir'):
-        return jsonify({"error": "Campo 'dir' obrigatório"}), 400
+@require('dir')
+def generate_report(data):
     recursive = data.get('recursive', True)
     include_files = data.get('include_files', True)
     output_format = data.get('format', 'txt')
@@ -230,10 +205,8 @@ def generate_report():
     return jsonify({"success": True, **result}), 200
 
 @file_bp.route('/compare', methods=['POST'])
-def compare_directories():
-    data = request.json
-    if not data.get('source_dir') or not data.get('target_dir'):
-        return jsonify({"error": "Campos obrigatórios: source_dir, target_dir"}), 400
+@require('source_dir', 'target_dir')
+def compare_directories(data):
     result = controller.compare_directories(
         source_dir=data['source_dir'],
         target_dir=data['target_dir'],
@@ -244,10 +217,8 @@ def compare_directories():
     return jsonify({"success": True, **result}), 200
 
 @file_bp.route('/sync', methods=['POST'])
-def sync_directories():
-    data = request.json
-    if not data.get('source_dir') or not data.get('target_dir'):
-        return jsonify({"error": "Campos obrigatórios: source_dir, target_dir"}), 400
+@require('source_dir', 'target_dir')
+def sync_directories(data):
     result = controller.sync_directories(
         source_dir=data['source_dir'],
         target_dir=data['target_dir'],
@@ -259,10 +230,8 @@ def sync_directories():
     return jsonify({"success": True, **result}), 200
 
 @file_bp.route('/compress', methods=['POST'])
-def archive_compress():
-    data = request.json
-    if not data.get('source_paths') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: source_paths, output_path"}), 400
+@require('source_paths', 'output_path')
+def archive_compress(data):
     result = controller.archive_compress(
         source_paths=data['source_paths'],
         output_path=data['output_path'],
@@ -277,10 +246,8 @@ def archive_compress():
     return jsonify({"success": True, "output_path": result}), 200
 
 @file_bp.route('/extract', methods=['POST'])
-def archive_extract():
-    data = request.json
-    if not data.get('archive_path') or not data.get('extract_dir'):
-        return jsonify({"error": "Campos obrigatórios: archive_path, extract_dir"}), 400
+@require('archive_path', 'extract_dir')
+def archive_extract(data):
     result = controller.archive_extract(
         archive_path=data['archive_path'],
         extract_dir=data['extract_dir'],
@@ -289,10 +256,8 @@ def archive_extract():
     return jsonify({"success": True, "extract_dir": result}), 200
 
 @file_bp.route('/split', methods=['POST'])
-def split_file():
-    data = request.json
-    if not data.get('file_path') or not data.get('output_dir'):
-        return jsonify({"error": "Campos obrigatórios: file_path, output_dir"}), 400
+@require('file_path', 'output_dir')
+def split_file(data):
     part_size_mb = data.get('part_size_mb', 100)
     overwrite = data.get('overwrite', False)
     result = controller.split_file(
@@ -304,10 +269,8 @@ def split_file():
     return jsonify({"success": True, **result}), 200
 
 @file_bp.route('/merge', methods=['POST'])
-def merge_parts():
-    data = request.json
-    if not data.get('parts_list') or not data.get('output_path'):
-        return jsonify({"error": "Campos obrigatórios: parts_list, output_path"}), 400
+@require('parts_list', 'output_path')
+def merge_parts(data):
     overwrite = data.get('overwrite', False)
     result = controller.merge_parts(
         parts_list=data['parts_list'],
