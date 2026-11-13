@@ -8,7 +8,13 @@ from typing import List, Dict, Optional, Tuple
 import pythoncom
 import win32com.client
 from docx import Document
+from docx.oxml.ns import qn
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 from docxcompose.composer import Composer
+from html import escape as html_escape
+
+from utils.exceptions import DependencyError
 from utils.jobs import report_progress
 
 # ==================== CONVERSÃO .doc -> .docx ====================
@@ -95,8 +101,92 @@ def convert_with_word(input_path: Path, output_path: Path, format_code: int) -> 
         pythoncom.CoUninitialize()
 
 # ==================== FUNÇÃO PRINCIPAL DE CONVERSÃO ====================
+def _require_word() -> None:
+    """Levanta DependencyError amigavel se o MS Word nao estiver disponivel.
+
+    Chamado nos caminhos de falha do COM: se o Dispatch falhar, o usuario
+    recebe uma mensagem acionavel em vez do erro cru do COM.
+    """
+    pythoncom.CoInitialize()
+    word = None
+    try:
+        word = win32com.client.Dispatch("Word.Application")
+    except Exception as exc:
+        raise DependencyError(
+            "Esta conversão exige o Microsoft Word instalado "
+            "(conversões para TXT/HTML a partir de .docx funcionam sem Word)."
+        ) from exc
+    finally:
+        if word is not None:
+            try:
+                word.Quit()
+            except Exception:
+                pass
+        pythoncom.CoUninitialize()
+
+
+def _iter_doc_blocks(doc):
+    """Percorre o corpo do documento em ordem: paragrafos e tabelas."""
+    for block in doc.element.body.iterchildren():
+        if block.tag == qn('w:p'):
+            yield "p", Paragraph(block, doc)
+        elif block.tag == qn('w:tbl'):
+            yield "tbl", Table(block, doc)
+
+
+def _docx_to_text(docx_path: Path) -> str:
+    """Converte .docx em texto puro, SEM Word (paragrafos + tabelas)."""
+    doc = Document(str(docx_path))
+    lines = []
+    for kind, block in _iter_doc_blocks(doc):
+        if kind == "p":
+            lines.append(block.text)
+        else:  # tabela: linhas separadas por tab
+            for row in block.rows:
+                lines.append("\t".join(cell.text for cell in row.cells))
+    return "\n".join(lines)
+
+
+def _docx_to_html(docx_path: Path) -> str:
+    """Converte .docx em HTML simples, SEM Word (titulos + paragrafos + tabelas)."""
+    doc = Document(str(docx_path))
+    parts = [
+        "<!DOCTYPE html>",
+        '<html lang="pt-BR">',
+        "<head>",
+        '<meta charset="utf-8">',
+        f"<title>{html_escape(docx_path.stem)}</title>",
+        "</head>",
+        "<body>",
+    ]
+    for kind, block in _iter_doc_blocks(doc):
+        if kind == "p":
+            text = html_escape(block.text)
+            style_name = block.style.name if block.style is not None else ""
+            m = re.match(r"Heading (\d)", style_name)
+            if m:
+                level = min(int(m.group(1)), 6)
+                parts.append(f"<h{level}>{text}</h{level}>")
+            else:
+                parts.append(f"<p>{text}</p>")
+        else:
+            rows = []
+            for row in block.rows:
+                cells = "".join(
+                    f"<td>{html_escape(cell.text)}</td>" for cell in row.cells
+                )
+                rows.append(f"<tr>{cells}</tr>")
+            parts.append("<table>\n" + "\n".join(rows) + "\n</table>")
+    parts.extend(["</body>", "</html>"])
+    return "\n".join(parts)
+
+
 def convert_document(input_path: str, output_path: str, output_format: str) -> str:
-    """Converte um documento para o formato especificado."""
+    """Converte um documento para o formato especificado.
+
+    - txt/html a partir de .docx: conversão pura em Python (SEM Word)
+    - pdf/doc, ou qualquer conversão a partir de .doc: exige MS Word (COM)
+    """
     input_path = Path(input_path).resolve()
     if not input_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
@@ -104,32 +194,50 @@ def convert_document(input_path: str, output_path: str, output_format: str) -> s
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    if output_format not in ('html', 'txt', 'doc', 'pdf'):
+        raise ValueError(f"Formato não suportado: {output_format}")
+
+    # Conversão pura: txt/html a partir de .docx — funciona sem Word
+    if output_format in ('txt', 'html') and input_path.suffix.lower() == '.docx':
+        content = (
+            _docx_to_text(input_path) if output_format == 'txt'
+            else _docx_to_html(input_path)
+        )
+        output_path.write_text(content, encoding="utf-8")
+        return str(output_path)
+
+    # Caminho COM (Word): .doc precisa do Word também para virar .docx
+    format_map = {
+        'html': 10,   # wdFormatHTML
+        'txt': 2,     # wdFormatText
+        'doc': 0,     # wdFormatDocument
+        'pdf': 17     # wdFormatPDF
+    }
     temp_docx = None
-    if input_path.suffix.lower() == '.doc':
-        temp_docx = convert_doc_to_docx(input_path)
-        input_path = temp_docx
-
     try:
-        format_map = {
-            'html': 10,   # wdFormatHTML
-            'txt': 2,     # wdFormatText
-            'doc': 0,     # wdFormatDocument
-            'pdf': 17     # wdFormatPDF
-        }
-        if output_format not in format_map:
-            raise ValueError(f"Formato não suportado: {output_format}")
+        if input_path.suffix.lower() == '.doc':
+            try:
+                temp_docx = convert_doc_to_docx(input_path)
+            except RuntimeError:
+                _require_word()
+                raise
+            input_path = temp_docx
 
-        convert_with_word(input_path, output_path, format_map[output_format])
-        result = str(output_path)
-
+        try:
+            convert_with_word(input_path, output_path, format_map[output_format])
+        except RuntimeError:
+            # falha no COM: distingue "sem Word" (mensagem amigavel) de
+            # erros reais de conversao (repassados)
+            _require_word()
+            raise
     finally:
         if temp_docx and temp_docx.exists():
             try:
                 temp_docx.unlink()
-            except:
+            except OSError:
                 pass
 
-    return result
+    return str(output_path)
 
 # ==================== COMPARAÇÃO DE DOCUMENTOS ====================
 def extract_paragraphs(docx_path: Path) -> List[str]:

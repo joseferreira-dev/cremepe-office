@@ -1,6 +1,6 @@
 from pathlib import Path
 import shutil
-from typing import List
+from typing import List, Optional
 from PyPDF2 import PdfReader, PdfWriter
 from pdf2docx import Converter
 import io
@@ -975,9 +975,29 @@ def add_page_numbers(
         'output_path': str(output_path)
     }
 
-def convert_pdf_to_word(pdf_path: str, output_path: str) -> str:
+def _scanned_pdf_warning(pdf_path: Path) -> Optional[str]:
+    """Avisa quando o PDF nao tem texto (provavel escaneado/imagenico).
+
+    O pdf2docx gera um docx vazio em PDFs sem texto, mas so avisa no
+    log interno — aqui o aviso chega ao cliente na resposta.
+    """
+    try:
+        with fitz.open(str(pdf_path)) as doc:
+            total_words = sum(len(page.get_text().split()) for page in doc)
+    except Exception:
+        return None  # nao conseguiu analisar: nao bloqueia nem avisa
+    if total_words == 0:
+        return ("PDF sem texto extraído (provável PDF escaneado): o Word pode "
+                "gerar um documento vazio. Execute OCR no PDF antes de converter.")
+    return None
+
+
+def convert_pdf_to_word(pdf_path: str, output_path: str) -> dict:
     """
     Converte um arquivo PDF para Word (.docx) usando pdf2docx.
+
+    Retorna {"output_path": ...} e, quando apropriado,
+    {"warning": ...} (PDF sem texto — ver _scanned_pdf_warning).
     """
     pdf_path = Path(pdf_path).resolve()
     if not pdf_path.exists():
@@ -990,9 +1010,14 @@ def convert_pdf_to_word(pdf_path: str, output_path: str) -> str:
         cv = Converter(str(pdf_path))
         cv.convert(str(output_path), start=0, end=None)
         cv.close()
-        return str(output_path)
     except Exception as e:
         raise RuntimeError(f"Erro ao converter PDF para Word: {str(e)}")
+
+    result = {"output_path": str(output_path)}
+    warning = _scanned_pdf_warning(pdf_path)
+    if warning:
+        result["warning"] = warning
+    return result
 
 def convert_images_to_pdf(
     image_paths: List[str],

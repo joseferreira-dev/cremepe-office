@@ -9,6 +9,7 @@ from collections import defaultdict
 from services.file_manager import collect_files, rename_files_in_batch
 from services.file_comparator import compare_folders, sync_folders
 from services.file_archive_manager import create_zip, extract_archive
+from utils.exceptions import ValidationError
 from datetime import datetime, timedelta
 
 class FileController:
@@ -184,18 +185,52 @@ class FileController:
         return duplicate_groups
     
     def remove_duplicates(self, groups, action='delete', destination=None):
+        """Remove/move duplicados mantendo o primeiro de cada grupo.
+
+        Valida TODOS os caminhos antes de alterar o disco: evita
+        exclusoes parciais no meio da operacao (apaga3 e falha no4)
+        e evita erros crus do SO (WinError) para listas desatualizadas.
+        """
         import os
         import shutil
-        count = 0
-        for group in groups:
-            original = group[0]
+
+        if action not in ('delete', 'move'):
+            raise ValidationError(
+                f"Ação não suportada: {action!r} (use 'delete' ou 'move')"
+            )
+        if action == 'move' and not destination:
+            raise ValidationError("Ação 'move' exige a pasta 'destination'.")
+
+        # Passo 1: valida estrutura e caminhos — nada e alterado aqui
+        to_process = []
+        for idx, group in enumerate(groups):
+            if not isinstance(group, (list, tuple)) or len(group) < 2:
+                raise ValidationError(
+                    f"Grupo de duplicatas inválido (posição {idx + 1}): "
+                    "esperava ao menos 2 caminhos."
+                )
             for dup in group[1:]:
-                if action == 'delete':
-                    os.remove(dup)
-                elif action == 'move' and destination:
-                    dest_path = Path(destination) / Path(dup).name
-                    shutil.move(dup, dest_path)
-                count += 1
+                if not isinstance(dup, (str, os.PathLike)):
+                    raise ValidationError(
+                        f"Caminho de duplicado inválido: {dup!r}"
+                    )
+                dup_path = Path(dup).expanduser()
+                if not dup_path.exists():
+                    raise FileNotFoundError(
+                        f"Duplicado não encontrado: {dup} — a lista pode "
+                        "estar desatualizada; refaça a busca por duplicatas."
+                    )
+                to_process.append(dup_path)
+
+        # Passo 2: executa
+        count = 0
+        for dup_path in to_process:
+            if action == 'delete':
+                dup_path.unlink()
+            else:
+                dest = Path(destination).expanduser() / dup_path.name
+                shutil.move(str(dup_path), str(dest))
+            count += 1
         return count
     
     # ========== ORGANIZAR POR EXTENSÃO (sem ocultos) ==========

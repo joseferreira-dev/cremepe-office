@@ -144,6 +144,7 @@ export class PDFConvertToWordFeature extends Feature {
                     pdf_path: inputFile,
                     output_path: outputFile
                 });
+                if (result.warning) this.log(`Aviso: ${result.warning}`);
                 this.log(`Concluído! Arquivo salvo em: ${result.output_path}`);
             } else {
                 this.log('Convertendo Word → PDF...');

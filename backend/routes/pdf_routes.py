@@ -147,7 +147,8 @@ def convert_to_word(data):
         pdf_path=data['pdf_path'],
         output_path=data['output_path']
     )
-    return jsonify({"success": True, "output_path": result}), 200
+    # result pode conter {"warning": ...} (PDF escaneado sem texto)
+    return jsonify({"success": True, **result}), 200
 
 # Substitua as duas rotas por estas:
 

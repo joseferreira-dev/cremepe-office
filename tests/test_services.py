@@ -80,6 +80,129 @@ def test_split_custom_intervalo_fora_do_total_levanta_value_error(pdf_factory, t
         split_custom(str(src), str(tmp_path), "5-9")
 
 
+# ===== PDF: aviso de PDF escaneado no convert-to-word (opcao 2) =====
+# PDF sem texto gera docx vazio silenciosamente — agora a resposta
+# carrega "warning" para a UI mostrar no log da operacao.
+
+def test_pdf_to_word_avisa_pdf_sem_texto(tmp_path, pdf_factory):
+    from services.pdf_processor import convert_pdf_to_word
+
+    src = pdf_factory(2, "branco.pdf")  # paginas em branco = sem texto
+    out = tmp_path / "vazio.docx"
+
+    result = convert_pdf_to_word(str(src), str(out))
+
+    assert isinstance(result, dict), result
+    assert "warning" in result, f"sem warning: {result}"
+    assert "escaneado" in result["warning"], result["warning"]
+    assert out.exists(), "docx nao gerado"
+
+
+def test_pdf_to_word_com_texto_nao_avisa(tmp_path):
+    from reportlab.pdfgen import canvas
+
+    from services.pdf_processor import convert_pdf_to_word
+
+    src = tmp_path / "com_texto.pdf"
+    c = canvas.Canvas(str(src))
+    c.drawString(72, 720, "Relatorio anual de atividades do exercicio")
+    c.save()
+    out = tmp_path / "com_texto.docx"
+
+    result = convert_pdf_to_word(str(src), str(out))
+
+    assert "warning" not in result, result
+    assert out.exists(), "docx nao gerado"
+
+
+def test_rota_pdf_to_word_expoe_warning(client, pdf_factory, tmp_path):
+    """Contrato do frontend: success + output_path + warning na resposta."""
+    from helpers import post_sync
+
+    src = pdf_factory(1, "scan.pdf")
+    r = post_sync(client, "/api/pdf/convert-to-word", json={
+        "pdf_path": str(src),
+        "output_path": str(tmp_path / "scan.docx"),
+    })
+
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body["success"] is True
+    assert body["output_path"]
+    assert "warning" in body and "escaneado" in body["warning"], body
+
+
+# ===== files: duplicates/remove com validacao amigavel (opcao 3) =====
+# Antes: caminho inexistente -> erro cru do SO (WinError); acao invalida
+# era contada sem executar nada; exclusoes podiam ficar parciais.
+
+def _make_dups(tmp_path):
+    """Cria 3 arquivos identicos e devolve (dir, [caminhos])."""
+    dup = tmp_path / "dups"
+    dup.mkdir()
+    paths = []
+    for name in ("a.txt", "b.txt", "c.txt"):
+        p = dup / name
+        p.write_text("conteudo identico", encoding="utf-8")
+        paths.append(p)
+    return dup, paths
+
+
+def test_duplicates_remove_valida_antes_de_agir(tmp_path):
+    """Lista desatualizada: erro amigavel e NADA e excluido (atomicidade)."""
+    from controllers.file_controller import FileController
+
+    dup, paths = _make_dups(tmp_path)
+    a, b, c = paths
+    ctrl = FileController()
+    groups = [[str(a), str(b)], [str(a), str(dup / "nao_existe.pdf")]]
+
+    try:
+        ctrl.remove_duplicates(groups, action="delete")
+        raise AssertionError("deveria ter falhado com arquivo inexistente")
+    except FileNotFoundError as exc:
+        assert "refaça a busca" in str(exc), str(exc)
+
+    # validar-antes-de-agir: o primeiro grupo NAO foi excluido
+    assert b.exists() and c.exists(), "exclusao parcial aconteceu!"
+
+
+def test_duplicates_remove_acao_invalida(tmp_path):
+    from controllers.file_controller import FileController
+    from utils.exceptions import ValidationError
+
+    ctrl = FileController()
+    with pytest.raises(ValidationError, match="Ação não suportada"):
+        ctrl.remove_duplicates([["a", "b"]], action="explode")
+    with pytest.raises(ValidationError, match="destination"):
+        ctrl.remove_duplicates([["a", "b"]], action="move")
+
+
+def test_duplicates_remove_grupo_invalido(tmp_path):
+    from controllers.file_controller import FileController
+    from utils.exceptions import ValidationError
+
+    ctrl = FileController()
+    with pytest.raises(ValidationError, match="Grupo de duplicatas inválido"):
+        ctrl.remove_duplicates([["so_um"]], action="delete")
+    with pytest.raises(ValidationError, match="Grupo de duplicatas inválido"):
+        ctrl.remove_duplicates(["nao_e_lista"], action="delete")
+
+
+def test_duplicates_remove_funciona(tmp_path):
+    from controllers.file_controller import FileController
+
+    dup, paths = _make_dups(tmp_path)
+    a, b, _c = paths
+    ctrl = FileController()
+
+    count = ctrl.remove_duplicates([[str(a), str(b)]], action="delete")
+
+    assert count == 1, count
+    assert not b.exists(), "o duplicado deveria ter sido excluido"
+    assert a.exists(), "o original deve ser preservado"
+
+
 # ===== Progresso real em services (canal ContextVar) =====
 
 def test_collect_files_reporta_progresso(tmp_path, progress_collector):
@@ -137,6 +260,68 @@ def _make_docx(path, text):
     d.add_paragraph(text)
     d.save(str(path))
     return path
+
+
+def _block_com(*args, **kwargs):
+    """Substituto do win32com Dispatch: simula Word AUSENTE."""
+    raise RuntimeError("COM desabilitado no teste")
+
+
+def test_word_convert_txt_nao_depende_do_word(tmp_path, monkeypatch):
+    """txt a partir de .docx: conversao pura — Dispatch nunca e chamado."""
+    from services.word_processor import convert_document
+
+    monkeypatch.setattr("win32com.client.Dispatch", _block_com)
+
+    src = _make_docx(tmp_path / "puro.docx", "paragrafo um\nparagrafo dois")
+    out = tmp_path / "puro.txt"
+
+    result = convert_document(str(src), str(out), "txt")
+
+    assert result == str(out.resolve()) or result == str(out)
+    content = out.read_text(encoding="utf-8")
+    assert "paragrafo um" in content and "paragrafo dois" in content
+
+
+def test_word_convert_html_nao_depende_do_word(tmp_path, monkeypatch):
+    """html a partir de .docx: conversao pura, com escape e estrutura."""
+    from services.word_processor import convert_document
+
+    monkeypatch.setattr("win32com.client.Dispatch", _block_com)
+
+    src = _make_docx(tmp_path / "pagina.docx", "conteudo com <tags> & acentos")
+    out = tmp_path / "pagina.html"
+
+    convert_document(str(src), str(out), "html")
+
+    content = out.read_text(encoding="utf-8")
+    assert "<!DOCTYPE html>" in content and "<html" in content
+    assert "<p>" in content
+    # escape correto: o conteudo literal aparece escapado
+    assert "&lt;tags&gt;" in content and "&amp; acentos" in content
+    assert "<tags>" not in content.replace("<p>", "").replace("</p>", "")
+
+
+def test_word_convert_pdf_sem_word_mensagem_amigavel(tmp_path, monkeypatch):
+    """pdf exige Word: falha com DependencyError acionavel (nao COM cru)."""
+    from services.word_processor import convert_document
+    from utils.exceptions import DependencyError
+
+    monkeypatch.setattr("win32com.client.Dispatch", _block_com)
+
+    src = _make_docx(tmp_path / "doc.docx", "qualquer conteudo")
+    out = tmp_path / "doc.pdf"
+
+    with pytest.raises(DependencyError, match="Microsoft Word"):
+        convert_document(str(src), str(out), "pdf")
+
+
+def test_word_convert_formato_invalido(tmp_path):
+    from services.word_processor import convert_document
+
+    src = _make_docx(tmp_path / "x.docx", "texto")
+    with pytest.raises(ValueError, match="não suportado|nao suportado"):
+        convert_document(str(src), str(tmp_path / "x.out"), "rtf")
 
 
 def test_word_merge_junta_documentos_com_quebra_de_pagina(tmp_path):
@@ -208,7 +393,7 @@ def test_word_convert_docx_para_txt(tmp_path):
     from docx import Document  # noqa: F401  (garante que o DOCX e valido)
     from services.word_processor import convert_document
 
-    _require_word()
+    # txt a partir de .docx NAO exige mais o Word (conversao pura)
     src = _make_docx(tmp_path / "conv.docx", "texto unico do conversor")
     out = tmp_path / "conv.txt"
 

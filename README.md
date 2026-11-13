@@ -188,6 +188,12 @@ cremepe-office/
 - Compactar e extrair arquivos (ZIP, 7z, RAR, TAR)
 - Gerenciar atributos de arquivos (datas, permissões, oculto, etc.)
 
+> **Conversões Word**: `txt` e `html` a partir de `.docx` funcionam **sem** o
+> Microsoft Word (conversão pura em Python, com tabelas e títulos). As
+> conversões para **PDF/DOC** — e qualquer conversão a partir de **.doc** —
+> exigem o MS Word instalado; sem ele a API responde com mensagem amigável
+> indicando a dependência (em vez do erro cru do COM).
+
 ---
 
 ## Licença
