@@ -6,9 +6,9 @@ import unicodedata
 import hashlib
 from collections import defaultdict
 
-from models.file_manager import collect_files, rename_files_in_batch
-from models.file_comparator import compare_folders, sync_folders
-from models.file_archive_manager import create_zip, extract_archive
+from services.file_manager import collect_files, rename_files_in_batch
+from services.file_comparator import compare_folders, sync_folders
+from services.file_archive_manager import create_zip, extract_archive
 from datetime import datetime, timedelta
 
 class FileController:
@@ -337,7 +337,7 @@ class FileController:
         Renomeia arquivos com base em metadados de conteúdo.
         Retorna dict com {'renamed': [], 'errors': [], 'skipped': []}
         """
-        from models.file_metadata import get_image_metadata, get_audio_metadata, get_text_metadata, generate_new_name
+        from services.file_metadata import get_image_metadata, get_audio_metadata, get_text_metadata, generate_new_name
         from pathlib import Path
         import os
 
@@ -414,7 +414,7 @@ class FileController:
         from pathlib import Path
         import os
         from datetime import datetime
-        from models.file_attributes import apply_attributes
+        from services.file_attributes import apply_attributes
 
         src_path = Path(dir_path)
         if not src_path.exists():
@@ -461,7 +461,7 @@ class FileController:
         Gera um relatório da estrutura de pastas.
         Retorna dict com 'content' (string) ou 'saved_path'.
         """
-        from models.file_folder_report import generate_folder_report
+        from services.file_folder_report import generate_folder_report
         result = generate_folder_report(dir_path, recursive, include_files, output_format, output_path)
         if output_path:
             return {'saved_path': result}
@@ -532,7 +532,7 @@ class FileController:
         part_size_mb: int = 100,
         overwrite: bool = False
     ) -> dict:
-        from models.file_splitter import split_file
+        from services.file_splitter import split_file
         parts = split_file(file_path, output_dir, part_size_mb, overwrite)
         return {'parts': parts, 'count': len(parts)}
 
@@ -542,6 +542,6 @@ class FileController:
         output_path: str,
         overwrite: bool = False
     ) -> dict:
-        from models.file_splitter import merge_parts
+        from services.file_splitter import merge_parts
         result = merge_parts(parts_list, output_path, overwrite)
         return {'output_path': result}

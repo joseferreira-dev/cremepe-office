@@ -1,0 +1,1 @@
+﻿# Pacote services: processadores de dominio (PDF, Word, Excel, arquivos).

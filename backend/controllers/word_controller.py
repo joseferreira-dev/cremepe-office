@@ -1,5 +1,5 @@
 from typing import List, Optional
-from models.word_processor import (
+from services.word_processor import (
     merge_documents,
     convert_document,
     compare_documents,

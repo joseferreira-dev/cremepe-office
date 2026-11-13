@@ -12,7 +12,7 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
 
 ## Executar em modo de desenvolvimento
 
-1. Instale o **Python** (versão 3.8 ou superior) e o **Node.js** (versão 18 ou superior).
+1. Instale o **Python** (versão 3.9 ou superior) e o **Node.js** (versão 18 ou superior).
 2. Clone o repositório e acesse a pasta do projeto.
 3. Crie e ative um ambiente virtual Python:
    ```bash
@@ -24,7 +24,7 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
    ```
 4. Instale as dependências do backend:
    ```bash
-   pip install -r requirements.txt
+   pip install -e .
    ```
 5. Instale as dependências do frontend (Electron):
    ```bash
@@ -55,7 +55,7 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
 
 ### Pré‑requisitos para o build
 
-- Python 3.8+ com `pip`
+- Python 3.9+ com `pip`
 - Node.js 18+ com `npm`
 - Windows (para gerar o instalador NSIS)
 
@@ -64,7 +64,7 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
 1. **Ative o ambiente virtual Python** e instale todas as dependências (já deve ter feito no passo anterior):
    ```bash
    venv\Scripts\activate
-   pip install -r requirements.txt
+   pip install -e .
    ```
 
 2. **Instale o PyInstaller** (se ainda não estiver instalado):
@@ -125,7 +125,7 @@ cremepe-office/
 │   ├── __main__.py         # Ponto de entrada para PyInstaller
 │   ├── config/             # Configurações
 │   ├── controllers/        # Lógica de negócio
-│   ├── models/             # Processadores (PDF, Word, Excel, arquivos)
+│   ├── services/           # Processadores de domínio (PDF, Word, Excel, arquivos)
 │   ├── routes/             # Endpoints da API
 │   └── utils/              # Funções auxiliares
 ├── frontend/               # Código Electron (HTML/CSS/JS)
@@ -137,7 +137,7 @@ cremepe-office/
 │   └── js/                 # JavaScript do renderer (módulos)
 ├── scripts/                # Scripts auxiliares (start, etc.)
 ├── package.json            # Dependências Node e configuração do electron-builder
-├── requirements.txt        # Dependências Python
+├── pyproject.toml           # Metadados e dependências Python (fonte única)
 └── README.md               # Este arquivo
 ```
 

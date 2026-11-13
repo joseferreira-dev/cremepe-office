@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cremepe-office"
+version = "1.0.0"
+description = "Backend Flask do CREMEPE Office: API REST para manipulacao de arquivos, PDFs, Word e Excel."
+readme = "README.md"
+requires-python = ">=3.9"
+# Fonte unica de dependencias (substitui o antigo requirements.txt).
+# Versoes pinadas para reproduzir exatamente o ambiente testado.
+dependencies = [
+    "Flask==3.1.3",
+    "flask-cors==6.0.5",
+    "PyPDF2==3.0.1",
+    "python-docx==1.2.0",
+    "openpyxl==3.1.5",
+    "reportlab==5.0.0",
+    "Pillow==12.3.0",
+    "mutagen==1.48.1",
+    "py7zr==1.1.3",
+    "rarfile==4.3",
+    "pyzipper==0.4.0",
+    "cryptography==49.0.0",
+    "pywin32==312; sys_platform == 'win32'",
+    "docxcompose==2.2.0",
+    "html2text==2025.4.15",
+    "xlwt==1.3.0",
+    "pdf2docx==0.5.13",
+    "PyMuPDF==1.28.0",
+    "pikepdf==10.10.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pyinstaller>=6.0",
+]
+
+# O backend e um conjunto de packages top-level vivendo em backend/
+# (routes, controllers, services, utils, config). Com `pip install -e .`
+# eles passam a ser importaveis de qualquer diretorio (testes da raiz),
+# sem alterar os imports existentes nem os pontos de entrada
+# (python backend/app.py / Electron / PyInstaller).
+[tool.setuptools]
+package-dir = { "" = "backend" }
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+# Testes da raiz do repositorio: pythonpath resolve os imports
+# absolutos (from services..., from routes...) sem instalacao.
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+testpaths = ["tests"]

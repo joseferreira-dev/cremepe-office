@@ -1,4 +1,4 @@
-from models.pdf_processor import (
+from services.pdf_processor import (
     add_page_numbers,
     compress,
     convert_images_to_pdf,
