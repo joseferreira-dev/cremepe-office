@@ -53,45 +53,29 @@ document.addEventListener('DOMContentLoaded', () => {
     window.navigateTo('home');
 
     // ========== HEALTH CHECK DO BACKEND ==========
-    function checkBackendStatus() {
-        const dot = document.getElementById('status-dot');
-        const text = document.getElementById('status-text');
-        if (!dot || !text) return;
+    // Aparência (cor do ponto) vive no CSS via classes .online/.offline;
+    // aqui só troca o estado e o texto.
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
 
-        if (API && API.health) {
-            API.health()
-                .then(() => {
-                    dot.className = 'badge bg-success';
-                    dot.style.width = '10px';
-                    dot.style.height = '10px';
-                    dot.style.display = 'inline-block';
-                    dot.style.borderRadius = '50%';
-                    text.textContent = 'Backend online';
-                    dot.style.backgroundColor = '#28a745';
-                    text.style.color = '#d4edda';
-                })
-                .catch(() => {
-                    dot.className = 'badge bg-danger';
-                    dot.style.width = '10px';
-                    dot.style.height = '10px';
-                    dot.style.display = 'inline-block';
-                    dot.style.borderRadius = '50%';
-                    text.textContent = 'Backend offline';
-                    dot.style.backgroundColor = '#dc3545';
-                    text.style.color = '#f8d7da';
-                });
-        } else {
-            // fallback: API não disponível
-            dot.className = 'badge bg-warning';
-            text.textContent = 'API indisponível';
-            text.className = 'text-warning';
-        }
+    function checkBackendStatus() {
+        if (!statusDot || !statusText) return;
+
+        API.health()
+            .then(() => {
+                statusDot.classList.add('online');
+                statusDot.classList.remove('offline');
+                statusText.textContent = 'Backend online';
+            })
+            .catch(() => {
+                statusDot.classList.add('offline');
+                statusDot.classList.remove('online');
+                statusText.textContent = 'Backend offline';
+            });
     }
 
-    // Verifica imediatamente e depois a cada 5 segundos
+    // Imediato + polling a cada 5s; se o backend ainda estiver subindo,
+    // o próximo tick corrige o indicador.
     checkBackendStatus();
     setInterval(checkBackendStatus, 5000);
-
-    // Primeira verificação também pode ser feita com um pequeno atraso para garantir que o backend já subiu
-    setTimeout(checkBackendStatus, 1000);
 });
