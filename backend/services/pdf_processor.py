@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 import shutil
 from typing import List, Optional
 from PyPDF2 import PdfReader, PdfWriter
@@ -13,6 +14,8 @@ import fitz
 import pikepdf
 import secrets
 from utils.jobs import report_progress
+
+logger = logging.getLogger(__name__)
 
 def merge(pdf_paths, output_path):
     """
@@ -1289,11 +1292,9 @@ def compress(
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Se o caminho de saída for igual ao de entrada, adiciona sufixo para evitar sobrescrever
+    # Mesmo caminho de entrada e saida: usa sufixo para nao sobrescrever
     if input_path == output_path:
         output_path = input_path.parent / f"{input_path.stem}_compressed{input_path.suffix}"
-        # Atualiza a mensagem de log no frontend? O frontend mostrará o caminho alterado.
-        # Podemos retornar o caminho final.
 
     level_config = {
         'low': {
@@ -1322,28 +1323,81 @@ def compress(
         pdf = pikepdf.Pdf.open(input_path, allow_overwriting_input=True)
 
         if remove_metadata:
-            pdf.docinfo = None
+            pdf.docinfo = pdf.make_indirect(pikepdf.Dictionary())
             if '/Metadata' in pdf.Root:
                 del pdf.Root.Metadata
 
         if downscale_images and dpi_target:
+            # Lista primeiro: as trocas de imagem nao podem acontecer
+            # durante a iteracao das paginas/imagens.
+            targets = []
             for page in pdf.pages:
-                for name, raw_stream in page.images.items():
-                    try:
-                        pil_image = raw_stream.as_pil_image()
-                        scale_factor = dpi_target / 300.0
-                        if scale_factor < 1:
-                            new_width = int(pil_image.width * scale_factor)
-                            new_height = int(pil_image.height * scale_factor)
-                            if new_width > 0 and new_height > 0:
-                                pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
-                        img_buffer = io.BytesIO()
-                        if pil_image.mode in ('RGBA', 'LA', 'P'):
+                for name in page.get_images().keys():
+                    targets.append((page, name))
+            for i, (page, name) in enumerate(targets, 1):
+                report_progress(i, len(targets), 'Reamostrando imagens')
+                try:
+                    img_obj = page.get_images()[name]
+                    pil_image = pikepdf.PdfImage(img_obj).as_pil_image()
+                    scale_factor = dpi_target / 300.0
+                    if scale_factor < 1:
+                        new_width = int(pil_image.width * scale_factor)
+                        new_height = int(pil_image.height * scale_factor)
+                        if new_width < 1 or new_height < 1:
+                            continue
+                        pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
+                    else:
+                        new_width, new_height = pil_image.size
+
+                    if pil_image.mode != 'RGB' or '/SMask' in img_obj:
+                        smask_pil = None
+                        if '/SMask' in img_obj:
+                            try:
+                                smask_pil = pikepdf.PdfImage(
+                                    img_obj['/SMask']).as_pil_image()
+                            except Exception:
+                                smask_pil = None
+                        if smask_pil is not None:
+                            # mascara de alpha (SMask): compoe sobre branco
+                            # para preservar a aparencia antes de virar JPEG
+                            if smask_pil.size != pil_image.size:
+                                smask_pil = smask_pil.resize(pil_image.size, Image.LANCZOS)
+                            rgb = pil_image.convert('RGB')
+                            base = Image.new('RGB', rgb.size, (255, 255, 255))
+                            base.paste(rgb, mask=smask_pil.convert('L'))
+                            pil_image = base
+                        elif pil_image.mode in ('RGBA', 'LA') or (
+                            pil_image.mode == 'P' and 'transparency' in pil_image.info
+                        ):
+                            # alpha proprio da imagem: JPEG nao tem alpha e a
+                            # conversao direta deixaria as areas transparentes pretas
+                            rgba = pil_image.convert('RGBA')
+                            base = Image.new('RGB', rgba.size, (255, 255, 255))
+                            base.paste(rgba, mask=rgba.getchannel('A'))
+                            pil_image = base
+                        else:
                             pil_image = pil_image.convert('RGB')
-                        pil_image.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
-                        page.images[name] = pikepdf.Stream(pdf, img_buffer.getvalue())
-                    except Exception:
-                        continue
+
+                    img_buffer = io.BytesIO()
+                    pil_image.save(img_buffer, format='JPEG', quality=jpeg_quality, optimize=True)
+
+                    # Mutacao IN-PLACE no proprio objeto: a imagem pode viver
+                    # dentro de um Form XObject — trocar a entrada nos
+                    # resources da pagina nao afetaria as referencias.
+                    # write() grava bytes + Filter de forma coerente; as
+                    # chaves sao atualizadas para casar com o JPEG novo
+                    # (Width/Height) e o SMask antigo (alpha) e descartado.
+                    img_obj.write(img_buffer.getvalue(), filter=pikepdf.Name('/DCTDecode'))
+                    img_obj[pikepdf.Name('/Width')] = new_width
+                    img_obj[pikepdf.Name('/Height')] = new_height
+                    img_obj[pikepdf.Name('/ColorSpace')] = pikepdf.Name('/DeviceRGB')
+                    img_obj[pikepdf.Name('/BitsPerComponent')] = 8
+                    if pikepdf.Name('/SMask') in img_obj:
+                        del img_obj[pikepdf.Name('/SMask')]
+                except Exception as exc:
+                    # nao engole o erro (foi assim que uma falha de API viveu
+                    # anos mascarando compressao nula): registra e segue
+                    logger.warning('compress: falha ao reamostrar imagem %s: %s', name, exc)
 
         pdf.save(
             output_path,

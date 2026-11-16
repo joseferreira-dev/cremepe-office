@@ -51,7 +51,8 @@ export class PDFCompressFeature extends Feature {
                         <input type="range" id="jpeg-quality" class="form-range grow" min="10" max="100" value="85">
                         <span id="jpeg-quality-label" class="font-bold" style="min-width:45px;">85%</span>
                     </div>
-                    <small class="text-zinc-500">Valores mais baixos = arquivos menores, porém com perda de qualidade.</small>
+                    <small class="text-zinc-500">Valores mais baixos = arquivos menores, porém com perda de qualidade.
+                        Aplica-se apenas quando "Redimensionar imagens" está ativo.</small>
                 </div>
             </div>
 
@@ -173,14 +174,20 @@ export class PDFCompressFeature extends Feature {
 
             const orig = (result.original_size / 1024).toFixed(2);
             const comp = (result.compressed_size / 1024).toFixed(2);
-            const reduction = ((1 - result.ratio) * 100).toFixed(1);
+            const reduction = Math.max(0, ((1 - result.ratio) * 100)).toFixed(1);
 
             document.getElementById('orig-size').textContent = orig;
             document.getElementById('comp-size').textContent = comp;
             document.getElementById('comp-ratio').textContent = reduction;
             document.getElementById('compress-result').style.display = 'block';
 
-            this.log(`Comprimido com sucesso! Tamanho original: ${orig} KB, comprimido: ${comp} KB (redução de ${reduction}%)`);
+            if (result.ratio >= 1) {
+                this.log(`Sem redução de tamanho: ${orig} KB -> ${comp} KB (conteúdo já estava otimizado).`);
+                this.log(`Arquivo salvo em: ${result.output_path}`);
+            } else {
+                this.log(`Comprimido com sucesso! Tamanho original: ${orig} KB, comprimido: ${comp} KB (redução de ${reduction}%)`);
+                this.log(`Arquivo salvo em: ${result.output_path}`);
+            }
             this.setProgress(100);
         } catch (err) {
             this.log(`Erro: ${err.message}`);

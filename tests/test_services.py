@@ -1,4 +1,6 @@
 """Services de dominio (PDF, Word, Excel, arquivos) com fixtures."""
+from pathlib import Path
+
 import pytest
 from PyPDF2 import PdfReader
 
@@ -130,6 +132,179 @@ def test_rota_pdf_to_word_expoe_warning(client, pdf_factory, tmp_path):
     assert body["success"] is True
     assert body["output_path"]
     assert "warning" in body and "escaneado" in body["warning"], body
+
+
+# ===== PDF: compressão de imagens (compress) =====
+# A reamostragem precisa mutar o próprio objeto de imagem (ele pode viver
+# dentro de Form XObjects) — a entrada no resources da página não basta.
+# Os testes provam efeito real (tamanho), contrato e preservação visual.
+
+def _noise_photo_pdf(tmp_path, name='foto.pdf'):
+    """PDF com foto de ruído (pouco comprimível) — compressão tem efeito."""
+    from PIL import Image as PILImage
+    noise = PILImage.effect_noise((1800, 1200), 40).convert('RGB')
+    jpg = tmp_path / 'ruido.jpg'
+    noise.save(jpg, format='JPEG', quality=95)
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.lib.pagesizes import A4 as _A4
+    c = _canvas.Canvas(str(tmp_path / name), pagesize=_A4)
+    c.drawImage(str(jpg), 30, 200, width=535, height=357)
+    c.drawString(72, 780, 'PDF com foto de alta densidade')
+    c.showPage()
+    c.save()
+    return tmp_path / name
+
+
+def _smask_pdf(tmp_path, name='smask.pdf'):
+    """Imagem cinza + /SMask (quadrado central opaco) via pikepdf puro."""
+    import zlib
+    import pikepdf
+    from PIL import Image as PILImage
+    w = h = 120
+    main = PILImage.new('RGB', (w, h), (128, 128, 128))
+    mask = PILImage.new('L', (w, h), 0)
+    for x in range(30, 90):
+        for y in range(30, 90):
+            mask.putpixel((x, y), 255)
+    pdf = pikepdf.new()
+    page = pdf.add_blank_page(page_size=(300, 300))
+    img = pdf.make_stream(zlib.compress(main.tobytes()))
+    img[pikepdf.Name('/Subtype')] = pikepdf.Name('/Image')
+    img[pikepdf.Name('/Width')] = w
+    img[pikepdf.Name('/Height')] = h
+    img[pikepdf.Name('/ColorSpace')] = pikepdf.Name('/DeviceRGB')
+    img[pikepdf.Name('/BitsPerComponent')] = 8
+    img[pikepdf.Name('/Filter')] = pikepdf.Name('/FlateDecode')
+    sm = pdf.make_stream(zlib.compress(mask.tobytes()))
+    sm[pikepdf.Name('/Subtype')] = pikepdf.Name('/Image')
+    sm[pikepdf.Name('/Width')] = w
+    sm[pikepdf.Name('/Height')] = h
+    sm[pikepdf.Name('/ColorSpace')] = pikepdf.Name('/DeviceGray')
+    sm[pikepdf.Name('/BitsPerComponent')] = 8
+    sm[pikepdf.Name('/Filter')] = pikepdf.Name('/FlateDecode')
+    img[pikepdf.Name('/SMask')] = sm
+    page.obj.Resources = pikepdf.Dictionary(
+        XObject=pikepdf.Dictionary(Im0=img))
+    page.obj.Contents = pdf.make_stream(b'q 300 0 0 300 0 0 cm /Im0 Do Q')
+    out = tmp_path / name
+    pdf.save(str(out))
+    pdf.close()
+    return out
+
+
+def test_compress_reamostra_imagens_e_reduz(tmp_path):
+    from services.pdf_processor import compress
+    src = _noise_photo_pdf(tmp_path)
+    in_size = src.stat().st_size
+    result = compress(str(src), str(tmp_path / 'out.pdf'), 'high', 75)
+    out = Path(result['output_path'])
+    assert out.exists()
+    assert result['ratio'] < 0.5, result
+    assert out.stat().st_size < in_size * 0.5
+    # integridade: abre, pagina unica, texto e render preservados
+    doc = PdfReader(str(out))
+    assert len(doc.pages) == 1
+    assert 'alta densidade' in (doc.pages[0].extract_text() or '')
+    import fitz
+    d = fitz.open(str(out))
+    assert d[0].get_pixmap(dpi=36).width > 0
+    d.close()
+
+
+def test_compress_qualidade_afeta_tamanho(tmp_path):
+    from services.pdf_processor import compress
+    src = _noise_photo_pdf(tmp_path)
+    low = compress(str(src), str(tmp_path / 'q30.pdf'), 'high', 30)
+    high = compress(str(src), str(tmp_path / 'q85.pdf'), 'high', 85)
+    assert low['compressed_size'] < high['compressed_size'], (low, high)
+
+
+def test_compress_sem_downscale_preserva_imagens(tmp_path):
+    from services.pdf_processor import compress
+    src = _noise_photo_pdf(tmp_path)
+    in_size = src.stat().st_size
+    result = compress(str(src), str(tmp_path / 'nods.pdf'), 'high', 75,
+                      downscale_images=False)
+    # sem reamostragem as imagens nao mudam: quase o mesmo tamanho
+    assert result['compressed_size'] > in_size * 0.9, result
+
+
+def test_compress_remove_metadata_sem_crash(tmp_path):
+    import pikepdf
+    from services.pdf_processor import compress
+    src = tmp_path / 'meta.pdf'
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.lib.pagesizes import A4 as _A4
+    c = _canvas.Canvas(str(src), pagesize=_A4)
+    c.drawString(72, 720, 'documento com metadados')
+    c.save()
+    with pikepdf.open(str(src), allow_overwriting_input=True) as p:
+        p.docinfo['/Author'] = 'Autor Teste'
+        p.docinfo['/Title'] = 'Titulo Secreto'
+        p.save(str(src))
+    with pikepdf.open(str(src)) as p:
+        assert '/Author' in p.docinfo
+    # opção já derrubava a operação inteira (docinfo = None inválido)
+    result = compress(str(src), str(tmp_path / 'meta_out.pdf'),
+                      remove_metadata=True)
+    with pikepdf.open(result['output_path']) as p:
+        assert '/Author' not in p.docinfo
+        assert '/Title' not in p.docinfo
+
+
+def test_compress_entrada_igual_saida_usa_sufixo(tmp_path):
+    from services.pdf_processor import compress
+    src = tmp_path / 'mesmo.pdf'
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.lib.pagesizes import A4 as _A4
+    c = _canvas.Canvas(str(src), pagesize=_A4)
+    c.drawString(72, 720, 'nao deve ser sobrescrito')
+    c.save()
+    original = src.stat().st_size
+    result = compress(str(src), str(src))
+    out = Path(result['output_path'])
+    assert out != src and out.exists() and '_compressed' in out.name
+    assert src.stat().st_size == original
+
+
+def test_compress_smask_compoe_sobre_branco(tmp_path):
+    """SMask: a aparencia (cinza no centro, branco na borda) sobrevive."""
+    import pikepdf
+    from services.pdf_processor import compress
+    src = _smask_pdf(tmp_path)
+    result = compress(str(src), str(tmp_path / 'smask_out.pdf'), 'high', 75)
+    with pikepdf.open(result['output_path']) as p:
+        pil = pikepdf.PdfImage(list(p.pages[0].get_images().values())[0]).as_pil_image()
+    centro = pil.getpixel((pil.width // 2, pil.height // 2))[:3]
+    borda = pil.getpixel((2, 2))[:3]
+    # com SMask aplicado sobre branco: centro cinza, borda branca
+    assert 90 < sum(centro) / 3 < 170, centro
+    assert sum(borda) / 3 > 200, borda
+
+
+def test_rota_compress_validacoes_e_contrato(client, tmp_path):
+    from helpers import post_sync
+    src = _noise_photo_pdf(tmp_path)
+
+    bad = post_sync(client, '/api/pdf/compress', json={
+        'input_path': str(src), 'output_path': str(tmp_path / 'x.pdf'),
+        'compression_level': 'ultra'})
+    assert bad.status_code == 400, bad.status_code
+
+    bad2 = post_sync(client, '/api/pdf/compress', json={
+        'input_path': str(src), 'output_path': str(tmp_path / 'x.pdf'),
+        'compression_level': 'low', 'jpeg_quality': 500})
+    assert bad2.status_code == 400, bad2.status_code
+
+    ok = post_sync(client, '/api/pdf/compress', json={
+        'input_path': str(src), 'output_path': str(tmp_path / 'api.pdf'),
+        'compression_level': 'medium', 'jpeg_quality': 60})
+    assert ok.status_code == 200, ok.get_json()
+    body = ok.get_json()
+    res = body.get('result', body)
+    assert body.get('success') is True
+    assert {'original_size', 'compressed_size', 'ratio'} <= set(res)
+    assert res['ratio'] < 1
 
 
 # ===== files: duplicates/remove com validacao amigavel =====
