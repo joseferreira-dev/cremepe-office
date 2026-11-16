@@ -3,8 +3,6 @@ import { ExcelModule } from './modules/excel/index.js';
 import { FileModule } from './modules/file/index.js';
 import { HomePage } from './modules/home.js';
 import { PDFModule } from './modules/pdf/index.js';
-// eslint-disable-next-line no-unused-vars -- settings desativado temporariamente; import necessário para reativar
-import { SettingsPage } from './modules/settings.js';
 import { WordModule } from './modules/word/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -14,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pdf: PDFModule,
         word: WordModule,
         excel: ExcelModule,
-        // settings: SettingsPage,  // Desativado temporariamente
     };
 
     const container = document.getElementById('page-container');
