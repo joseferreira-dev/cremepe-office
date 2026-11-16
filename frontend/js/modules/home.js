@@ -144,13 +144,13 @@ export class HomePage extends Feature {
         let cardsHtml;
         if (this.cards.length === 0) {
             cardsHtml = `
-                <div class="text-center text-muted py-4">
-                    <i class="bi bi-grid-3x3-gap" style="font-size: 2rem;"></i>
-                    <p class="mt-2">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
+                <div class="rounded-xl border border-dashed border-slate-300 py-10 text-center">
+                    <i class="bi bi-grid-3x3-gap text-4xl text-slate-300"></i>
+                    <p class="mt-3 text-sm text-muted">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
                 </div>
             `;
         } else {
-            cardsHtml = `<div class="row g-3" id="quick-access-grid">${this.renderCardItems(this.cards)}</div>`;
+            cardsHtml = `<div class="grid grid-cols-12 gap-4" id="quick-access-grid">${this.renderCardItems(this.cards)}</div>`;
         }
 
         const sections = ['Arquivos', 'PDF', 'Word', 'Excel'];
@@ -181,10 +181,10 @@ export class HomePage extends Feature {
             <div class="page active">
                 <h1 class="module-title">Painel Inicial</h1>
 
-                <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
-                    <h2 class="h5 text-success fw-normal mb-0">Acesso Rápido</h2>
+                <div class="mb-4 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-slate-900">Acesso Rápido</h2>
                     <div>
-                        <button class="btn btn-sm btn-outline-success" id="toggle-edit-mode">
+                        <button class="btn btn-outline-success btn-sm" id="toggle-edit-mode">
                             <i class="bi bi-pencil"></i> ${this.isEditing ? 'Concluir edição' : 'Editar'}
                         </button>
                     </div>
@@ -219,15 +219,17 @@ export class HomePage extends Feature {
 
     renderCardItems(cards) {
         return cards.map(card => `
-            <div class="col-6 col-md-3 quick-card" draggable="${this.isEditing}" data-id="${card.id}">
-                <div class="card h-100" data-page="${card.page}" data-feature="${card.feature}">
-                    <div class="card-body d-flex flex-column">
-                        <div class="card-icon mb-2"><i class="bi ${card.icon}"></i></div>
+            <div class="col-span-6 md:col-span-3 quick-card" draggable="${this.isEditing}" data-id="${card.id}">
+                <div class="card h-full" data-page="${card.page}" data-feature="${card.feature}">
+                    <div class="card-body">
+                        <div class="card-icon mb-1"><i class="bi ${card.icon}"></i></div>
                         <h5 class="card-title">${card.title}</h5>
                         <p class="card-text">${card.desc}</p>
-                        <span class="badge bg-secondary mb-2 align-self-start">${card.section}</span>
-                        <button class="btn btn-success mt-auto align-self-start btn-open-card">Abrir</button>
-                        ${this.isEditing ? `<button class="btn btn-sm btn-outline-danger mt-2 remove-card-btn" data-id="${card.id}"><i class="bi bi-trash"></i> Remover</button>` : ''}
+                        <div class="mt-auto flex items-center gap-2 pt-1">
+                            <span class="badge">${card.section}</span>
+                        </div>
+                        <button class="btn btn-success w-full btn-open-card">Abrir</button>
+                        ${this.isEditing ? `<button class="btn btn-outline-danger btn-sm w-full remove-card-btn" data-id="${card.id}"><i class="bi bi-trash"></i> Remover</button>` : ''}
                     </div>
                 </div>
             </div>

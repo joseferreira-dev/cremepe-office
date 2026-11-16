@@ -10,8 +10,6 @@
          'self' (nenhum script inline na página). -->
     <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:5000; worker-src 'self' blob:; object-src 'none'; base-uri 'self'">
-    <!-- Estilos legados (cromo da sidebar/módulos — migrando) -->
-    <link rel="stylesheet" href="css/styles.css" />
     <!-- Design system Tailwind (gerar com: npm run build:css) -->
     <link rel="stylesheet" href="css/tailwind.css" />
     <!-- Bootstrap Icons (local) -->
@@ -19,43 +17,41 @@
 </head>
 
 <body>
-    <div id="app" class="d-flex vh-100">
+    <div id="app" class="flex h-screen bg-slate-50">
         <!-- Sidebar -->
-        <aside id="sidebar" class="d-flex flex-column flex-shrink-0 p-3 text-white"
-            style="width: 240px; background-color: #007A51;">
-            <div class="text-center pb-2">
+        <aside id="sidebar">
+            <div class="px-2 pt-1 pb-5">
                 <img src="assets/logo.svg" alt="CREMEPE Office" id="sidebar-logo">
             </div>
-            <nav class="nav nav-pills flex-column mb-auto gap-1">
-                <button class="nav-btn nav-link text-white active" data-page="home">
-                    <i class="bi bi-house-door me-2"></i> Home
+            <nav class="flex flex-col gap-1">
+                <button class="nav-btn active" data-page="home">
+                    <i class="bi bi-house-door"></i> Home
                 </button>
-                <button class="nav-btn nav-link text-white" data-page="files">
-                    <i class="bi bi-folder2-open me-2"></i> Arquivos e Pastas
+                <button class="nav-btn" data-page="files">
+                    <i class="bi bi-folder2-open"></i> Arquivos e Pastas
                 </button>
-                <button class="nav-btn nav-link text-white" data-page="pdf">
-                    <i class="bi bi-file-earmark-pdf me-2"></i> PDF
+                <button class="nav-btn" data-page="pdf">
+                    <i class="bi bi-file-earmark-pdf"></i> PDF
                 </button>
-                <button class="nav-btn nav-link text-white" data-page="word">
-                    <i class="bi bi-file-earmark-word me-2"></i> Word
+                <button class="nav-btn" data-page="word">
+                    <i class="bi bi-file-earmark-word"></i> Word
                 </button>
-                <button class="nav-btn nav-link text-white" data-page="excel">
-                    <i class="bi bi-file-earmark-excel me-2"></i> Excel
+                <button class="nav-btn" data-page="excel">
+                    <i class="bi bi-file-earmark-excel"></i> Excel
                 </button>
             </nav>
-            <hr style="border-color: #009964;" />
-            <div class="mt-auto">
+            <div class="mt-auto space-y-2 border-t border-white/10 pt-4">
                 <!-- Status do Backend -->
-                <div id="backend-status" class="text-center small mb-2">
+                <div id="backend-status">
                     <span id="status-dot"></span>
                     <span id="status-text">Verificando...</span>
                 </div>
-                <div id="version" class="text-center text-white-50 small mt-2">v1.0.0</div>
+                <div id="version" class="text-center text-xs text-white/40">v1.0.0</div>
             </div>
         </aside>
 
         <!-- Conteúdo principal -->
-        <main id="content" class="flex-grow-1 p-4 overflow-auto bg-white">
+        <main id="content" class="grow overflow-auto bg-slate-50 p-6">
             <div id="page-container"></div>
         </main>
     </div>

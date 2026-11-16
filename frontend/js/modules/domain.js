@@ -47,9 +47,9 @@ export class DomainModule {
     render() {
         this.container.innerHTML = `
             <div class="page active">
-                <h2 class="module-title"><i class="bi ${this.icon} me-2"></i>${this.title}</h2>
-                <div class="d-flex gap-3" style="height: calc(100% - 60px);">
-                    <div class="module-sidebar flex-shrink-0" style="width: 240px;">
+                <h2 class="module-title"><i class="bi ${this.icon}"></i>${this.title}</h2>
+                <div class="flex gap-4">
+                    <div class="module-sidebar">
                         <h3>Funcionalidades</h3>
                         <div class="feature-search">
                             <input type="search" class="form-control form-control-sm"
@@ -59,9 +59,9 @@ export class DomainModule {
                         <ul class="feature-list">
                             ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
                         </ul>
-                        <p class="feature-empty px-3 small text-muted" hidden>Nenhuma funcionalidade</p>
+                        <p class="feature-empty text-xs text-muted" hidden>Nenhuma funcionalidade</p>
                     </div>
-                    <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
+                    <div class="min-w-0 grow" id="feature-content"></div>
                 </div>
             </div>
         `;
