@@ -7,6 +7,8 @@
         "start-backend": "python backend/app.py",
         "dev": "concurrently \"npm run start-backend\" \"npm run start\"",
         "lint": "eslint frontend/js",
+        "build:css": "tailwindcss -i frontend/css/input.css -o frontend/css/tailwind.css --minify",
+        "watch:css": "tailwindcss -i frontend/css/input.css -o frontend/css/tailwind.css --watch",
         "dist": "electron-builder"
     },
     "build": {
@@ -42,9 +44,11 @@
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",
+        "@tailwindcss/cli": "^4.3.5",
         "concurrently": "^10.0.3",
         "electron": "^43.1.1",
         "electron-builder": "^26.15.3",
-        "eslint": "^10.14.0"
+        "eslint": "^10.14.0",
+        "tailwindcss": "^4.3.5"
     }
 }

@@ -1,0 +1,250 @@
+@import "tailwindcss";
+
+/* Templates: HTML estático + classes dentro dos template strings dos módulos */
+@source "../index.html";
+@source "../splash.html";
+@source "../js/**/*.js";
+
+/* ============================================================
+   THEME — paleta CREMEPE + tipografia
+   ============================================================ */
+@theme {
+    --font-sans: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+
+    /* Verde institucional */
+    --color-brand-50: #eefaf5;
+    --color-brand-100: #d5f2e6;
+    --color-brand-200: #ace5cf;
+    --color-brand-300: #75d2b3;
+    --color-brand-400: #42ba93;
+    --color-brand-500: #1a9f77;
+    --color-brand-600: #007a51; /* primária */
+    --color-brand-700: #006643;
+    --color-brand-800: #005236;
+    --color-brand-900: #003d29;
+}
+
+@layer base {
+    body {
+        @apply bg-slate-50 text-slate-900 antialiased;
+    }
+}
+
+/* ============================================================
+   COMPONENTES — design system moderno (substitui o Bootstrap)
+   ============================================================ */
+@layer components {
+    /* ---- Botões ---- */
+    .btn {
+        @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm
+               font-semibold transition-colors duration-150 select-none;
+        @apply focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none;
+        @apply disabled:pointer-events-none disabled:opacity-50;
+    }
+    .btn-success {
+        @apply bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800;
+    }
+    .btn-outline-secondary {
+        @apply border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50;
+    }
+    .btn-outline-success {
+        @apply border border-brand-600 bg-white text-brand-700 hover:bg-brand-50;
+    }
+    .btn-outline-danger {
+        @apply border border-rose-300 bg-white text-rose-600 hover:bg-rose-50;
+    }
+    .btn-danger {
+        @apply bg-rose-600 text-white shadow-sm hover:bg-rose-700;
+    }
+    .btn-sm {
+        @apply px-3 py-1.5 text-xs;
+    }
+
+    /* ---- Campos de formulário ---- */
+    .form-control {
+        @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900
+               shadow-xs transition-colors placeholder:text-slate-400;
+        @apply outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+    }
+    .form-control-sm {
+        @apply rounded-md px-2.5 py-1.5 text-xs;
+    }
+    .form-select {
+        @apply w-full cursor-pointer rounded-lg border border-slate-300 bg-white py-2.5 pl-3.5 pr-9 text-sm
+               text-slate-900 shadow-xs transition-colors appearance-none;
+        @apply outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748b' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.65rem center;
+    }
+    .form-range {
+        @apply w-full cursor-pointer accent-brand-600;
+    }
+    .form-label {
+        @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-600;
+    }
+    .form-check {
+        @apply flex items-start gap-2;
+    }
+    .form-check-input {
+        @apply mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brand-600;
+    }
+    .form-check-label {
+        @apply cursor-pointer text-sm text-slate-700 select-none;
+    }
+    /* input + botão lado a lado (estilo "attachado" do Bootstrap → moderno) */
+    .input-group {
+        @apply flex w-full items-center gap-2;
+    }
+    .input-group .form-control {
+        @apply min-w-0 flex-1;
+    }
+    .input-group .btn {
+        @apply shrink-0 whitespace-nowrap;
+    }
+
+    /* ---- Cartões ---- */
+    .card {
+        @apply flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow;
+    }
+    .card:hover {
+        @apply shadow-md;
+    }
+    .card-body {
+        @apply flex flex-1 flex-col gap-3 p-5;
+    }
+    .card-title {
+        @apply text-base leading-6 font-semibold text-slate-900;
+    }
+    .card-text {
+        @apply text-sm text-slate-500;
+    }
+
+    /* ---- Badges e progresso ---- */
+    .badge {
+        @apply inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600;
+    }
+    .progress {
+        @apply h-2 w-full overflow-hidden rounded-full bg-slate-100;
+    }
+    .progress-bar {
+        @apply h-full rounded-full bg-brand-600 transition-[width] duration-300;
+    }
+
+    /* ---- Tabelas ---- */
+    .table {
+        @apply w-full border-collapse text-left text-sm text-slate-700;
+    }
+    .table th {
+        @apply border-b border-slate-200 px-3 py-2 text-xs font-semibold tracking-wide text-slate-500 uppercase;
+    }
+    .table td {
+        @apply border-b border-slate-100 px-3 py-2;
+    }
+    .table-sm td,
+    .table-sm th {
+        @apply px-2 py-1.5;
+    }
+    .table-striped tbody tr:nth-child(odd) {
+        @apply bg-slate-50;
+    }
+
+    /* ---- Navegação (aba/sidebar) ---- */
+    .nav-link {
+        @apply flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium
+               text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900;
+    }
+    .nav-pills .nav-link.active,
+    .nav-btn.active {
+        @apply bg-brand-600 text-white hover:bg-brand-600 hover:text-white;
+    }
+    .nav-tabs {
+        @apply flex gap-1 border-b border-slate-200;
+    }
+    .nav-tabs .nav-link {
+        @apply -mb-px rounded-t-lg border-b-2 border-transparent px-4 py-2;
+    }
+    .nav-tabs .nav-link.active {
+        @apply border-brand-600 bg-transparent text-brand-700;
+    }
+
+    /* ---- Cores semânticas (mesmos nomes das features) ---- */
+    .text-success { @apply text-brand-600; }
+    .text-muted   { @apply text-slate-500; }
+    .text-danger  { @apply text-rose-600; }
+    .text-warning { @apply text-amber-600; }
+    .text-info    { @apply text-sky-600; }
+    .text-white-50 { @apply text-white/50; }
+    .fw-bold   { @apply font-bold; }
+    .fw-normal { @apply font-normal; }
+    .bg-primary   { @apply bg-brand-600; }
+    .bg-success   { @apply bg-brand-600; }
+    .bg-secondary { @apply bg-slate-500; }
+    .bg-danger    { @apply bg-rose-600; }
+    .bg-info      { @apply bg-sky-100 text-sky-700; }
+    .bg-warning   { @apply bg-amber-100 text-amber-700; }
+    .bg-light     { @apply bg-slate-100; }
+    .small { @apply text-sm; }
+    .h5    { @apply text-xl font-medium; }
+}
+
+/* ============================================================
+   COMPAT — classes legadas do Bootstrap enquanto as features
+   migram domínio a domínio. Escala de espaçamento NA MESMA VALOR
+   do Bootstrap (1rem em -3, 1.5rem em -4...) para os templates não
+   migrados não mudarem de visual. Removido no fim da migração.
+   ============================================================ */
+@layer utilities {
+    /* flex legado */
+    .d-flex { display: flex; }
+    .flex-column { flex-direction: column; }
+    .flex-grow-1 { flex: 1 1 0%; }
+    .flex-shrink-0 { flex-shrink: 0; }
+    .justify-content-between { justify-content: space-between; }
+    .justify-content-center { justify-content: center; }
+    .align-items-center { align-items: center; }
+    .align-items-end { align-items: end; }
+    .align-self-start { align-self: flex-start; }
+
+    /* misc legado */
+    .list-unstyled { list-style: none; padding-left: 0; }
+    .border-bottom { border-bottom-width: 1px; }
+    .vh-100 { height: 100vh; }
+    .h-100 { height: 100%; }
+    .text-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* espaçamento legado com valores do Bootstrap (colidem com a escala do TW) */
+    .mb-3 { margin-bottom: 1rem; }
+    .mt-3 { margin-top: 1rem; }
+    .mt-4 { margin-top: 1.5rem; }
+    .ms-3 { margin-left: 1rem; }
+    .p-3 { padding: 1rem; }
+    .p-4 { padding: 1.5rem; }
+    .px-3 { padding-left: 1rem; padding-right: 1rem; }
+    .py-4 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+    .my-3 { margin-top: 1rem; margin-bottom: 1rem; }
+    .gap-3 { gap: 1rem; }
+
+    /* grid legado: linha de12 colunas (md = 768px, mesmo breakpoint do BS) */
+    .row {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+    .g-2 { gap: 0.5rem; }
+    .g-3 { gap: 1rem; }
+    .col-12 { grid-column: span 12 / span 12; }
+    .col-6 { grid-column: span 6 / span 6; }
+    .col-4 { grid-column: span 4 / span 4; }
+    @media (min-width: 48rem) {
+        .col-md-2 { grid-column: span 2 / span 2; }
+        .col-md-3 { grid-column: span 3 / span 3; }
+        .col-md-4 { grid-column: span 4 / span 4; }
+        .col-md-5 { grid-column: span 5 / span 5; }
+        .col-md-6 { grid-column: span 6 / span 6; }
+        .col-md-8 { grid-column: span 8 / span 8; }
+        .col-md-12 { grid-column: span 12 / span 12; }
+    }
+    @media (min-width: 64rem) {
+        .col-lg-4 { grid-column: span 4 / span 4; }
+    }
+}
