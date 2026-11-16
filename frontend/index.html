@@ -5,6 +5,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CREMEPE OFFICE</title>
+    <!-- CSP: só recursos locais + API em 127.0.0.1. style-src mantém
+         'unsafe-inline' pelos atributos style do markup; script-src é
+         'self' (nenhum script inline na página). -->
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:5000; worker-src 'self' blob:; object-src 'none'; base-uri 'self'">
     <!-- Bootstrap CSS (local — app funciona offline) -->
     <link href="vendor/bootstrap.min.css" rel="stylesheet" />
     <!-- Bootstrap Icons (local) -->
@@ -57,9 +62,6 @@
 
     <!-- PDF.js local (script clássico - define o global pdfjsLib) -->
     <script src="vendor/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-    </script>
     <!-- Bootstrap JS (local) -->
     <script src="vendor/bootstrap.bundle.min.js"></script>
     <!-- App: um único entry point ES module; a ordem de carregamento dos

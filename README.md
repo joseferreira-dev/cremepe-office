@@ -202,6 +202,7 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
 - Debug (reloader + debugger do Werkzeug) fica **desligado** por padrão; em produção (`backend.exe`) nunca é ativado.
 - Erros inesperados respondem `500` com mensagem genérica; o traceback fica apenas no `backend.log`.
 - Interface e bibliotecas (Bootstrap, ícones, pdf.js) ficam em `frontend/vendor/` — **nenhum recurso é baixado de CDN**, o app funciona offline.
+- **Content-Security-Policy** via `<meta>` em `index.html` e `splash.html`: scripts só locais (`script-src 'self'`, sem `unsafe-inline`), objetos bloqueados e conexões restritas à API em `127.0.0.1` — scripts injetados (ex.: por nomes de arquivo maliciosos) não executam.
 
 ---
 

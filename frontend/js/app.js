@@ -5,6 +5,13 @@ import { HomePage } from './modules/home.js';
 import { PDFModule } from './modules/pdf/index.js';
 import { WordModule } from './modules/word/index.js';
 
+// pdf.js carrega como script clássico (vendor/pdf.min.js); o worker
+// local é configurado aqui para que o index.html não precise de script
+// inline — o CSP usa script-src 'self'.
+if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const pages = {
         home: HomePage,
