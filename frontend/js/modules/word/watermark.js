@@ -10,14 +10,14 @@ export class WatermarkFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Inserir Marca d'Água</h4>
-                <p class="text-muted">Adicione uma marca d'água de texto ou imagem com posição, tamanho e transparência configuráveis.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Inserir Marca d'Água</h4>
+                <p class="text-slate-500">Adicione uma marca d'água de texto ou imagem com posição, tamanho e transparência configuráveis.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Documento</h5>
+                    <h5 class="card-title text-brand-600">Documento</h5>
                     <div class="input-group">
                         <input type="text" id="wm-input" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-wm-input">Selecionar</button>
@@ -25,14 +25,14 @@ export class WatermarkFeature extends Feature {
                 </div>
             </div>
 
-            <div class="row g-3">
+            <div class="grid grid-cols-12 gap-4">
                 <!-- Coluna esquerda: controles -->
-                <div class="col-md-6">
-                    <div class="card mb-3">
+                <div class="md:col-span-6">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Tipo de marca d'água</h5>
-                            <div class="row">
-                                <div class="col-md-6">
+                            <h5 class="card-title text-brand-600">Tipo de marca d'água</h5>
+                            <div class="grid grid-cols-12 gap-4">
+                                <div class="md:col-span-6">
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="wm-type" id="wm-type-text" value="text" checked>
                                         <label class="form-check-label">Texto</label>
@@ -42,7 +42,7 @@ export class WatermarkFeature extends Feature {
                                         <input type="text" id="wm-text" class="form-control" value="CONFIDENCIAL">
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="md:col-span-6">
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="wm-type" id="wm-type-image" value="image">
                                         <label class="form-check-label">Imagem</label>
@@ -59,11 +59,11 @@ export class WatermarkFeature extends Feature {
                         </div>
                     </div>
 
-                    <div class="card mb-3">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Posição</h5>
-                            <div class="row g-2">
-                                <div class="col-md-12">
+                            <h5 class="card-title text-brand-600">Posição</h5>
+                            <div class="grid grid-cols-12 gap-2">
+                                <div class="md:col-span-12">
                                     <label class="form-label">Posição</label>
                                     <select id="wm-position" class="form-select">
                                         <option value="top-left">Superior Esquerdo</option>
@@ -77,11 +77,11 @@ export class WatermarkFeature extends Feature {
                                         <option value="bottom-right">Inferior Direito</option>
                                     </select>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="md:col-span-6">
                                     <label class="form-label">Margem Esq. (cm)</label>
                                     <input type="number" id="wm-margin-left" class="form-control" value="0" step="0.5">
                                 </div>
-                                <div class="col-md-6">
+                                <div class="md:col-span-6">
                                     <label class="form-label">Margem Sup. (cm)</label>
                                     <input type="number" id="wm-margin-top" class="form-control" value="0" step="0.5">
                                 </div>
@@ -89,15 +89,15 @@ export class WatermarkFeature extends Feature {
                         </div>
                     </div>
 
-                    <div class="card mb-3">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Tamanho</h5>
-                            <div class="row g-2">
-                                <div class="col-md-6">
+                            <h5 class="card-title text-brand-600">Tamanho</h5>
+                            <div class="grid grid-cols-12 gap-2">
+                                <div class="md:col-span-6">
                                     <label class="form-label">Largura (cm)</label>
                                     <input type="number" id="wm-width" class="form-control" value="5" step="0.5" min="1">
                                 </div>
-                                <div class="col-md-6">
+                                <div class="md:col-span-6">
                                     <label class="form-label">Altura (cm)</label>
                                     <input type="number" id="wm-height" class="form-control" value="5" step="0.5" min="1">
                                 </div>
@@ -105,22 +105,22 @@ export class WatermarkFeature extends Feature {
                         </div>
                     </div>
 
-                    <div class="card mb-3">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Transparência</h5>
-                            <div class="d-flex align-items-center gap-2">
-                                <input type="range" id="wm-transparency" class="form-range flex-grow-1" min="0" max="100" value="50">
-                                <span id="wm-transparency-label" class="fw-bold" style="min-width:45px;">50%</span>
+                            <h5 class="card-title text-brand-600">Transparência</h5>
+                            <div class="flex items-center gap-2">
+                                <input type="range" id="wm-transparency" class="form-range grow" min="0" max="100" value="50">
+                                <span id="wm-transparency-label" class="font-bold" style="min-width:45px;">50%</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Coluna direita: preview -->
-                <div class="col-md-6">
+                <div class="md:col-span-6">
                     <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Preview da Posição</h5>
+                            <h5 class="card-title text-brand-600">Preview da Posição</h5>
                             <div style="position:relative; width:100%; max-width:400px; margin:0 auto; border:2px solid #007A51; border-radius:8px; padding:4px; background:#f8f9fa;">
                                 <canvas id="wm-preview-canvas" width="400" height="566" style="width:100%; height:auto; display:block;"></canvas>
                                 <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); font-size:12px; color:#6c757d; pointer-events:none;">
@@ -132,9 +132,9 @@ export class WatermarkFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Arquivo de saída</h5>
+                        <h5 class="card-title text-brand-600">Arquivo de saída</h5>
                         <div class="input-group">
                             <input type="text" id="wm-output" class="form-control" placeholder="Caminho para salvar o documento...">
                             <button class="btn btn-outline-secondary" id="btn-wm-output">Selecionar</button>

@@ -9,14 +9,14 @@ export class ExcelConvertFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Conversão em Lote</h4>
-                <p class="text-muted">Converta vários arquivos XLSX ou CSV para outros formatos de uma só vez.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Conversão em Lote</h4>
+                <p class="text-slate-500">Converta vários arquivos XLSX ou CSV para outros formatos de uma só vez.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Pastas</h5>
+                    <h5 class="card-title text-brand-600">Pastas</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta de origem</label>
                         <div class="input-group">
@@ -34,11 +34,11 @@ export class ExcelConvertFeature extends Feature {
                 </div>
             </div>
 
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <div class="card mb-3">
+            <div class="grid grid-cols-12 gap-4">
+                <div class="md:col-span-6">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Formato de entrada</h5>
+                            <h5 class="card-title text-brand-600">Formato de entrada</h5>
                             <select id="excel-input-format" class="form-select">
                                 <option value="xlsx">XLSX</option>
                                 <option value="csv">CSV</option>
@@ -46,10 +46,10 @@ export class ExcelConvertFeature extends Feature {
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="card mb-3">
+                <div class="md:col-span-6">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Formato de saída</h5>
+                            <h5 class="card-title text-brand-600">Formato de saída</h5>
                             <select id="excel-output-format" class="form-select">
                                 <option value="xlsx">XLSX</option>
                                 <option value="csv">CSV</option>
@@ -62,9 +62,9 @@ export class ExcelConvertFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções</h5>
+                    <h5 class="card-title text-brand-600">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="excel-recursive">
                         <label class="form-check-label">Incluir subpastas</label>

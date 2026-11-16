@@ -9,14 +9,14 @@ export class ExcelMergeAllFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Combinar Planilhas</h4>
-                <p class="text-muted">Consolide todos os arquivos XLSX de uma pasta em um único arquivo mestre.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Combinar Planilhas</h4>
+                <p class="text-slate-500">Consolide todos os arquivos XLSX de uma pasta em um único arquivo mestre.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Pastas</h5>
+                    <h5 class="card-title text-brand-600">Pastas</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta de origem (com os arquivos .xlsx)</label>
                         <div class="input-group">
@@ -34,9 +34,9 @@ export class ExcelMergeAllFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções</h5>
+                    <h5 class="card-title text-brand-600">Opções</h5>
                     <div class="mb-2">
                         <label class="form-label">Modo de mesclagem</label>
                         <select id="merge-mode" class="form-select">
@@ -49,7 +49,7 @@ export class ExcelMergeAllFeature extends Feature {
                             <input class="form-check-input" type="checkbox" id="merge-include-header" checked>
                             <label class="form-check-label">Incluir cabeçalho (apenas do primeiro arquivo)</label>
                         </div>
-                        <small class="text-muted">Se desmarcado, todas as linhas (incluindo cabeçalhos) serão tratadas como dados.</small>
+                        <small class="text-slate-500">Se desmarcado, todas as linhas (incluindo cabeçalhos) serão tratadas como dados.</small>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="merge-recursive">

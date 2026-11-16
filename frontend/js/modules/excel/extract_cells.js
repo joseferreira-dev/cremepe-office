@@ -12,14 +12,14 @@ export class ExcelExtractCellsFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Extrair Células</h4>
-                <p class="text-muted">Escaneie uma pasta de planilhas e extraia valores de células específicas, com suporte a fórmulas matemáticas.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Extrair Células</h4>
+                <p class="text-slate-500">Escaneie uma pasta de planilhas e extraia valores de células específicas, com suporte a fórmulas matemáticas.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Pasta e destino</h5>
+                    <h5 class="card-title text-brand-600">Pasta e destino</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta de origem</label>
                         <div class="input-group">
@@ -37,9 +37,9 @@ export class ExcelExtractCellsFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Campos a extrair</h5>
+                    <h5 class="card-title text-brand-600">Campos a extrair</h5>
                     <div id="fields-container">
                         <!-- Campos serão adicionados aqui -->
                     </div>
@@ -51,9 +51,9 @@ export class ExcelExtractCellsFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções</h5>
+                    <h5 class="card-title text-brand-600">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="extract-recursive">
                         <label class="form-check-label">Incluir subpastas</label>
@@ -65,8 +65,8 @@ export class ExcelExtractCellsFeature extends Feature {
 
             ${this.progressHTML()}
 
-            <div id="extract-preview" style="display:none;" class="mt-3">
-                <label class="fw-bold text-success">Pré-visualização (<span id="extract-count">0</span> arquivos)</label>
+            <div id="extract-preview" style="display:none;" class="mt-4">
+                <label class="font-bold text-brand-600">Pré-visualização (<span id="extract-count">0</span> arquivos)</label>
                 <div id="extract-table-container" style="max-height:400px; overflow:auto; border:1px solid #dee2e6; border-radius:0.375rem;"></div>
             </div>
 
@@ -107,19 +107,19 @@ export class ExcelExtractCellsFeature extends Feature {
         row.className = 'row g-2 mb-2 align-items-center';
         row.id = fieldId;
         row.innerHTML = `
-            <div class="col-md-3">
+            <div class="md:col-span-3">
                 <input type="text" class="form-control field-name" placeholder="Nome do campo (ex: Valor)" value="Campo${this.cellCounter}">
             </div>
-            <div class="col-md-2">
+            <div class="md:col-span-2">
                 <select class="form-select field-type">
                     <option value="cell">Célula</option>
                     <option value="formula">Fórmula</option>
                 </select>
             </div>
-            <div class="col-md-5 field-source-container">
+            <div class="md:col-span-5 field-source-container">
                 <input type="text" class="form-control field-source" placeholder="Ex: A4" value="A${this.cellCounter}">
             </div>
-            <div class="col-md-2">
+            <div class="md:col-span-2">
                 <button class="btn btn-outline-danger btn-sm remove-field-btn"><i data-lucide="trash"></i></button>
             </div>
         `;
@@ -229,7 +229,7 @@ export class ExcelExtractCellsFeature extends Feature {
 
         const tableContainer = document.getElementById('extract-table-container');
         if (!results.length) {
-            tableContainer.innerHTML = '<p class="text-muted">Nenhum resultado.</p>';
+            tableContainer.innerHTML = '<p class="text-slate-500">Nenhum resultado.</p>';
             return;
         }
 

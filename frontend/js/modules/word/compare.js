@@ -10,14 +10,14 @@ export class DocCompareFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Comparar Documentos</h4>
-                <p class="text-muted">Compare dois documentos Word e veja as diferenças.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Comparar Documentos</h4>
+                <p class="text-slate-500">Compare dois documentos Word e veja as diferenças.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Documento 1 (base)</h5>
+                    <h5 class="card-title text-brand-600">Documento 1 (base)</h5>
                     <div class="input-group">
                         <input type="text" id="compare-doc1" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-compare-doc1">Selecionar</button>
@@ -25,9 +25,9 @@ export class DocCompareFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Documento 2 (comparação)</h5>
+                    <h5 class="card-title text-brand-600">Documento 2 (comparação)</h5>
                     <div class="input-group">
                         <input type="text" id="compare-doc2" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-compare-doc2">Selecionar</button>
@@ -39,11 +39,11 @@ export class DocCompareFeature extends Feature {
 
             ${this.progressHTML()}
 
-            <div id="compare-result" style="display:none;" class="mt-3">
-                <div class="row g-2 mb-2">
-                    <div class="col-4"><span class="badge bg-danger">Removidos: <span id="removed-count">0</span></span></div>
-                    <div class="col-4"><span class="badge bg-success">Adicionados: <span id="added-count">0</span></span></div>
-                    <div class="col-4"><span class="badge bg-warning">Modificados: <span id="modified-count">0</span></span></div>
+            <div id="compare-result" style="display:none;" class="mt-4">
+                <div class="grid grid-cols-12 gap-2 mb-2">
+                    <div class="col-span-4"><span class="badge bg-rose-600">Removidos: <span id="removed-count">0</span></span></div>
+                    <div class="col-span-4"><span class="badge bg-brand-600">Adicionados: <span id="added-count">0</span></span></div>
+                    <div class="col-span-4"><span class="badge bg-amber-100">Modificados: <span id="modified-count">0</span></span></div>
                 </div>
                 <div id="compare-details" style="max-height:400px; overflow:auto; border:1px solid #dee2e6; border-radius:0.375rem; padding:8px; font-size:0.9rem;">
                     <!-- Detalhes serão preenchidos -->
@@ -114,15 +114,15 @@ export class DocCompareFeature extends Feature {
             let html = '';
             result.differences.forEach((diff, idx) => {
                 if (diff.type === 'removed') {
-                    html += `<div class="border-bottom py-1"><span class="badge bg-danger me-2">Removido</span><span style="background:#ffcccc;">${diff.text}</span></div>`;
+                    html += `<div class="border-b py-1"><span class="badge bg-rose-600 me-2">Removido</span><span style="background:#ffcccc;">${diff.text}</span></div>`;
                 } else if (diff.type === 'added') {
-                    html += `<div class="border-bottom py-1"><span class="badge bg-success me-2">Adicionado</span><span style="background:#ccffcc;">${diff.text}</span></div>`;
+                    html += `<div class="border-b py-1"><span class="badge bg-brand-600 me-2">Adicionado</span><span style="background:#ccffcc;">${diff.text}</span></div>`;
                 } else if (diff.type === 'modified') {
-                    html += `<div class="border-bottom py-1"><span class="badge bg-warning me-2">Modificado</span><span style="background:#ffffcc;">${diff.old_text}</span> → <span style="background:#ccffcc;">${diff.new_text}</span></div>`;
+                    html += `<div class="border-b py-1"><span class="badge bg-amber-100 me-2">Modificado</span><span style="background:#ffffcc;">${diff.old_text}</span> → <span style="background:#ccffcc;">${diff.new_text}</span></div>`;
                 }
             });
             if (!html) {
-                html = '<p class="text-muted">Nenhuma diferença encontrada.</p>';
+                html = '<p class="text-slate-500">Nenhuma diferença encontrada.</p>';
             }
             detailsDiv.innerHTML = html;
 

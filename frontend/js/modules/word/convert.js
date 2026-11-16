@@ -9,14 +9,14 @@ export class ConvertFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Converter Documento</h4>
-                <p class="text-muted">Converta documentos Word para HTML, TXT, DOC ou PDF.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Converter Documento</h4>
+                <p class="text-slate-500">Converta documentos Word para HTML, TXT, DOC ou PDF.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="convert-input" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-convert-input">Selecionar</button>
@@ -24,29 +24,29 @@ export class ConvertFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Formato de saída</h5>
-                    <div class="row">
-                        <div class="col-md-3">
+                    <h5 class="card-title text-brand-600">Formato de saída</h5>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="md:col-span-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convert-format" id="convert-format-html" value="html" checked>
                                 <label class="form-check-label">HTML</label>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="md:col-span-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convert-format" id="convert-format-txt" value="txt">
                                 <label class="form-check-label">TXT</label>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="md:col-span-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convert-format" id="convert-format-doc" value="doc">
                                 <label class="form-check-label">DOC</label>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="md:col-span-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convert-format" id="convert-format-pdf" value="pdf">
                                 <label class="form-check-label">PDF</label>
@@ -56,9 +56,9 @@ export class ConvertFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="convert-output" class="form-control" placeholder="Caminho para salvar o arquivo convertido...">
                         <button class="btn btn-outline-secondary" id="btn-convert-output">Selecionar</button>
