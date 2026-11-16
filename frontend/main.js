@@ -159,9 +159,15 @@ function startBackend() {
 // Determina o caminho do backend (desenvolvimento ou produção)
 function getBackendPath() {
     if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
-        const pythonPath = process.platform === 'win32' ? 'python' : 'python3';
         const scriptPath = path.join(__dirname, '..', 'backend', 'app.py');
-        return { cmd: pythonPath, args: [scriptPath], isPython: true };
+        // Prefere o interpretador do venv do projeto (deps como pdf2docx);
+        // cai para o python do PATH quando o venv não existe.
+        const venvPy = process.platform === 'win32'
+            ? path.join(__dirname, '..', 'venv', 'Scripts', 'python.exe')
+            : path.join(__dirname, '..', 'venv', 'bin', 'python');
+        const fallback = process.platform === 'win32' ? 'python' : 'python3';
+        const cmd = fs.existsSync(venvPy) ? venvPy : fallback;
+        return { cmd, args: [scriptPath], isPython: true };
     } else {
         let exePath;
         if (process.platform === 'win32') {
@@ -176,6 +182,19 @@ function getBackendPath() {
     }
 }
 
+// Dev: um backend já servindo a porta (ex.: `npm run start-backend`
+// concorrente) é reutilizado — evita o segundo processo brigando por5000
+async function backendAlreadyRunning() {
+    try {
+        const res = await fetch('http://127.0.0.1:5000/api/health', {
+            signal: AbortSignal.timeout(800),
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
 // Eventos do app
 app.whenReady().then(async () => {
     logger.init(app);
@@ -183,7 +202,11 @@ app.whenReady().then(async () => {
         ` (packaged=${app.isPackaged}, log=${logger.getLogPath()})`);
 
     createSplashWindow();
-    startBackend();
+    if (!app.isPackaged && (await backendAlreadyRunning())) {
+        logger.log('Backend já ativo em 127.0.0.1:5000 — reutilizando');
+    } else {
+        startBackend();
+    }
     const backendOk = await waitForBackend(30, 500);
     if (!backendOk) {
         logger.warn('Backend não iniciou a tempo, mas continuaremos.');

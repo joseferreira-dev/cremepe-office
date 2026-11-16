@@ -67,6 +67,12 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
    npm start               # Electron
    ```
 
+> **venv automático**: o `npm run dev`/`start-backend` e o Electron
+> resolvem sozinhos o interpretador de `venv/` (com fallback para o
+> `python` do PATH) — ativar o ambiente virtual manualmente é opcional.
+> Se o backend já estiver no ar (ex.: dois terminais), o Electron o
+> reutiliza em vez de subir uma segunda instância.
+
 > **Nota**: O frontend espera o backend rodando em `http://127.0.0.1:5000` (somente localhost). Certifique‑se de que a porta esteja livre.
 >
 > **Debug**: por padrão o backend sobe **sem** debug (mais seguro e sem reloader). Para desenvolvimento com auto‑reload e debugger, use:

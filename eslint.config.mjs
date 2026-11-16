@@ -72,8 +72,10 @@ export default [
                 console: 'readonly',
                 setTimeout: 'readonly',
                 clearTimeout: 'readonly',
+                AbortController: 'readonly',
                 fetch: 'readonly',
                 Buffer: 'readonly',
+                AbortSignal: 'readonly',
             },
         },
         rules: {

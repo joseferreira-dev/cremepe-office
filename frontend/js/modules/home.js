@@ -112,7 +112,13 @@ export class HomePage extends Feature {
             try {
                 const stored = await window.electronAPI.storeGet(this.storageKey);
                 if (Array.isArray(stored)) {
-                    return stored;
+                    // Re-sincroniza com o catálogo atual: cards salvos por
+                    // versões antigas podem trazer ícones/títulos desatualizados
+                    // (ex.: nomes bi-* de antes da migração para Lucide).
+                    // A ordem e a seleção do usuário permanecem; ids que não
+                    // existem mais são descartados.
+                    const byId = new Map(this.availableFeatures.map((f) => [f.id, f]));
+                    return stored.map((c) => byId.get(c.id)).filter(Boolean);
                 }
                 if (stored === undefined || stored === null) {
                     // Primeira execução: semeia os atalhos padrão
