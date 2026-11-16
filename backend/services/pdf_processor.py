@@ -1,5 +1,6 @@
 from pathlib import Path
 import logging
+import re
 import shutil
 from typing import List, Optional
 from PyPDF2 import PdfReader, PdfWriter
@@ -1469,6 +1470,208 @@ def compress(
 
     except Exception as e:
         raise RuntimeError(f"Erro ao comprimir PDF: {str(e)}")
+
+def validate_pdf(pdf_path: str) -> dict:
+    """Analisa a integridade de um PDF (corrupção, truncamento, refs).
+
+    Devolve uma lista de checks com status ok/warn/error e estatísticas.
+    `valid` é False quando existe ao menos um check em error — avisos
+    (warn) não invalidam o documento.
+    """
+    path = Path(pdf_path).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+
+    checks = []
+
+    def add(check_id, label, status, detail=''):
+        checks.append({
+            'id': check_id,
+            'label': label,
+            'status': status,
+            'detail': detail,
+        })
+
+    def finish(stats):
+        return {
+            'pdf_path': str(path),
+            'valid': not any(c['status'] == 'error' for c in checks),
+            'checks': checks,
+            'stats': stats,
+        }
+
+    size = path.stat().st_size
+    stats = {
+        'file_size': size,
+        'pages': None,
+        'pdf_version': None,
+        'encrypted': False,
+        'repaired': False,
+        'producer': None,
+    }
+
+    # ---- arquivo ----
+    if size == 0:
+        add('arquivo', 'Arquivo', 'error', 'arquivo vazio (0 bytes)')
+        return finish(stats)
+
+    # ---- cabeçalho e EOF ----
+    with open(path, 'rb') as f:
+        head = f.read(1024)
+        f.seek(max(0, size - 4096))
+        tail = f.read()
+    m = re.search(br'%PDF-(\d+\.\d+)', head)
+    if m:
+        stats['pdf_version'] = m.group(1).decode('ascii')
+        if not head.startswith(b'%PDF-'):
+            add('cabecalho', 'Cabeçalho PDF', 'warn',
+                f'cabeçalho %PDF- deslocado (inicia em {m.start()} bytes)')
+        else:
+            add('cabecalho', 'Cabeçalho PDF', 'ok',
+                f'assinatura %PDF-{stats["pdf_version"]} presente')
+    else:
+        add('cabecalho', 'Cabeçalho PDF', 'error',
+            'o arquivo não começa com %PDF- (não é PDF ou está corrompido)')
+        return finish(stats)
+
+    if b'%%EOF' not in tail:
+        add('eof', 'Fim do arquivo (%%EOF)', 'warn',
+            'marcador %%EOF ausente — possível truncamento')
+    else:
+        add('eof', 'Fim do arquivo (%%EOF)', 'ok', 'marcador presente')
+
+    # ---- abertura (qpdf via pikepdf) ----
+    try:
+        pdf = pikepdf.open(str(path))
+    except pikepdf.PasswordError:
+        stats['encrypted'] = True
+        add('criptografia', 'Criptografia', 'warn',
+            'protegido por senha — o conteúdo não pôde ser verificado')
+        return finish(stats)
+    except Exception as exc:
+        add('abertura', 'Abertura da estrutura', 'error',
+            f'falhou ao abrir: {str(exc)[:200]}')
+        return finish(stats)
+
+    with pdf:
+        add('abertura', 'Abertura da estrutura', 'ok',
+            f'{len(pdf.pages)} página(s) resolvidas')
+        try:
+            if bool(pdf.is_encrypted):
+                stats['encrypted'] = True
+                add('criptografia', 'Criptografia', 'warn',
+                    'documento criptografado (aberto com senha vazia)')
+        except Exception:
+            pass
+
+        # ---- leitor alternativo (fitz): detecta truncamento/reparo ----
+        try:
+            with fitz.open(str(path)) as doc:
+                stats['pages'] = doc.page_count
+                stats['repaired'] = bool(doc.is_repaired)
+                stats['encrypted'] = stats['encrypted'] or bool(doc.is_encrypted)
+                meta = doc.metadata or {}
+                stats['producer'] = meta.get('producer') or meta.get('creator')
+                if doc.is_repaired:
+                    add('estrutura', 'Estrutura (leitor alternativo)', 'warn',
+                        'o arquivo precisou de reparo ao abrir')
+                else:
+                    add('estrutura', 'Estrutura (leitor alternativo)', 'ok',
+                        'abriu sem necessidade de reparo')
+        except Exception as exc:
+            add('estrutura', 'Estrutura (leitor alternativo)', 'error',
+                f'leitor alternativo rejeitou o arquivo: {str(exc)[:200]}')
+
+        # ---- páginas ----
+        n_pages = len(pdf.pages)
+        if n_pages == 0:
+            add('paginas', 'Páginas', 'error', 'o documento não tem páginas')
+        else:
+            broken_boxes = []
+            for i, page in enumerate(pdf.pages, 1):
+                try:
+                    box = page.mediabox
+                    if float(box[2]) <= float(box[0]) or float(box[3]) <= float(box[1]):
+                        broken_boxes.append(str(i))
+                except Exception:
+                    broken_boxes.append(str(i))
+            if broken_boxes:
+                add('paginas', 'Páginas', 'error',
+                    f'página(s) com área inválida ou ilegível: {", ".join(broken_boxes)}')
+            else:
+                add('paginas', 'Páginas', 'ok',
+                    f'{n_pages} página(s) com área válida')
+
+        # ---- fluxos de conteúdo ----
+        stream_fail = []
+        for i, page in enumerate(pdf.pages, 1):
+            try:
+                list(pikepdf.parse_content_stream(page))
+            except Exception as exc:
+                stream_fail.append(f'pág. {i}: {str(exc)[:80]}')
+        if stream_fail:
+            add('fluxos', 'Fluxos de conteúdo', 'error',
+                ' | '.join(stream_fail[:5]))
+        else:
+            add('fluxos', 'Fluxos de conteúdo', 'ok',
+                'todos os comandos de desenho foram analisados')
+
+        # ---- imagens (decodificação real) ----
+        img_total = 0
+        img_fail = []
+        for i, page in enumerate(pdf.pages, 1):
+            try:
+                names = list(page.get_images().keys())
+            except Exception as exc:
+                img_fail.append(f'pág. {i}: {str(exc)[:80]}')
+                continue
+            for name in names:
+                img_total += 1
+                try:
+                    pikepdf.PdfImage(page.get_images()[name]).as_pil_image()
+                except Exception as exc:
+                    img_fail.append(f'pág. {i} {name}: {str(exc)[:80]}')
+        if img_fail:
+            add('imagens', 'Imagens', 'error',
+                f'{len(img_fail)} de {img_total} ilegível(is) — ' +
+                ' | '.join(img_fail[:3]))
+        else:
+            add('imagens', 'Imagens', 'ok',
+                f'{img_total} imagem(ns) decodificadas sem erro')
+
+        # ---- fontes referenciadas ----
+        font_total = 0
+        font_fail = []
+        font_warn = []
+        for i, page in enumerate(pdf.pages, 1):
+            try:
+                res = page.obj.get('/Resources')
+                fonts = res.get('/Font') if res is not None else None
+                if fonts is None:
+                    continue
+                for key in fonts.keys():
+                    font_total += 1
+                    try:
+                        fobj = fonts[key]
+                        if '/BaseFont' not in fobj and '/DescendantFonts' not in fobj \
+                                and '/Subtype' not in fobj:
+                            font_warn.append(f'pág. {i} {key}')
+                    except Exception as exc:
+                        font_fail.append(f'pág. {i} {key}: {str(exc)[:80]}')
+            except Exception as exc:
+                font_fail.append(f'pág. {i}: {str(exc)[:80]}')
+        if font_fail:
+            add('fontes', 'Fontes', 'error',
+                ' | '.join(font_fail[:4]))
+        elif font_warn:
+            add('fontes', 'Fontes', 'warn',
+                f'fonte(s) incompleta(s): {", ".join(font_warn[:4])}')
+        else:
+            add('fontes', 'Fontes', 'ok',
+                f'{font_total} referência(s) de fonte resolvem')
+
+    return finish(stats)
+
 
 def protect_password(
     input_path: str,

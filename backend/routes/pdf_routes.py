@@ -226,3 +226,11 @@ def remove_password(data):
         password=data['password']
     )
     return jsonify({"success": True, **result}), 200
+
+
+@pdf_bp.route('/validate', methods=['POST'])
+@require('pdf_path')
+@as_job()
+def validate(data):
+    result = controller.validate(pdf_path=data['pdf_path'])
+    return jsonify({"success": True, **result}), 200

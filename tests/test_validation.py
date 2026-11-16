@@ -1,4 +1,4 @@
-"""Validacao @require das 47 rotas POST da API."""
+"""Validacao @require das 48 rotas POST da API."""
 from helpers import post_sync
 
 
@@ -8,8 +8,8 @@ def _post_rules(app):
     )
 
 
-def test_sao_47_rotas_post(app):
-    assert len(_post_rules(app)) == 47
+def test_sao_48_rotas_post(app):
+    assert len(_post_rules(app)) == 48
 
 
 def test_todas_as_rotas_validam_corpo_vazio(app, client):

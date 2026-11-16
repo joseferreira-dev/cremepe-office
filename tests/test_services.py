@@ -354,6 +354,128 @@ def test_rota_compress_validacoes_e_contrato(client, tmp_path):
     assert res['ratio'] < 1
 
 
+# ===== PDF: validação de integridade (validate) =====
+# Cenários reais de corrupção: vazio, lixo, truncamento, stream de
+# imagem corrompido, EOF ausente e criptografia.
+
+def test_validate_pdf_integro(tmp_path, pdf_factory):
+    from services.pdf_processor import validate_pdf
+    src = pdf_factory(2, 'integro.pdf')
+    r = validate_pdf(str(src))
+    assert r['valid'] is True, r
+    assert r['stats']['pages'] == 2
+    assert r['stats']['pdf_version']
+    assert r['stats']['file_size'] > 0
+    assert all(c['status'] == 'ok' for c in r['checks']), r['checks']
+    ids = [c['id'] for c in r['checks']]
+    for expected in ('cabecalho', 'eof', 'abertura', 'estrutura',
+                     'paginas', 'fluxos', 'imagens', 'fontes'):
+        assert expected in ids, ids
+
+
+def test_validate_pdf_vazio(tmp_path):
+    from services.pdf_processor import validate_pdf
+    src = tmp_path / 'vazio.pdf'
+    src.write_bytes(b'')
+    r = validate_pdf(str(src))
+    assert r['valid'] is False
+    erro = [c for c in r['checks'] if c['status'] == 'error']
+    assert erro and erro[0]['id'] == 'arquivo', r['checks']
+
+
+def test_validate_pdf_lixo(tmp_path):
+    from services.pdf_processor import validate_pdf
+    src = tmp_path / 'lixo.pdf'
+    src.write_bytes(b'isto nao e um arquivo pdf ' * 200)
+    r = validate_pdf(str(src))
+    assert r['valid'] is False
+    assert any(c['id'] == 'cabecalho' and c['status'] == 'error'
+               for c in r['checks']), r['checks']
+
+
+def test_validate_pdf_truncado(tmp_path):
+    """Truncamento em PDF com conteúdo: um dos leitores rejeita.
+
+    (PDF em branco seria reconstruível pelos dois leitores — só avisos.)
+    """
+    from services.pdf_processor import validate_pdf
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.lib.pagesizes import A4 as _A4
+    src = tmp_path / 'inteiro.pdf'
+    c = _canvas.Canvas(str(src), pagesize=_A4)
+    for i in range(3):
+        c.drawString(72, 720, f'pagina {i} com conteudo para truncar')
+        c.showPage()
+    c.save()
+    data = src.read_bytes()
+    trunc = tmp_path / 'truncado.pdf'
+    trunc.write_bytes(data[: int(len(data) * 0.5)])
+    r = validate_pdf(str(trunc))
+    assert r['valid'] is False, r
+    erros = [c['id'] for c in r['checks'] if c['status'] == 'error']
+    assert erros, r['checks']
+
+
+def test_validate_pdf_imagem_corrompida(tmp_path):
+    from services.pdf_processor import validate_pdf
+    import pikepdf
+    src = _placed_photo_pdf(tmp_path, 'img.pdf', 200, 100)
+    corrompido = tmp_path / 'img_ruim.pdf'
+    with pikepdf.open(str(src)) as pdf:
+        img = list(pdf.pages[0].get_images().values())[0]
+        img.write(b'\xff\xd8\xff\xe0' + b'lixo nao e um jpeg valido',
+                  filter=pikepdf.Name('/DCTDecode'))
+        pdf.save(str(corrompido))
+    r = validate_pdf(str(corrompido))
+    assert r['valid'] is False, r
+    assert any(c['id'] == 'imagens' and c['status'] == 'error'
+               for c in r['checks']), r['checks']
+
+
+def test_validate_pdf_sem_eof(tmp_path, pdf_factory):
+    """EOF ausente é aviso (o pikepdf/qpdf ainda reconstroi)."""
+    from services.pdf_processor import validate_pdf
+    src = pdf_factory(1, 'sem_eof.pdf')
+    data = src.read_bytes().replace(b'%%EOF', b'')
+    alt = tmp_path / 'sem_eof.pdf'
+    alt.write_bytes(data)
+    r = validate_pdf(str(alt))
+    assert any(c['id'] == 'eof' and c['status'] == 'warn'
+               for c in r['checks']), r['checks']
+    assert r['valid'] is True, r
+
+
+def test_validate_pdf_criptografado(tmp_path, pdf_factory):
+    from services.pdf_processor import validate_pdf
+    import pikepdf
+    src = pdf_factory(1, 'normal.pdf')
+    cifrado = tmp_path / 'cifrado.pdf'
+    with pikepdf.open(str(src)) as pdf:
+        pdf.save(str(cifrado),
+                 encryption=pikepdf.Encryption(user='segredo', owner='dono'))
+    r = validate_pdf(str(cifrado))
+    assert r['stats']['encrypted'] is True, r
+    assert any(c['id'] == 'criptografia' and c['status'] == 'warn'
+               for c in r['checks']), r['checks']
+    assert r['valid'] is True, r
+
+
+def test_rota_validate_contrato_e_404(client, pdf_factory, tmp_path):
+    from helpers import post_sync
+    src = pdf_factory(1, 'rota.pdf')
+    r = post_sync(client, '/api/pdf/validate', json={'pdf_path': str(src)})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['valid'] is True
+    assert isinstance(body['checks'], list) and body['checks']
+    assert 'stats' in body and 'pages' in body['stats']
+
+    missing = post_sync(client, '/api/pdf/validate',
+                        json={'pdf_path': str(tmp_path / 'nao_existe.pdf')})
+    assert missing.status_code == 404, missing.status_code
+
+
 # ===== files: duplicates/remove com validacao amigavel =====
 # Cobre: acoes invalidas rejeitadas, validacao de todos os caminhos
 # antes de alterar o disco (sem exclusao parcial) e grupos malformados.

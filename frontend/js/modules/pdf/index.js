@@ -11,6 +11,7 @@ import { PDFRemovePagesFeature } from './remove_pages.js';
 import { PDFReorderFeature } from './reorder.js';
 import { PDFSplitFeature } from './split.js';
 import { PDFSplitBySizeFeature } from './split_by_size.js';
+import { PDFValidateFeature } from './validate.js';
 
 export class PDFModule extends DomainModule {
     // Lista de features do módulo — fonte única (consumida pela Home
@@ -27,6 +28,7 @@ export class PDFModule extends DomainModule {
         { id: 'convert-to-word', label: 'Converter para Word', icon: 'refresh-cw', make: () => new PDFConvertToWordFeature() },
         { id: 'convert-to-image', label: 'Converter para Imagem', icon: 'image', make: () => new PDFConvertToImageFeature() },
         { id: 'compress', label: 'Comprimir', icon: 'minimize-2', make: () => new PDFCompressFeature() },
+        { id: 'validate', label: 'Validar PDF', icon: 'shield-check', make: () => new PDFValidateFeature() },
         { id: 'protect', label: 'Proteger/Desproteger', icon: 'lock', make: () => new PDFProtectFeature() },
     ];
 

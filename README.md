@@ -15,6 +15,7 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
 
 - Coletar e renomear arquivos em lote (com filtros por extensão, regex, caixa e acentos)
 - Mesclar e dividir PDFs (com suporte a intervalos personalizados e tamanho)
+- Validar integridade de PDFs (estrutura, páginas, imagens e fontes — detecta corrupção e truncamento)
 - Converter documentos Word para PDF e vice‑versa; converter PDF para Word
 - Mesclar e manipular planilhas Excel (consolidar, extrair células, dividir por coluna, etc.)
 - Organizar arquivos por extensão

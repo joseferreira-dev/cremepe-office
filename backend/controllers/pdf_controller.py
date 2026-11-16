@@ -13,7 +13,8 @@ from services.pdf_processor import (
     reorder_pages,
     split_by_size,
     split_custom,
-    split_fixed
+    split_fixed,
+    validate_pdf
 )
 
 class PDFController:
@@ -69,6 +70,9 @@ class PDFController:
     def compress(self, input_path, output_path, compression_level='medium', 
                     jpeg_quality=85, remove_metadata=False, downscale_images=True):
         return compress(input_path, output_path, compression_level, jpeg_quality, remove_metadata, downscale_images)
+
+    def validate(self, pdf_path):
+        return validate_pdf(pdf_path)
 
     def protect_password(self, input_path, output_path, password):
         return protect_password(input_path, output_path, password)
