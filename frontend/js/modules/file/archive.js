@@ -16,11 +16,11 @@ export class ArchiveFeature extends Feature {
             </div>
 
             <!-- Tabs -->
-            <ul class="nav nav-tabs mb-4" role="tablist">
-                <li class="nav-item" role="presentation">
+            <ul class="nav-tabs mb-4" role="tablist">
+                <li role="presentation">
                     <button class="nav-link active" data-mode="compress" id="tab-compress">Compactar (ZIP)</button>
                 </li>
-                <li class="nav-item" role="presentation">
+                <li role="presentation">
                     <button class="nav-link" data-mode="extract" id="tab-extract">Extrair</button>
                 </li>
             </ul>

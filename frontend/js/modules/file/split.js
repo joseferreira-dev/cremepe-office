@@ -17,11 +17,11 @@ export class SplitFeature extends Feature {
             </div>
 
             <!-- Tabs -->
-            <ul class="nav nav-tabs mb-4" role="tablist">
-                <li class="nav-item" role="presentation">
+            <ul class="nav-tabs mb-4" role="tablist">
+                <li role="presentation">
                     <button class="nav-link active" data-mode="split" id="tab-split">Dividir</button>
                 </li>
-                <li class="nav-item" role="presentation">
+                <li role="presentation">
                     <button class="nav-link" data-mode="merge" id="tab-merge">Remontar</button>
                 </li>
             </ul>

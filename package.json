@@ -9,6 +9,7 @@
         "lint": "eslint frontend/js",
         "build:css": "tailwindcss -i frontend/css/input.css -o frontend/css/tailwind.css --minify",
         "watch:css": "tailwindcss -i frontend/css/input.css -o frontend/css/tailwind.css --watch",
+        "check:classes": "python scripts/check_frontend_classes.py",
         "dist": "electron-builder"
     },
     "build": {

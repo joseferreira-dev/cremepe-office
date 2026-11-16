@@ -146,7 +146,7 @@ export class HomePage extends Feature {
             cardsHtml = `
                 <div class="rounded-xl border border-dashed border-slate-300 py-10 text-center">
                     <i data-lucide="grid-3x3" class="text-4xl text-slate-300"></i>
-                    <p class="mt-3 text-sm text-muted">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
+                    <p class="mt-4 text-sm text-slate-500">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
                 </div>
             `;
         } else {
@@ -159,11 +159,11 @@ export class HomePage extends Feature {
             const sectionFeatures = this.availableFeatures.filter(f => f.section === section);
             if (sectionFeatures.length === 0) return;
             checkboxesHtml += `
-                <div class="mb-3">
-                    <h6 class="text-success fw-bold">${section}</h6>
-                    <div class="row">
+                <div class="mb-4">
+                    <h6 class="text-brand-600 font-bold">${section}</h6>
+                    <div class="grid grid-cols-12 gap-4">
                         ${sectionFeatures.map(f => `
-                            <div class="col-md-6 col-lg-4">
+                            <div class="md:col-span-6 lg:col-span-4">
                                 <div class="form-check">
                                     <input class="form-check-input feature-checkbox" type="checkbox" value="${f.id}" id="chk-${f.id}" ${cardIds.includes(f.id) ? 'checked' : ''}>
                                     <label class="form-check-label" for="chk-${f.id}">
@@ -194,12 +194,12 @@ export class HomePage extends Feature {
                     ${cardsHtml}
                 </div>
 
-                <div id="edit-area" style="${this.isEditing ? 'display:block;' : 'display:none;'}" class="mt-4 p-3 border rounded bg-light">
-                    <h5 class="text-success"><i data-lucide="square-check"></i> Selecione as funcionalidades para exibir</h5>
+                <div id="edit-area" style="${this.isEditing ? 'display:block;' : 'display:none;'}" class="mt-6 p-4 border rounded bg-slate-100 border-slate-200">
+                    <h5 class="text-brand-600"><i data-lucide="square-check"></i> Selecione as funcionalidades para exibir</h5>
                     <div id="checkboxes-container">
                         ${checkboxesHtml}
                     </div>
-                    <div class="mt-3">
+                    <div class="mt-4">
                         <button class="btn btn-success" id="apply-changes-btn">
                             <i data-lucide="check"></i> Aplicar alterações
                         </button>

@@ -14,11 +14,11 @@ export class PDFProtectFeature extends Feature {
                 <p class="text-slate-500">Adicione ou remova senha de arquivos PDF.</p>
             </div>
 
-            <ul class="nav nav-tabs mb-4" role="tablist">
-                <li class="nav-item" role="presentation">
+            <ul class="nav-tabs mb-4" role="tablist">
+                <li role="presentation">
                     <button class="nav-link active" data-mode="protect" id="tab-protect">Proteger com Senha</button>
                 </li>
-                <li class="nav-item" role="presentation">
+                <li role="presentation">
                     <button class="nav-link" data-mode="remove" id="tab-remove">Remover Senha</button>
                 </li>
             </ul>

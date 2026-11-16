@@ -4,10 +4,10 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
 
 ## Tecnologias
 
-- **Frontend**: Electron + HTML/CSS/JS (ES modules, sem framework)
+- **Frontend**: Electron + HTML/CSS/JS (ES modules) com **Tailwind CSS v4** e ícones **Lucide** (tudo local em `frontend/vendor/`)
 - **Backend**: Python + Flask (API REST), escutando apenas em `http://127.0.0.1:5000`
 - **Empacotamento**: PyInstaller (para o backend) + electron-builder (para o instalador)
-- **Qualidade**: pytest (backend) + ESLint (frontend)
+- **Qualidade**: pytest (backend) + ESLint e verificador de classes (frontend)
 
 ---
 
@@ -113,11 +113,21 @@ Cobertura:
   `127.0.0.1`, debug condicional (`FLASK_DEBUG`) e não-bloqueio do
   health check durante operação longa
 
-### Frontend — ESLint
+### Frontend — Tailwind CSS e ESLint
 
 ```bash
-npm run lint        # eslint frontend/js (0 erros = ok)
+npm run lint           # eslint frontend/js (0 erros = ok)
+npm run build:css      # gera frontend/css/tailwind.css a partir de input.css
+npm run watch:css      # rebuild em modo watch (desenvolvimento)
+npm run check:classes  # toda classe dos templates precisa existir no CSS
 ```
+
+O CSS é gerado a partir de `frontend/css/input.css` (tema com a paleta
+brand, design system em `@layer components` — botões, campos, cards,
+menu de features) varrendo os template strings dos módulos. O arquivo
+gerado é versionado; rode `build:css` após alterar classes ou
+templates. Ícones são Lucide via `data-lucide` (convertidos em SVG a
+cada render por um `MutationObserver`).
 
 ### Logs
 
@@ -201,7 +211,7 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
 - O backend escuta **apenas** em `127.0.0.1` (não é exposto na rede local).
 - Debug (reloader + debugger do Werkzeug) fica **desligado** por padrão; em produção (`backend.exe`) nunca é ativado.
 - Erros inesperados respondem `500` com mensagem genérica; o traceback fica apenas no `backend.log`.
-- Interface e bibliotecas (Bootstrap, ícones, pdf.js) ficam em `frontend/vendor/` — **nenhum recurso é baixado de CDN**, o app funciona offline.
+- Interface, **Tailwind** (CSS gerado), **Lucide** e pdf.js ficam locais (`frontend/css/`, `frontend/vendor/`) — **nenhum recurso é baixado de CDN**, o app funciona offline.
 - **Content-Security-Policy** via `<meta>` em `index.html` e `splash.html`: scripts só locais (`script-src 'self'`, sem `unsafe-inline`), objetos bloqueados e conexões restritas à API em `127.0.0.1` — scripts injetados (ex.: por nomes de arquivo maliciosos) não executam.
 
 ---
@@ -223,14 +233,14 @@ cremepe-office/
 │   ├── main.js             # Processo principal do Electron
 │   ├── preload.js          # Ponte segura entre main e renderer
 │   ├── assets/             # Imagens, ícones
-│   ├── css/                # Estilos
-│   ├── vendor/             # Bootstrap, ícones e pdf.js locais (offline)
+│   ├── css/                # input.css (fonte) + tailwind.css (gerado)
+│   ├── vendor/             # pdf.js e Lucide locais (offline)
 │   └── js/                 # JavaScript do renderer (módulos ES)
 │       ├── app.js          # Entry point do renderer
 │       ├── api.js          # Cliente HTTP + polling de jobs
 │       └── modules/        # Features por domínio (pdf/, word/, excel/, file/)
 ├── tests/                  # Suíte pytest (unit + integração)
-├── scripts/                # Scripts auxiliares (start, etc.)
+├── scripts/                # Auxiliares (check_frontend_classes.py, start, etc.)
 ├── eslint.config.mjs       # Configuração do ESLint
 ├── package.json            # Dependências Node e scripts (dev, lint, dist)
 ├── pyproject.toml           # Metadados e dependências Python (fonte única)

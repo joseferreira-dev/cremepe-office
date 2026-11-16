@@ -59,7 +59,7 @@ export class DomainModule {
                         <ul class="feature-list">
                             ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
                         </ul>
-                        <p class="feature-empty text-xs text-muted" hidden>Nenhuma funcionalidade</p>
+                        <p class="feature-empty text-xs text-slate-500" hidden>Nenhuma funcionalidade</p>
                     </div>
                     <div class="min-w-0 grow" id="feature-content"></div>
                 </div>
