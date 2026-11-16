@@ -56,6 +56,15 @@ const MODULE_CATALOG = [
     { page: 'excel', section: 'Excel', module: ExcelModule },
 ];
 
+// Atalhos semeados na primeira execução (store sem a chave). Uma vez
+// gravados, passam a valer as escolhas do usuário — inclusive o
+// "Restaurar vazio", que não é ressemear.
+const DEFAULT_SHORTCUT_IDS = [
+    'collect', 'rename', 'duplicates',
+    'pdf-merge', 'pdf-split', 'pdf-compress',
+    'word-convert', 'excel-convert',
+];
+
 function buildAvailableFeatures() {
     return MODULE_CATALOG.flatMap(({ page, section, module }) =>
         module.features.map((f) => {
@@ -96,6 +105,16 @@ export class HomePage extends Feature {
                 const stored = await window.electronAPI.storeGet(this.storageKey);
                 if (Array.isArray(stored)) {
                     return stored;
+                }
+                if (stored === undefined || stored === null) {
+                    // Primeira execução: semeia os atalhos padrão
+                    const seeded = DEFAULT_SHORTCUT_IDS
+                        .map((id) => this.availableFeatures.find((f) => f.id === id))
+                        .filter(Boolean);
+                    if (seeded.length > 0) {
+                        await this.saveCards(seeded);
+                        return seeded;
+                    }
                 }
             } catch (e) {
                 console.warn('Erro ao ler store:', e);

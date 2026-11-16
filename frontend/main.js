@@ -5,12 +5,11 @@ const fs = require('fs');
 const Store = require('electron-store').default;
 const logger = require('./logger');
 
-// Inicializa o store para os atalhos
+// Inicializa o store para os atalhos. Sem default de quickAccessCards:
+// ausência da chave = primeira execução, e o renderer semeia os atalhos
+// padrão (um [] explícito do usuário continua sendo respeitado).
 const store = new Store({
-    name: 'user-preferences',
-    defaults: {
-        quickAccessCards: [] // padrão: vazio
-    }
+    name: 'user-preferences'
 });
 
 let mainWindow;
