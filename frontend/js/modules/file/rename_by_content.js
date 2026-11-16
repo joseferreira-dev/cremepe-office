@@ -12,13 +12,13 @@ export class RenameByContentFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Renomear por Conteúdo</h4>
-                <p class="text-slate-500">Renomeie arquivos com base em metadados EXIF (imagens), ID3 (áudio) ou primeira linha (textos). Arquivos ocultos são ignorados.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Renomear por Conteúdo</h4>
+                <p class="text-zinc-500">Renomeie arquivos com base em metadados EXIF (imagens), ID3 (áudio) ou primeira linha (textos). Arquivos ocultos são ignorados.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Diretório</h5>
+                    <h5 class="card-title section-title">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -31,7 +31,7 @@ export class RenameByContentFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="mb-2">
                         <label class="form-label">Padrão de renomeação</label>
                         <select id="rename-content-pattern" class="form-select">
@@ -54,8 +54,8 @@ export class RenameByContentFeature extends Feature {
             </div>
 
             <div id="rename-content-preview-area" style="display:none;">
-                <label class="font-bold text-brand-600">Pré-visualização</label>
-                <div id="rename-content-preview-list" class="border rounded p-2 border-slate-200" style="max-height:300px; overflow:auto; font-size:0.9rem;">
+                <label class="font-semibold text-zinc-600">Pré-visualização</label>
+                <div id="rename-content-preview-list" class="border rounded p-2 border-zinc-200" style="max-height:300px; overflow:auto; font-size:0.9rem;">
                     <table class="table table-sm table-striped mb-0">
                         <thead><tr><th>Original</th><th>Novo nome</th><th>Status</th></tr></thead>
                         <tbody id="rename-content-preview-tbody"></tbody>
@@ -130,7 +130,7 @@ export class RenameByContentFeature extends Feature {
                 html += `<tr><td>${item.file}</td><td>—</td><td class="text-rose-600">${item.error}</td></tr>`;
             });
             if (html === '') {
-                html = '<tr><td colspan="3" class="text-slate-500">Nenhum arquivo processado.</td></tr>';
+                html = '<tr><td colspan="3" class="text-zinc-500">Nenhum arquivo processado.</td></tr>';
             }
             tbody.innerHTML = html;
             this.log(`Pré-visualização: ${renamed.length} arquivos serão renomeados.`);

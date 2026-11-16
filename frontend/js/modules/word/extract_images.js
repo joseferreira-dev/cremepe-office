@@ -11,13 +11,13 @@ export class ExtractImagesFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Extrair Imagens</h4>
-                <p class="text-slate-500">Extraia todas as imagens embutidas em um documento Word e salve-as como arquivos individuais.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Extrair Imagens</h4>
+                <p class="text-zinc-500">Extraia todas as imagens embutidas em um documento Word e salve-as como arquivos individuais.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Documento</h5>
+                    <h5 class="card-title section-title">Documento</h5>
                     <div class="input-group">
                         <input type="text" id="extract-input" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-extract-input">Selecionar</button>
@@ -27,7 +27,7 @@ export class ExtractImagesFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Destino</h5>
+                    <h5 class="card-title section-title">Destino</h5>
                     <div class="input-group">
                         <input type="text" id="extract-output" class="form-control" placeholder="Pasta para salvar as imagens...">
                         <button class="btn btn-outline-secondary" id="btn-extract-output">Selecionar</button>
@@ -37,7 +37,7 @@ export class ExtractImagesFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="mb-2">
                         <label class="form-label">Prefixo para os arquivos (opcional)</label>
                         <input type="text" id="extract-prefix" class="form-control" placeholder="Deixe vazio para usar o nome do documento">
@@ -52,8 +52,8 @@ export class ExtractImagesFeature extends Feature {
             ${this.logHTML()}
 
             <div id="extract-result" style="display:none;" class="mt-4">
-                <label class="font-bold text-brand-600">Imagens extraídas</label>
-                <div id="extract-list" class="border rounded p-2 border-slate-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+                <label class="font-semibold text-zinc-600">Imagens extraídas</label>
+                <div id="extract-list" class="border rounded p-2 border-zinc-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
         `;
 

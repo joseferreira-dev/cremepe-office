@@ -12,13 +12,13 @@ export class CompareFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Comparar e Sincronizar Pastas</h4>
-                <p class="text-slate-500">Compare duas pastas e sincronize arquivos novos/modificados.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Comparar e Sincronizar Pastas</h4>
+                <p class="text-zinc-500">Compare duas pastas e sincronize arquivos novos/modificados.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Pastas</h5>
+                    <h5 class="card-title section-title">Pastas</h5>
                     <div class="mb-2">
                         <label class="form-label">Origem</label>
                         <div class="input-group">
@@ -38,7 +38,7 @@ export class CompareFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="compare-recursive" checked>
                         <label class="form-check-label">Incluir subpastas</label>
@@ -63,7 +63,7 @@ export class CompareFeature extends Feature {
             <div id="compare-result" style="display:none;">
                 <div class="grid grid-cols-12 gap-2 mb-2">
                     <div class="col-span-6 md:col-span-3"><span class="badge bg-brand-600">Origem: <span id="total-source">0</span> arquivos</span></div>
-                    <div class="col-span-6 md:col-span-3"><span class="badge bg-slate-500">Destino: <span id="total-target">0</span> arquivos</span></div>
+                    <div class="col-span-6 md:col-span-3"><span class="badge bg-zinc-500">Destino: <span id="total-target">0</span> arquivos</span></div>
                     <div class="col-span-6 md:col-span-3"><span class="badge bg-brand-600">Idênticos: <span id="identical-count">0</span></span></div>
                     <div class="col-span-6 md:col-span-3"><span class="badge bg-amber-100">Diferentes: <span id="modified-count">0</span></span></div>
                     <div class="col-span-6 md:col-span-3"><span class="badge bg-sky-100">Apenas na origem: <span id="only-source-count">0</span></span></div>
@@ -158,7 +158,7 @@ export class CompareFeature extends Feature {
                 html += `<strong><span class="text-brand-600">Idênticos:</span></strong> ${result.identical.length} arquivos`;
             }
             if (!html) {
-                html = '<p class="text-slate-500">Nenhuma diferença encontrada.</p>';
+                html = '<p class="text-zinc-500">Nenhuma diferença encontrada.</p>';
             }
             detailsDiv.innerHTML = html;
 

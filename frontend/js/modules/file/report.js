@@ -11,13 +11,13 @@ export class ReportFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Gerar Relatório de Estrutura</h4>
-                <p class="text-slate-500">Exporte a árvore de diretórios para TXT ou CSV, com opção de incluir ou não os arquivos.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Gerar Relatório de Estrutura</h4>
+                <p class="text-zinc-500">Exporte a árvore de diretórios para TXT ou CSV, com opção de incluir ou não os arquivos.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Diretório</h5>
+                    <h5 class="card-title section-title">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -38,7 +38,7 @@ export class ReportFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Formato de saída</h5>
+                    <h5 class="card-title section-title">Formato de saída</h5>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="md:col-span-4">
                             <div class="form-check">
@@ -58,7 +58,7 @@ export class ReportFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Salvar em arquivo (opcional)</h5>
+                    <h5 class="card-title section-title">Salvar em arquivo (opcional)</h5>
                     <div class="input-group">
                         <input type="text" id="report-output-path" class="form-control" placeholder="Caminho para salvar (deixe vazio para visualizar)">
                         <button class="btn btn-outline-secondary" id="btn-report-output">Selecionar</button>
@@ -71,8 +71,8 @@ export class ReportFeature extends Feature {
             ${this.progressHTML()}
 
             <div id="report-result" style="display:none;" class="mt-4">
-                <label class="font-bold text-brand-600">Resultado</label>
-                <div id="report-content" class="border rounded p-2 border-slate-200" style="max-height:400px; overflow:auto; font-family:monospace; font-size:0.85rem; white-space:pre-wrap;"></div>
+                <label class="font-semibold text-zinc-600">Resultado</label>
+                <div id="report-content" class="border rounded p-2 border-zinc-200" style="max-height:400px; overflow:auto; font-family:monospace; font-size:0.85rem; white-space:pre-wrap;"></div>
             </div>
 
             ${this.logHTML()}

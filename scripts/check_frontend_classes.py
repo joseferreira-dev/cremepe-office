@@ -37,6 +37,8 @@ def template_tokens():
             for t in clean.split():
                 if '${' in t or '}' in t:
                     continue
+                if t.endswith('-'):
+                    continue  # fragmento de interpolacao (ex.: module- de module-${...})
                 toks.add(t)
     return toks
 

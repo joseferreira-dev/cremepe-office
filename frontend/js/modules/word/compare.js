@@ -11,13 +11,13 @@ export class DocCompareFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Comparar Documentos</h4>
-                <p class="text-slate-500">Compare dois documentos Word e veja as diferenças.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Comparar Documentos</h4>
+                <p class="text-zinc-500">Compare dois documentos Word e veja as diferenças.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Documento 1 (base)</h5>
+                    <h5 class="card-title section-title">Documento 1 (base)</h5>
                     <div class="input-group">
                         <input type="text" id="compare-doc1" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-compare-doc1">Selecionar</button>
@@ -27,7 +27,7 @@ export class DocCompareFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Documento 2 (comparação)</h5>
+                    <h5 class="card-title section-title">Documento 2 (comparação)</h5>
                     <div class="input-group">
                         <input type="text" id="compare-doc2" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-compare-doc2">Selecionar</button>
@@ -122,7 +122,7 @@ export class DocCompareFeature extends Feature {
                 }
             });
             if (!html) {
-                html = '<p class="text-slate-500">Nenhuma diferença encontrada.</p>';
+                html = '<p class="text-zinc-500">Nenhuma diferença encontrada.</p>';
             }
             detailsDiv.innerHTML = html;
 

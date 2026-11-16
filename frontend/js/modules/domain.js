@@ -9,10 +9,11 @@
  *   export class PdfModule extends DomainModule {
  *       constructor(container) {
  *           super(container, {
+ *               page: 'pdf',   // cor do domínio (module-pdf)
  *               title: 'PDF',
  *               icon: 'file-text',
  *               features: [
- *                   { id: 'merge', label: 'Combinar',
+ *                   { id: 'merge', label: 'Combinar', icon: 'combine',
  *                     make: () => new PDFMergeFeature() },
  *               ],
  *           });
@@ -34,8 +35,9 @@
 const normalizeText = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 export class DomainModule {
-    constructor(container, { title, icon, features }) {
+    constructor(container, { page, title, icon, features }) {
         this.container = container;
+        this.page = page; // id da cor do domínio (module-{page})
         this.title = title;
         this.icon = icon;
         this.features = features;
@@ -46,20 +48,30 @@ export class DomainModule {
 
     render() {
         this.container.innerHTML = `
-            <div class="page active">
-                <h2 class="module-title"><i data-lucide="${this.icon}"></i>${this.title}</h2>
-                <div class="flex gap-4">
+            <div class="page active module-${this.page}">
+                <div class="mb-7 flex items-center gap-4">
+                    <div class="icon-chip"><i data-lucide="${this.icon}"></i></div>
+                    <div>
+                        <h2 class="module-title">${this.title}</h2>
+                        <p class="module-subtitle">${this.features.length} funcionalidades</p>
+                    </div>
+                </div>
+                <div class="flex gap-6">
                     <div class="module-sidebar">
                         <h3>Funcionalidades</h3>
                         <div class="feature-search">
-                            <input type="search" class="form-control form-control-sm"
-                                   id="feature-search" placeholder="Buscar..."
-                                   aria-label="Buscar funcionalidade">
+                            <div class="relative">
+                                <i data-lucide="search"
+                                   class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400"></i>
+                                <input type="search" class="form-control form-control-sm"
+                                       id="feature-search" placeholder="Buscar..."
+                                       aria-label="Buscar funcionalidade">
+                            </div>
                         </div>
                         <ul class="feature-list">
-                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
+                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}"><i data-lucide="${f.icon || 'circle'}"></i><span>${f.label}</span></li>`).join('')}
                         </ul>
-                        <p class="feature-empty text-xs text-slate-500" hidden>Nenhuma funcionalidade</p>
+                        <p class="feature-empty text-xs" hidden>Nenhuma funcionalidade</p>
                     </div>
                     <div class="min-w-0 grow" id="feature-content"></div>
                 </div>

@@ -10,13 +10,13 @@ import { WordModule } from './word/index.js';
 // index.js) — meta ausente degrada para o label da feature.
 const HOME_META = {
     // ARQUIVOS
-    'files/collect': { id: 'collect', icon: 'folder-open', title: 'Coletar Arquivos', desc: 'Reúna arquivos de múltiplas pastas.' },
-    'files/rename': { id: 'rename', icon: 'square-pen', title: 'Renomear em Lote', desc: 'Renomeie vários arquivos de uma vez.' },
-    'files/duplicates': { id: 'duplicates', icon: 'files', title: 'Localizar Duplicatas', desc: 'Encontre arquivos duplicados.' },
-    'files/organize': { id: 'organize', icon: 'network', title: 'Organizar por Extensão', desc: 'Organize arquivos por tipo.' },
+    'files/collect': { id: 'collect', icon: 'folder-input', title: 'Coletar Arquivos', desc: 'Reúna arquivos de múltiplas pastas.' },
+    'files/rename': { id: 'rename', icon: 'pencil', title: 'Renomear em Lote', desc: 'Renomeie vários arquivos de uma vez.' },
+    'files/duplicates': { id: 'duplicates', icon: 'copy', title: 'Localizar Duplicatas', desc: 'Encontre arquivos duplicados.' },
+    'files/organize': { id: 'organize', icon: 'folder-tree', title: 'Organizar por Extensão', desc: 'Organize arquivos por tipo.' },
     'files/rename-by-content': { id: 'rename-by-content', icon: 'tags', title: 'Renomear por Conteúdo', desc: 'Renomeie usando metadados.' },
     'files/attributes': { id: 'attributes', icon: 'sliders-horizontal', title: 'Alterar Atributos', desc: 'Modifique datas e permissões.' },
-    'files/report': { id: 'report', icon: 'file-text', title: 'Relatório de Estrutura', desc: 'Exporte árvore de diretórios.' },
+    'files/report': { id: 'report', icon: 'list-tree', title: 'Relatório de Estrutura', desc: 'Exporte árvore de diretórios.' },
     'files/compare': { id: 'compare', icon: 'arrow-left-right', title: 'Comparar Pastas', desc: 'Compare e sincronize pastas.' },
     'files/archive': { id: 'archive', icon: 'archive', title: 'Compactar/Extrair', desc: 'Crie ou extraia arquivos ZIP.' },
     'files/split': { id: 'split-file', icon: 'scissors', title: 'Dividir/Remontar', desc: 'Divida ou remonte arquivos grandes.' },
@@ -46,6 +46,14 @@ const HOME_META = {
     'excel/extract-cells': { id: 'excel-extract', icon: 'grid-2x2', title: 'Extrair Células', desc: 'Extraia células específicas.' },
     'excel/split': { id: 'excel-split', icon: 'separator-vertical', title: 'Dividir por Coluna', desc: 'Divida pela coluna chave.' },
     'excel/split-sheets': { id: 'excel-sheets', icon: 'files', title: 'Extrair Abas', desc: 'Separe abas em arquivos.' },
+};
+
+// Visual por seção: chips/badges/botões dos cards na cor do domínio
+const SECTION_STYLE = {
+    'Arquivos': { chip: 'chip-arquivos', badge: 'badge-arquivos', btn: 'btn-arquivos' },
+    'PDF': { chip: 'chip-pdf', badge: 'badge-pdf', btn: 'btn-pdf' },
+    'Word': { chip: 'chip-word', badge: 'badge-word', btn: 'btn-word' },
+    'Excel': { chip: 'chip-excel', badge: 'badge-excel', btn: 'btn-excel' },
 };
 
 // Ordem das seções na edição de atalhos + módulos consumidos
@@ -144,9 +152,9 @@ export class HomePage extends Feature {
         let cardsHtml;
         if (this.cards.length === 0) {
             cardsHtml = `
-                <div class="rounded-xl border border-dashed border-slate-300 py-10 text-center">
-                    <i data-lucide="grid-3x3" class="text-4xl text-slate-300"></i>
-                    <p class="mt-4 text-sm text-slate-500">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
+                <div class="rounded-xl border border-dashed border-zinc-300 py-10 text-center">
+                    <i data-lucide="grid-3x3" class="text-4xl text-zinc-300"></i>
+                    <p class="mt-4 text-sm text-zinc-500">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
                 </div>
             `;
         } else {
@@ -178,11 +186,18 @@ export class HomePage extends Feature {
         });
 
         this.container.innerHTML = `
-            <div class="page active">
-                <h1 class="module-title">Painel Inicial</h1>
+            <div class="page active module-home">
+                <div class="hero mb-7">
+                    <p class="text-xs font-semibold tracking-widest text-white/60 uppercase">CREMEPE Office</p>
+                    <h1 class="mt-2 text-3xl font-semibold tracking-tight">Painel Inicial</h1>
+                    <p class="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">
+                        Atalhos das suas funcionalidades. Reorganize com <span class="font-semibold text-white">Editar</span>
+                        ou navegue pelos domínios no menu lateral.
+                    </p>
+                </div>
 
                 <div class="mb-4 flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-slate-900">Acesso Rápido</h2>
+                    <h2 class="text-lg font-semibold text-zinc-900">Acesso Rápido</h2>
                     <div>
                         <button class="btn btn-outline-success btn-sm" id="toggle-edit-mode">
                             <i data-lucide="pencil"></i> ${this.isEditing ? 'Concluir edição' : 'Editar'}
@@ -194,16 +209,18 @@ export class HomePage extends Feature {
                     ${cardsHtml}
                 </div>
 
-                <div id="edit-area" style="${this.isEditing ? 'display:block;' : 'display:none;'}" class="mt-6 p-4 border rounded bg-slate-100 border-slate-200">
-                    <h5 class="text-brand-600"><i data-lucide="square-check"></i> Selecione as funcionalidades para exibir</h5>
+                <div id="edit-area" style="${this.isEditing ? 'display:block;' : 'display:none;'}" class="mt-6">
+                    <h5 class="mb-4 flex items-center gap-2 text-sm font-semibold text-zinc-700">
+                        <i data-lucide="square-check"></i> Selecione as funcionalidades para exibir
+                    </h5>
                     <div id="checkboxes-container">
                         ${checkboxesHtml}
                     </div>
-                    <div class="mt-4">
+                    <div class="mt-5 flex gap-2">
                         <button class="btn btn-success" id="apply-changes-btn">
                             <i data-lucide="check"></i> Aplicar alterações
                         </button>
-                        <button class="btn btn-outline-secondary ms-2" id="reset-cards-btn">
+                        <button class="btn btn-outline-secondary" id="reset-cards-btn">
                             <i data-lucide="rotate-ccw"></i> Restaurar vazio
                         </button>
                     </div>
@@ -218,22 +235,25 @@ export class HomePage extends Feature {
     }
 
     renderCardItems(cards) {
-        return cards.map(card => `
+        return cards.map(card => {
+            const style = SECTION_STYLE[card.section] || { chip: '', badge: '', btn: 'btn-success' };
+            return `
             <div class="col-span-6 md:col-span-3 quick-card" draggable="${this.isEditing}" data-id="${card.id}">
                 <div class="card h-full" data-page="${card.page}" data-feature="${card.feature}">
                     <div class="card-body">
-                        <div class="card-icon mb-1"><i data-lucide="${card.icon}"></i></div>
+                        <div class="card-icon mb-1 ${style.chip}"><i data-lucide="${card.icon}"></i></div>
                         <h5 class="card-title">${card.title}</h5>
                         <p class="card-text">${card.desc}</p>
                         <div class="mt-auto flex items-center gap-2 pt-1">
-                            <span class="badge">${card.section}</span>
+                            <span class="badge ${style.badge}">${card.section}</span>
                         </div>
-                        <button class="btn btn-success w-full btn-open-card">Abrir</button>
+                        <button class="btn w-full ${style.btn} btn-open-card">Abrir <i data-lucide="arrow-right"></i></button>
                         ${this.isEditing ? `<button class="btn btn-outline-danger btn-sm w-full remove-card-btn" data-id="${card.id}"><i data-lucide="trash"></i> Remover</button>` : ''}
                     </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 
     // ====== CONFIGURAÇÃO DE EVENTOS (UMA ÚNICA VEZ) ======

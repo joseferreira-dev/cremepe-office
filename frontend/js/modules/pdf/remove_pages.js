@@ -10,13 +10,13 @@ export class PDFRemovePagesFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Remover Páginas</h4>
-                <p class="text-slate-500">Remova páginas específicas do PDF. O arquivo original será mantido, e um novo arquivo será gerado sem as páginas removidas.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Remover Páginas</h4>
+                <p class="text-zinc-500">Remova páginas específicas do PDF. O arquivo original será mantido, e um novo arquivo será gerado sem as páginas removidas.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
+                    <h5 class="card-title section-title">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="remove-pages-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-remove-pages-input">Selecionar</button>
@@ -26,18 +26,18 @@ export class PDFRemovePagesFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Páginas a remover</h5>
+                    <h5 class="card-title section-title">Páginas a remover</h5>
                     <div class="mb-2">
                         <label class="form-label">Selecione as páginas</label>
                         <input type="text" id="remove-pages-selection" class="form-control" placeholder="Ex: 1,3,5 ou 1-10 ou 1,3-5,10">
-                        <small class="text-slate-500">Use vírgula para separar, hífen para intervalos. Ex: 1,3-5,10</small>
+                        <small class="text-zinc-500">Use vírgula para separar, hífen para intervalos. Ex: 1,3-5,10</small>
                     </div>
                 </div>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de saída (sem as páginas removidas)</h5>
+                    <h5 class="card-title section-title">Arquivo de saída (sem as páginas removidas)</h5>
                     <div class="input-group">
                         <input type="text" id="remove-pages-output" class="form-control" placeholder="Caminho do arquivo final">
                         <button class="btn btn-outline-secondary" id="btn-remove-pages-output">Selecionar</button>
@@ -47,7 +47,7 @@ export class PDFRemovePagesFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="remove-pages-save-removed">
                         <label class="form-check-label">Salvar páginas removidas em um arquivo separado</label>

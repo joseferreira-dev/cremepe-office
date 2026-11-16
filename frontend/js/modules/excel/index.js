@@ -9,15 +9,16 @@ export class ExcelModule extends DomainModule {
     // Lista de features do módulo — fonte única (consumida pela Home
     // para montar o catálogo de atalhos).
     static features = [
-        { id: 'convert', label: 'Conversão em Lote', make: () => new ExcelConvertFeature() },
-        { id: 'merge-all', label: 'Combinar Planilhas', make: () => new ExcelMergeAllFeature() },
-        { id: 'extract-cells', label: 'Extrair Células', make: () => new ExcelExtractCellsFeature() },
-        { id: 'split', label: 'Dividir por Coluna', make: () => new ExcelSplitFeature() },
-        { id: 'split-sheets', label: 'Extrair Abas', make: () => new ExcelSplitSheetsFeature() },
+        { id: 'convert', label: 'Conversão em Lote', icon: 'refresh-cw', make: () => new ExcelConvertFeature() },
+        { id: 'merge-all', label: 'Combinar Planilhas', icon: 'table-2', make: () => new ExcelMergeAllFeature() },
+        { id: 'extract-cells', label: 'Extrair Células', icon: 'grid-2x2', make: () => new ExcelExtractCellsFeature() },
+        { id: 'split', label: 'Dividir por Coluna', icon: 'separator-vertical', make: () => new ExcelSplitFeature() },
+        { id: 'split-sheets', label: 'Extrair Abas', icon: 'layers', make: () => new ExcelSplitSheetsFeature() },
     ];
 
     constructor(container) {
         super(container, {
+            page: 'excel',
             title: 'Excel',
             icon: 'file-spreadsheet',
             features: ExcelModule.features,

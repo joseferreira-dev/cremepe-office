@@ -6,55 +6,72 @@
 @source "../js/**/*.js";
 
 /* ============================================================
-   THEME — paleta CREMEPE + tipografia
+   FONTE — Inter (vendorizada, offline)
+   ============================================================ */
+@font-face {
+    font-family: "Inter";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../vendor/fonts/inter-var.woff2") format("woff2");
+}
+
+/* ============================================================
+   THEME — paleta (verde da marca renovado verde→teal) e cor por
+   domínio (Arquivos=âmbar, PDF=rosa, Word=azul, Excel=verde)
    ============================================================ */
 @theme {
-    --font-sans: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 
-    /* Verde institucional */
-    --color-brand-50: #eefaf5;
-    --color-brand-100: #d5f2e6;
-    --color-brand-200: #ace5cf;
-    --color-brand-300: #75d2b3;
-    --color-brand-400: #42ba93;
-    --color-brand-500: #1a9f77;
-    --color-brand-600: #007a51; /* primária */
-    --color-brand-700: #006643;
-    --color-brand-800: #005236;
-    --color-brand-900: #003d29;
+    --color-brand-50: #ecfdf6;
+    --color-brand-100: #d4f8e9;
+    --color-brand-200: #a5f0d4;
+    --color-brand-300: #71e8bf;
+    --color-brand-400: #3ddba4;
+    --color-brand-500: #12b886;
+    --color-brand-600: #00915e; /* primária */
+    --color-brand-700: #007a51; /* verde institucional */
+    --color-brand-800: #006243;
+    --color-brand-900: #004b35;
 }
 
 @layer base {
     body {
-        @apply bg-slate-50 text-slate-900 antialiased;
+        @apply bg-zinc-50 font-sans text-zinc-900 antialiased;
+    }
+    /* interpolações de placeholder nos rótulos */
+    ::selection {
+        @apply bg-brand-200 text-brand-900;
     }
 }
 
 /* ============================================================
-   COMPONENTES — design system moderno (substitui o Bootstrap)
+   COMPONENTES — design system luminoso
    ============================================================ */
 @layer components {
     /* ---- Botões ---- */
     .btn {
-        @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm
-               font-semibold transition-colors duration-150 select-none;
+        @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm
+               font-medium transition-all duration-150 select-none;
         @apply focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none;
         @apply disabled:pointer-events-none disabled:opacity-50;
     }
     .btn-success {
-        @apply bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800;
+        @apply bg-gradient-to-br from-brand-600 to-teal-600 text-white shadow-md shadow-brand-600/25;
+        @apply hover:from-brand-700 hover:to-teal-700 hover:shadow-lg hover:shadow-brand-600/30;
+        @apply active:scale-[0.98];
     }
     .btn-outline-secondary {
-        @apply border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50;
+        @apply border border-zinc-300 bg-white text-zinc-700 shadow-xs hover:border-zinc-400 hover:bg-zinc-50;
     }
     .btn-outline-success {
-        @apply border border-brand-600 bg-white text-brand-700 hover:bg-brand-50;
+        @apply border border-brand-600 bg-white text-brand-700 hover:bg-brand-600 hover:text-white;
     }
     .btn-outline-danger {
-        @apply border border-rose-300 bg-white text-rose-600 hover:bg-rose-50;
+        @apply border border-rose-300 bg-white text-rose-600 hover:bg-rose-600 hover:text-white;
     }
     .btn-danger {
-        @apply bg-rose-600 text-white shadow-sm hover:bg-rose-700;
+        @apply bg-rose-600 text-white shadow-md shadow-rose-600/25 hover:bg-rose-700 active:scale-[0.98];
     }
     .btn-sm {
         @apply px-3 py-1.5 text-xs;
@@ -62,39 +79,39 @@
 
     /* ---- Campos de formulário ---- */
     .form-control {
-        @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900
-               shadow-xs transition-colors placeholder:text-slate-400;
-        @apply outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+        @apply w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-[0.9rem] text-zinc-900
+               shadow-xs transition-all placeholder:text-zinc-400;
+        @apply outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
     }
     .form-control-sm {
-        @apply rounded-md px-2.5 py-1.5 text-xs;
+        @apply rounded-lg px-3 py-2 text-sm;
     }
     .form-select {
-        @apply w-full cursor-pointer rounded-lg border border-slate-300 bg-white py-2.5 pl-3.5 pr-9 text-sm
-               text-slate-900 shadow-xs transition-colors appearance-none;
-        @apply outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2364748b' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+        @apply w-full cursor-pointer rounded-xl border border-zinc-300 bg-white py-3 pr-10 pl-4 text-[0.9rem]
+               text-zinc-900 shadow-xs transition-all appearance-none;
+        @apply outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2371717a' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
-        background-position: right 0.65rem center;
+        background-position: right 0.9rem center;
     }
     .form-range {
         @apply w-full cursor-pointer accent-brand-600;
     }
     .form-label {
-        @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-600;
+        @apply mb-1.5 block text-[0.82rem] font-semibold text-zinc-600;
     }
     .form-check {
-        @apply flex items-start gap-2;
+        @apply flex items-start gap-2.5;
     }
     .form-check-input {
-        @apply mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-brand-600;
+        @apply mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-brand-600;
     }
     .form-check-label {
-        @apply cursor-pointer text-sm text-slate-700 select-none;
+        @apply cursor-pointer text-sm text-zinc-700 select-none;
     }
-    /* input + botão lado a lado (estilo "attachado" do Bootstrap → moderno) */
+    /* input + botão lado a lado */
     .input-group {
-        @apply flex w-full items-center gap-2;
+        @apply flex w-full items-center gap-2.5;
     }
     .input-group .form-control {
         @apply min-w-0 flex-1;
@@ -105,7 +122,7 @@
 
     /* ---- Cartões ---- */
     .card {
-        @apply flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow;
+        @apply flex flex-col rounded-2xl border border-zinc-200/80 bg-white shadow-xs transition-all duration-200;
     }
     .card:hover {
         @apply shadow-md;
@@ -114,128 +131,206 @@
         @apply flex flex-1 flex-col gap-3 p-5;
     }
     .card-title {
-        @apply text-base leading-6 font-semibold text-slate-900;
+        @apply text-[0.95rem] leading-6 font-semibold text-zinc-900;
     }
     .card-text {
-        @apply text-sm text-slate-500;
+        @apply text-sm text-zinc-500;
     }
+    /* título de seção de formulário — colore pelo domínio da tela */
+    .section-title {
+        @apply text-[0.95rem] leading-6 font-semibold;
+    }
+    .module-files .section-title { @apply text-amber-700; }
+    .module-pdf .section-title { @apply text-rose-700; }
+    .module-word .section-title { @apply text-sky-700; }
+    .module-excel .section-title { @apply text-emerald-700; }
 
     /* ---- Badges e progresso ---- */
     .badge {
-        @apply inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600;
+        @apply inline-flex items-center rounded-full bg-zinc-100 px-2.5 py-0.5 text-[0.7rem] font-semibold
+               tracking-wide text-zinc-600 uppercase;
     }
     .progress {
-        @apply h-2 w-full overflow-hidden rounded-full bg-slate-100;
+        @apply h-1.5 w-full overflow-hidden rounded-full bg-zinc-200;
     }
     .progress-bar {
-        @apply h-full rounded-full bg-brand-600 transition-[width] duration-300;
+        @apply h-full rounded-full bg-gradient-to-r from-brand-500 to-teal-500 transition-[width] duration-300;
     }
 
     /* ---- Tabelas ---- */
     .table {
-        @apply w-full border-collapse text-left text-sm text-slate-700;
+        @apply w-full border-collapse text-left text-sm text-zinc-700;
     }
     .table th {
-        @apply border-b border-slate-200 px-3 py-2 text-xs font-semibold tracking-wide text-slate-500 uppercase;
+        @apply border-b border-zinc-200 px-3 py-2.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase;
     }
     .table td {
-        @apply border-b border-slate-100 px-3 py-2;
+        @apply border-b border-zinc-100 px-3 py-2.5;
     }
     .table-sm td,
     .table-sm th {
         @apply px-2 py-1.5;
     }
     .table-striped tbody tr:nth-child(odd) {
-        @apply bg-slate-50;
+        @apply bg-zinc-50;
     }
 
-    /* ---- Navegação (aba/sidebar) ---- */
+    /* ---- Abas ---- */
     .nav-link {
         @apply flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium
-               text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900;
-    }
-    .nav-pills .nav-link.active,
-    .nav-btn.active {
-        @apply bg-brand-600 text-white hover:bg-brand-600 hover:text-white;
+               text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900;
     }
     .nav-tabs {
-        @apply flex gap-1 border-b border-slate-200;
+        @apply flex gap-1 border-b border-zinc-200;
     }
     .nav-tabs .nav-link {
-        @apply -mb-px rounded-t-lg border-b-2 border-transparent px-4 py-2;
+        @apply -mb-px rounded-t-lg border-b-2 border-transparent px-4 py-2.5;
     }
     .nav-tabs .nav-link.active {
         @apply border-brand-600 bg-transparent text-brand-700;
     }
 
-    /* ---- Cores semânticas (mesmos nomes das features) ---- */
+    /* ---- Cores semânticas ---- */
     .text-success { @apply text-brand-600; }
-    .text-muted   { @apply text-slate-500; }
+    .text-muted   { @apply text-zinc-500; }
     .text-danger  { @apply text-rose-600; }
     .text-warning { @apply text-amber-600; }
     .text-info    { @apply text-sky-600; }
-    .text-white-50 { @apply text-white/50; }
+    .text-white-50 { @apply text-white/60; }
     .fw-bold   { @apply font-bold; }
     .fw-normal { @apply font-normal; }
     .bg-primary   { @apply bg-brand-600; }
     .bg-success   { @apply bg-brand-600; }
-    .bg-secondary { @apply bg-slate-500; }
+    .bg-secondary { @apply bg-zinc-500; }
     .bg-danger    { @apply bg-rose-600; }
-    .bg-info      { @apply bg-sky-100 text-sky-700; }
-    .bg-warning   { @apply bg-amber-100 text-amber-700; }
-    .bg-light     { @apply bg-slate-100; }
+    .bg-info      { @apply bg-sky-100; }
+    .bg-warning   { @apply bg-amber-100; }
+    .bg-light     { @apply bg-zinc-100; }
     .small { @apply text-sm; }
-    .h5    { @apply text-xl font-medium; }
+    .h5    { @apply text-xl font-semibold; }
 
     /* ============================================================
-       CROMO — sidebar escura, módulos, log, home
+       CROMO — sidebar clara com topo na cor da marca
        ============================================================ */
-
-    /* Sidebar global (escura) */
     #sidebar {
-        @apply flex w-60 shrink-0 flex-col bg-slate-900 p-4 text-white shadow-2xl;
+        @apply flex w-64 shrink-0 flex-col border-r border-zinc-200 bg-white p-4;
         z-index: 1000;
     }
+    /* topo da sidebar: bloco na cor da marca (logo branca) */
+    #sidebar .sidebar-brand {
+        @apply -mx-4 -mt-4 mb-5 flex items-center justify-center bg-gradient-to-br from-brand-600 to-teal-600
+               px-4 py-6 shadow-md shadow-brand-600/20;
+    }
     #sidebar-logo {
-        @apply mx-auto block h-auto max-h-28 w-auto;
+        @apply block h-auto max-h-24 w-auto;
     }
     .nav-btn {
-        @apply flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-               text-slate-300 transition-colors;
+        @apply flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium
+               text-zinc-600 transition-all duration-150;
     }
+    .nav-btn i,
     .nav-btn .lucide {
         @apply w-5 text-base;
     }
     .nav-btn:hover {
-        @apply bg-white/10 text-white;
+        @apply bg-zinc-100 text-zinc-900;
     }
     .nav-btn.active {
-        @apply bg-brand-600 text-white shadow-md;
+        @apply font-semibold shadow-xs;
     }
+    /* domínios com cor própria (ativação cromática da navegação) */
+    .nav-btn[data-page="home"].active { @apply bg-brand-50 text-brand-700; }
+    .nav-btn[data-page="files"].active { @apply bg-amber-50 text-amber-700; }
+    .nav-btn[data-page="pdf"].active   { @apply bg-rose-50 text-rose-700; }
+    .nav-btn[data-page="word"].active  { @apply bg-sky-50 text-sky-700; }
+    .nav-btn[data-page="excel"].active { @apply bg-emerald-50 text-emerald-700; }
+
     #backend-status {
-        @apply flex items-center justify-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs
-               text-slate-300;
+        @apply flex items-center justify-center gap-2 rounded-full bg-zinc-100 px-3 py-1.5 text-xs
+               text-zinc-500;
     }
     #status-dot {
-        @apply h-2.5 w-2.5 rounded-full bg-slate-500 transition-colors;
+        @apply h-2 w-2 rounded-full bg-zinc-400 transition-colors;
     }
     #status-dot.online {
-        @apply bg-emerald-400;
+        @apply bg-emerald-500;
     }
     #status-dot.offline {
-        @apply bg-rose-400;
+        @apply bg-rose-500;
     }
     #status-text {
-        @apply font-medium text-slate-200;
+        @apply font-medium;
     }
 
-    /* Título de módulo/página */
+    /* ============================================================
+       CROMO — módulos (cor por domínio)
+       ============================================================ */
     .module-title {
-        @apply mb-6 flex items-center gap-3 border-b border-slate-200 pb-4 text-2xl font-semibold
-               tracking-tight text-slate-900;
+        @apply text-[1.6rem] leading-tight font-semibold tracking-tight text-zinc-900;
     }
-    .module-title .lucide {
-        @apply text-brand-600;
+    .module-subtitle {
+        @apply text-sm text-zinc-500;
+    }
+    /* chip do ícone do módulo — cor do domínio */
+    .icon-chip {
+        @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-colors;
+    }
+    .icon-chip .lucide {
+        @apply h-6 w-6;
+    }
+    .module-home .icon-chip { @apply bg-brand-100 text-brand-700; }
+    .module-files .icon-chip { @apply bg-amber-100 text-amber-700; }
+    .module-pdf .icon-chip   { @apply bg-rose-100 text-rose-700; }
+    .module-word .icon-chip  { @apply bg-sky-100 text-sky-700; }
+    .module-excel .icon-chip { @apply bg-emerald-100 text-emerald-700; }
+
+    /* Sub-sidebar de funcionalidades */
+    .module-sidebar {
+        @apply flex w-72 shrink-0 flex-col self-start overflow-hidden rounded-2xl border border-zinc-200
+               bg-white shadow-xs;
+    }
+    .module-sidebar h3 {
+        @apply px-5 pt-5 pb-1 text-xs font-bold tracking-wider text-zinc-400 uppercase;
+    }
+    .feature-search {
+        @apply px-4 pt-3 pb-4;
+    }
+    .feature-search .form-control {
+        @apply rounded-lg bg-zinc-100 py-2.5 pl-9 text-sm;
+    }
+    .feature-list {
+        @apply flex flex-col gap-0.5 px-3 pb-4;
+    }
+    .feature-list li {
+        @apply flex cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium
+               text-zinc-600 transition-all duration-150;
+    }
+    .feature-list li .lucide {
+        @apply h-4 w-4 opacity-70;
+    }
+    .feature-list li:hover {
+        @apply bg-zinc-50 text-zinc-900;
+    }
+    .feature-list li[hidden] {
+        display: none;
+    }
+    .feature-empty {
+        @apply px-5 pt-1 pb-4 text-zinc-400;
+    }
+    /* item ativo na cor do domínio */
+    .module-files .feature-list li.active { @apply bg-amber-50 font-semibold text-amber-700; }
+    .module-pdf .feature-list li.active   { @apply bg-rose-50 font-semibold text-rose-700; }
+    .module-word .feature-list li.active  { @apply bg-sky-50 font-semibold text-sky-700; }
+    .module-excel .feature-list li.active { @apply bg-emerald-50 font-semibold text-emerald-700; }
+    .module-files .feature-list li.active .lucide { @apply opacity-100 text-amber-600; }
+    .module-pdf .feature-list li.active .lucide   { @apply opacity-100 text-rose-600; }
+    .module-word .feature-list li.active .lucide  { @apply opacity-100 text-sky-600; }
+    .module-excel .feature-list li.active .lucide { @apply opacity-100 text-emerald-600; }
+
+    /* Log de operações (tema claro) */
+    .log-area {
+        @apply h-32 overflow-y-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-zinc-50 p-4
+               font-mono text-xs leading-relaxed text-zinc-600;
     }
 
     /* Ícones Lucide (SVG inline; em = escala com o texto ao redor) */
@@ -246,60 +341,47 @@
         stroke-width: 2;
     }
 
-    /* Sub-sidebar de funcionalidades */
-    .module-sidebar {
-        @apply flex w-60 shrink-0 flex-col self-start overflow-hidden rounded-xl border border-slate-200
-               bg-white;
+    /* ---- Home ---- */
+    .hero {
+        @apply rounded-3xl bg-gradient-to-br from-brand-600 via-brand-700 to-teal-700 p-8 text-white
+               shadow-xl shadow-brand-600/20;
     }
-    .module-sidebar h3 {
-        @apply border-b border-slate-200 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500;
-    }
-    .feature-search {
-        @apply border-b border-slate-100 px-3 py-3;
-    }
-    .feature-list {
-        @apply flex flex-col gap-0.5 p-2;
-    }
-    .feature-list li {
-        @apply cursor-pointer rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors;
-    }
-    .feature-list li:hover {
-        @apply bg-slate-100 text-slate-900;
-    }
-    .feature-list li.active {
-        @apply bg-brand-50 font-semibold text-brand-700;
-    }
-    .feature-list li[hidden] {
-        display: none;
-    }
-    .feature-empty {
-        @apply px-4 pt-1 pb-2;
-    }
-
-    /* Log de operações (console) */
-    .log-area {
-        @apply h-32 overflow-y-auto whitespace-pre-wrap rounded-lg bg-slate-900 p-4 font-mono text-xs
-               leading-relaxed text-slate-300;
-    }
-
-    /* Home — acesso rápido */
     .quick-card {
-        @apply transition duration-150;
+        @apply transition duration-200;
     }
     .quick-card.dragging {
         @apply scale-95 opacity-50;
     }
     .quick-card.drag-over .card {
-        @apply border-2 border-dashed border-brand-600 bg-brand-50;
+        @apply border-2 border-dashed border-brand-500 ring-4 ring-brand-500/10;
     }
     .quick-card .card {
         @apply cursor-pointer;
     }
     .card-icon {
-        @apply flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-2xl text-brand-600;
+        @apply flex h-11 w-11 items-center justify-center rounded-xl;
     }
+    .card-icon .lucide {
+        @apply h-5 w-5;
+    }
+    /* chips de ícone por seção (cards da home) */
+    .chip-arquivos { @apply bg-amber-50 text-amber-600; }
+    .chip-pdf { @apply bg-rose-50 text-rose-600; }
+    .chip-word { @apply bg-sky-50 text-sky-600; }
+    .chip-excel { @apply bg-emerald-50 text-emerald-600; }
+    /* botões de card na cor da seção */
+    .btn-arquivos { @apply bg-amber-600 text-white shadow-md shadow-amber-600/25 hover:bg-amber-700; }
+    .btn-pdf { @apply bg-rose-600 text-white shadow-md shadow-rose-600/25 hover:bg-rose-700; }
+    .btn-word { @apply bg-sky-600 text-white shadow-md shadow-sky-600/25 hover:bg-sky-700; }
+    .btn-excel { @apply bg-emerald-600 text-white shadow-md shadow-emerald-600/25 hover:bg-emerald-700; }
+    /* badge de seção na cor da seção */
+    .badge-arquivos { @apply bg-amber-100 text-amber-700; }
+    .badge-pdf { @apply bg-rose-100 text-rose-700; }
+    .badge-word { @apply bg-sky-100 text-sky-700; }
+    .badge-excel { @apply bg-emerald-100 text-emerald-700; }
+
     #edit-area {
-        @apply rounded-xl border border-dashed border-brand-400 bg-slate-50 p-4;
+        @apply rounded-2xl border border-dashed border-brand-400 bg-brand-50/50 p-5;
     }
     .remove-card-btn {
         @apply text-xs;

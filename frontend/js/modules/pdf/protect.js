@@ -10,8 +10,8 @@ export class PDFProtectFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Proteger / Desproteger</h4>
-                <p class="text-slate-500">Adicione ou remova senha de arquivos PDF.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Proteger / Desproteger</h4>
+                <p class="text-zinc-500">Adicione ou remova senha de arquivos PDF.</p>
             </div>
 
             <ul class="nav-tabs mb-4" role="tablist">
@@ -26,7 +26,7 @@ export class PDFProtectFeature extends Feature {
             <div id="protect-content">
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
+                        <h5 class="card-title section-title">Arquivo de entrada</h5>
                         <div class="input-group">
                             <input type="text" id="protect-input" class="form-control" placeholder="Selecione o PDF...">
                             <button class="btn btn-outline-secondary" id="btn-protect-input">Selecionar</button>
@@ -36,14 +36,14 @@ export class PDFProtectFeature extends Feature {
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Senha</h5>
+                        <h5 class="card-title section-title">Senha</h5>
                         <input type="password" id="protect-pwd" class="form-control" placeholder="Digite a senha para abrir o PDF">
                     </div>
                 </div>
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Arquivo de saída</h5>
+                        <h5 class="card-title section-title">Arquivo de saída</h5>
                         <div class="input-group">
                             <input type="text" id="protect-output" class="form-control" placeholder="Caminho do PDF protegido">
                             <button class="btn btn-outline-secondary" id="btn-protect-output">Selecionar</button>
@@ -57,7 +57,7 @@ export class PDFProtectFeature extends Feature {
             <div id="remove-content" style="display:none;">
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Arquivo protegido</h5>
+                        <h5 class="card-title section-title">Arquivo protegido</h5>
                         <div class="input-group">
                             <input type="text" id="remove-input" class="form-control" placeholder="Selecione o PDF com senha...">
                             <button class="btn btn-outline-secondary" id="btn-remove-input">Selecionar</button>
@@ -67,14 +67,14 @@ export class PDFProtectFeature extends Feature {
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Senha</h5>
+                        <h5 class="card-title section-title">Senha</h5>
                         <input type="password" id="remove-pwd" class="form-control" placeholder="Digite a senha do documento">
                     </div>
                 </div>
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Arquivo de saída (sem senha)</h5>
+                        <h5 class="card-title section-title">Arquivo de saída (sem senha)</h5>
                         <div class="input-group">
                             <input type="text" id="remove-output" class="form-control" placeholder="Caminho do PDF desprotegido">
                             <button class="btn btn-outline-secondary" id="btn-remove-output">Selecionar</button>

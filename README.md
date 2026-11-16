@@ -4,7 +4,7 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
 
 ## Tecnologias
 
-- **Frontend**: Electron + HTML/CSS/JS (ES modules) com **Tailwind CSS v4** e ícones **Lucide** (tudo local em `frontend/vendor/`)
+- **Frontend**: Electron + HTML/CSS/JS (ES modules) com **Tailwind CSS v4**, fonte **Inter** e ícones **Lucide** (tudo local em `frontend/vendor/`); cada domínio tem sua cor de navegação (Arquivos âmbar, PDF rosa, Word azul, Excel verde)
 - **Backend**: Python + Flask (API REST), escutando apenas em `http://127.0.0.1:5000`
 - **Empacotamento**: PyInstaller (para o backend) + electron-builder (para o instalador)
 - **Qualidade**: pytest (backend) + ESLint e verificador de classes (frontend)

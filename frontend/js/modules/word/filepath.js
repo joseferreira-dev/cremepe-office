@@ -10,13 +10,13 @@ export class FilePathFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Inserir Caminho do Arquivo</h4>
-                <p class="text-slate-500">Insira o caminho do arquivo como marca d'água no documento.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Inserir Caminho do Arquivo</h4>
+                <p class="text-zinc-500">Insira o caminho do arquivo como marca d'água no documento.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Documento</h5>
+                    <h5 class="card-title section-title">Documento</h5>
                     <div class="input-group">
                         <input type="text" id="fp-input" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-fp-input">Selecionar</button>
@@ -29,7 +29,7 @@ export class FilePathFeature extends Feature {
                 <div class="md:col-span-6">
                     <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-brand-600">Caminho</h5>
+                            <h5 class="card-title section-title">Caminho</h5>
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="fp-full-path" checked>
                                 <label class="form-check-label">Usar caminho completo</label>
@@ -43,7 +43,7 @@ export class FilePathFeature extends Feature {
 
                     <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-brand-600">Posição</h5>
+                            <h5 class="card-title section-title">Posição</h5>
                             <div class="grid grid-cols-12 gap-2">
                                 <div class="md:col-span-12">
                                     <label class="form-label">Posição</label>
@@ -67,7 +67,7 @@ export class FilePathFeature extends Feature {
                 <div class="md:col-span-6">
                     <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-brand-600">Estilo</h5>
+                            <h5 class="card-title section-title">Estilo</h5>
                             <div class="grid grid-cols-12 gap-2">
                                 <div class="md:col-span-6">
                                     <label class="form-label">Tamanho (pt)</label>
@@ -97,7 +97,7 @@ export class FilePathFeature extends Feature {
 
                     <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-brand-600">Transparência</h5>
+                            <h5 class="card-title section-title">Transparência</h5>
                             <div class="flex items-center gap-2">
                                 <input type="range" id="fp-transparency" class="form-range grow" min="0" max="100" value="50">
                                 <span id="fp-transparency-label" class="font-bold" style="min-width:45px;">50%</span>
@@ -109,7 +109,7 @@ export class FilePathFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
+                    <h5 class="card-title section-title">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="fp-output" class="form-control" placeholder="Caminho para salvar...">
                         <button class="btn btn-outline-secondary" id="btn-fp-output">Selecionar</button>

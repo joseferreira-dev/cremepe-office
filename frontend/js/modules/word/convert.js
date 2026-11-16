@@ -10,13 +10,13 @@ export class ConvertFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Converter Documento</h4>
-                <p class="text-slate-500">Converta documentos Word para HTML, TXT, DOC ou PDF.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Converter Documento</h4>
+                <p class="text-zinc-500">Converta documentos Word para HTML, TXT, DOC ou PDF.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
+                    <h5 class="card-title section-title">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="convert-input" class="form-control" placeholder="Selecione o documento...">
                         <button class="btn btn-outline-secondary" id="btn-convert-input">Selecionar</button>
@@ -26,7 +26,7 @@ export class ConvertFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Formato de saída</h5>
+                    <h5 class="card-title section-title">Formato de saída</h5>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="md:col-span-3">
                             <div class="form-check">
@@ -58,7 +58,7 @@ export class ConvertFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
+                    <h5 class="card-title section-title">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="convert-output" class="form-control" placeholder="Caminho para salvar o arquivo convertido...">
                         <button class="btn btn-outline-secondary" id="btn-convert-output">Selecionar</button>

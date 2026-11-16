@@ -104,7 +104,7 @@ export class Feature {
     /** HTML da area de log com rotulo (padrao: LOG DE OPERACOES). */
     logHTML(label = 'LOG DE OPERAÇÕES') {
         return `<div class="mt-6">
-                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500">${label}</label>
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">${label}</label>
                 <div class="log-area" id="${this.logId}">Log de operações vazio</div>
             </div>`;
     }

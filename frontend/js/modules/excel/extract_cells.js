@@ -13,13 +13,13 @@ export class ExcelExtractCellsFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Extrair Células</h4>
-                <p class="text-slate-500">Escaneie uma pasta de planilhas e extraia valores de células específicas, com suporte a fórmulas matemáticas.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Extrair Células</h4>
+                <p class="text-zinc-500">Escaneie uma pasta de planilhas e extraia valores de células específicas, com suporte a fórmulas matemáticas.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Pasta e destino</h5>
+                    <h5 class="card-title section-title">Pasta e destino</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta de origem</label>
                         <div class="input-group">
@@ -39,7 +39,7 @@ export class ExcelExtractCellsFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Campos a extrair</h5>
+                    <h5 class="card-title section-title">Campos a extrair</h5>
                     <div id="fields-container">
                         <!-- Campos serão adicionados aqui -->
                     </div>
@@ -53,7 +53,7 @@ export class ExcelExtractCellsFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="extract-recursive">
                         <label class="form-check-label">Incluir subpastas</label>
@@ -66,7 +66,7 @@ export class ExcelExtractCellsFeature extends Feature {
             ${this.progressHTML()}
 
             <div id="extract-preview" style="display:none;" class="mt-4">
-                <label class="font-bold text-brand-600">Pré-visualização (<span id="extract-count">0</span> arquivos)</label>
+                <label class="font-semibold text-zinc-600">Pré-visualização (<span id="extract-count">0</span> arquivos)</label>
                 <div id="extract-table-container" style="max-height:400px; overflow:auto; border:1px solid #dee2e6; border-radius:0.375rem;"></div>
             </div>
 
@@ -229,7 +229,7 @@ export class ExcelExtractCellsFeature extends Feature {
 
         const tableContainer = document.getElementById('extract-table-container');
         if (!results.length) {
-            tableContainer.innerHTML = '<p class="text-slate-500">Nenhum resultado.</p>';
+            tableContainer.innerHTML = '<p class="text-zinc-500">Nenhum resultado.</p>';
             return;
         }
 

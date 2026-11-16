@@ -11,8 +11,8 @@ export class ArchiveFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Compactar / Extrair</h4>
-                <p class="text-slate-500">Crie arquivos ZIP com opções avançadas ou extraia arquivos compactados.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Compactar / Extrair</h4>
+                <p class="text-zinc-500">Crie arquivos ZIP com opções avançadas ou extraia arquivos compactados.</p>
             </div>
 
             <!-- Tabs -->
@@ -29,7 +29,7 @@ export class ArchiveFeature extends Feature {
             <div id="archive-compress-content">
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Arquivos/Pastas para compactar</h5>
+                        <h5 class="card-title section-title">Arquivos/Pastas para compactar</h5>
                         <div class="mb-2">
                             <label class="form-label">Selecione arquivos ou pastas</label>
                             <div class="input-group">
@@ -44,7 +44,7 @@ export class ArchiveFeature extends Feature {
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Destino</h5>
+                        <h5 class="card-title section-title">Destino</h5>
                         <div class="input-group">
                             <input type="text" id="archive-output" class="form-control" placeholder="Caminho do arquivo ZIP">
                             <button class="btn btn-outline-secondary" id="btn-output">Selecionar</button>
@@ -54,7 +54,7 @@ export class ArchiveFeature extends Feature {
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Opções de Compactação</h5>
+                        <h5 class="card-title section-title">Opções de Compactação</h5>
                         <div class="grid grid-cols-12 gap-2">
                             <div class="md:col-span-6">
                                 <label class="form-label">Nível de compressão</label>
@@ -107,7 +107,7 @@ export class ArchiveFeature extends Feature {
             <div id="archive-extract-content" style="display:none;">
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Arquivo para extrair</h5>
+                        <h5 class="card-title section-title">Arquivo para extrair</h5>
                         <div class="input-group">
                             <input type="text" id="extract-archive" class="form-control" placeholder="Selecione o arquivo compactado...">
                             <button class="btn btn-outline-secondary" id="btn-extract-archive">Selecionar</button>
@@ -117,7 +117,7 @@ export class ArchiveFeature extends Feature {
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Destino da extração</h5>
+                        <h5 class="card-title section-title">Destino da extração</h5>
                         <div class="input-group">
                             <input type="text" id="extract-dir" class="form-control" placeholder="Selecione a pasta de destino...">
                             <button class="btn btn-outline-secondary" id="btn-extract-dir">Selecionar</button>
@@ -127,7 +127,7 @@ export class ArchiveFeature extends Feature {
 
                 <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-brand-600">Senha (opcional)</h5>
+                        <h5 class="card-title section-title">Senha (opcional)</h5>
                         <input type="password" id="extract-password" class="form-control" placeholder="Deixe vazio se não houver senha">
                     </div>
                 </div>
@@ -231,7 +231,7 @@ export class ArchiveFeature extends Feature {
         const paths = val.split(',').map(s => s.trim()).filter(Boolean);
         const listDiv = document.getElementById('source-list');
         if (paths.length === 0) {
-            listDiv.innerHTML = '<p class="text-slate-500">Nenhum arquivo/pasta selecionado.</p>';
+            listDiv.innerHTML = '<p class="text-zinc-500">Nenhum arquivo/pasta selecionado.</p>';
         } else {
             listDiv.innerHTML = paths.map(p => `<div><i data-lucide="file" class="me-1"></i> ${p}</div>`).join('');
         }

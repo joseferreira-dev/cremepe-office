@@ -14,13 +14,13 @@ export class PDFCompressFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Comprimir PDF</h4>
-                <p class="text-slate-500">Reduza o tamanho do PDF reamostrando imagens e aplicando compressão JPEG.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Comprimir PDF</h4>
+                <p class="text-zinc-500">Reduza o tamanho do PDF reamostrando imagens e aplicando compressão JPEG.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
+                    <h5 class="card-title section-title">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="compress-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-compress-input">Selecionar</button>
@@ -30,7 +30,7 @@ export class PDFCompressFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Nível de compressão</h5>
+                    <h5 class="card-title section-title">Nível de compressão</h5>
                     <div class="grid grid-cols-12 gap-2">
                         ${this.compressionLevels.map(lvl => `
                             <div class="md:col-span-4">
@@ -46,18 +46,18 @@ export class PDFCompressFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Qualidade das imagens (JPEG)</h5>
+                    <h5 class="card-title section-title">Qualidade das imagens (JPEG)</h5>
                     <div class="flex items-center gap-4">
                         <input type="range" id="jpeg-quality" class="form-range grow" min="10" max="100" value="85">
                         <span id="jpeg-quality-label" class="font-bold" style="min-width:45px;">85%</span>
                     </div>
-                    <small class="text-slate-500">Valores mais baixos = arquivos menores, porém com perda de qualidade.</small>
+                    <small class="text-zinc-500">Valores mais baixos = arquivos menores, porém com perda de qualidade.</small>
                 </div>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="compress-remove-metadata">
                         <label class="form-check-label">Remover metadados (autor, título, etc.)</label>
@@ -71,7 +71,7 @@ export class PDFCompressFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
+                    <h5 class="card-title section-title">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="compress-output" class="form-control" placeholder="Caminho do PDF comprimido">
                         <button class="btn btn-outline-secondary" id="btn-compress-output">Selecionar</button>
@@ -85,7 +85,7 @@ export class PDFCompressFeature extends Feature {
 
             <div id="compress-result" style="display:none;" class="mt-4">
                 <div class="grid grid-cols-12 gap-2">
-                    <div class="col-span-6"><span class="badge bg-slate-500">Original: <span id="orig-size">0</span> KB</span></div>
+                    <div class="col-span-6"><span class="badge bg-zinc-500">Original: <span id="orig-size">0</span> KB</span></div>
                     <div class="col-span-6"><span class="badge bg-brand-600">Comprimido: <span id="comp-size">0</span> KB</span></div>
                 </div>
                 <div class="mt-2"><span class="badge bg-sky-100">Redução: <span id="comp-ratio">0</span>%</span></div>

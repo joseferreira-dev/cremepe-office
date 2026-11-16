@@ -11,13 +11,13 @@ export class AttributesFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Alterar Atributos em Lote</h4>
-                <p class="text-slate-500">Modifique datas, atributos (somente leitura, oculto, sistema) e permissões de vários arquivos de uma vez.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Alterar Atributos em Lote</h4>
+                <p class="text-zinc-500">Modifique datas, atributos (somente leitura, oculto, sistema) e permissões de vários arquivos de uma vez.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Diretório</h5>
+                    <h5 class="card-title section-title">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -34,7 +34,7 @@ export class AttributesFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Atributos (Windows)</h5>
+                    <h5 class="card-title section-title">Atributos (Windows)</h5>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="md:col-span-4">
                             <div class="form-check">
@@ -64,7 +64,7 @@ export class AttributesFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Datas</h5>
+                    <h5 class="card-title section-title">Datas</h5>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="md:col-span-6">
                             <label class="form-label">Data de modificação</label>

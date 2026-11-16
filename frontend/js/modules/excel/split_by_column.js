@@ -10,13 +10,13 @@ export class ExcelSplitFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Dividir por Coluna</h4>
-                <p class="text-slate-500">Divida um arquivo grande em vários arquivos com base nos valores de uma coluna específica.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Dividir por Coluna</h4>
+                <p class="text-zinc-500">Divida um arquivo grande em vários arquivos com base nos valores de uma coluna específica.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
+                    <h5 class="card-title section-title">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="split-input-file" class="form-control" placeholder="Selecione o arquivo XLSX...">
                         <button class="btn btn-outline-secondary" id="btn-split-input">Selecionar</button>
@@ -26,7 +26,7 @@ export class ExcelSplitFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Pasta de saída</h5>
+                    <h5 class="card-title section-title">Pasta de saída</h5>
                     <div class="input-group">
                         <input type="text" id="split-output-dir" class="form-control" placeholder="Selecione a pasta de destino...">
                         <button class="btn btn-outline-secondary" id="btn-split-output">Selecionar</button>
@@ -36,14 +36,14 @@ export class ExcelSplitFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Configuração</h5>
+                    <h5 class="card-title section-title">Configuração</h5>
                     <div class="mb-2">
                         <label class="form-label">Coluna chave (nome ou índice 0-based)</label>
                         <div class="input-group">
                             <input type="text" id="split-column" class="form-control" placeholder="Ex: 'Estado' ou 0, 1, 2...">
                             <button class="btn btn-outline-secondary" id="btn-split-preview">Visualizar colunas</button>
                         </div>
-                        <small class="text-slate-500">Digite o nome da coluna ou o índice (começando em 0). Ex: "Estado" ou "3".</small>
+                        <small class="text-zinc-500">Digite o nome da coluna ou o índice (começando em 0). Ex: "Estado" ou "3".</small>
                     </div>
                     <div class="mb-2">
                         <label class="form-label">Formato de saída</label>
@@ -64,8 +64,8 @@ export class ExcelSplitFeature extends Feature {
             ${this.progressHTML()}
 
             <div id="split-preview-area" style="display:none;" class="mt-4">
-                <label class="font-bold text-brand-600">Pré-visualização</label>
-                <div id="split-preview-list" class="border rounded p-2 border-slate-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+                <label class="font-semibold text-zinc-600">Pré-visualização</label>
+                <div id="split-preview-list" class="border rounded p-2 border-zinc-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
             ${this.logHTML()}
@@ -124,8 +124,8 @@ export class ExcelSplitFeature extends Feature {
             const listDiv = document.getElementById('split-preview-list');
             listDiv.innerHTML = `
                 <strong>Colunas disponíveis (${headers.length}):</strong><br>
-                ${headers.map((h, i) => `<span class="badge bg-slate-500 me-1">${i}: ${h}</span>`).join('')}
-                <br><small class="text-slate-500">Use o nome ou o índice para a coluna chave.</small>
+                ${headers.map((h, i) => `<span class="badge bg-zinc-500 me-1">${i}: ${h}</span>`).join('')}
+                <br><small class="text-zinc-500">Use o nome ou o índice para a coluna chave.</small>
             `;
             this.log('Cabeçalhos carregados.');
         } catch (err) {

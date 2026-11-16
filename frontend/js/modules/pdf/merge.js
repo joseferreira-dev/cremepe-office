@@ -12,13 +12,13 @@ export class PDFMergeFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Combinar</h4>
-                <p class="text-slate-500">Combine vários PDFs em um único documento. Arraste para reordenar.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Combinar</h4>
+                <p class="text-zinc-500">Combine vários PDFs em um único documento. Arraste para reordenar.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivos PDF</h5>
+                    <h5 class="card-title section-title">Arquivos PDF</h5>
                     <div class="mb-2">
                         <div class="input-group">
                             <button class="btn btn-outline-success" id="btn-pdf-merge-add">
@@ -29,10 +29,10 @@ export class PDFMergeFeature extends Feature {
                             </button>
                         </div>
                     </div>
-                    <div id="pdf-merge-list" class="border rounded p-2 border-slate-200" style="min-height:100px; max-height:400px; overflow-y:auto;">
-                        <p class="text-slate-500 text-center my-4">Nenhum PDF adicionado. Clique em "Adicionar PDFs" para começar.</p>
+                    <div id="pdf-merge-list" class="border rounded p-2 border-zinc-200" style="min-height:100px; max-height:400px; overflow-y:auto;">
+                        <p class="text-zinc-500 text-center my-4">Nenhum PDF adicionado. Clique em "Adicionar PDFs" para começar.</p>
                     </div>
-                    <div class="mt-2 text-slate-500 text-sm">
+                    <div class="mt-2 text-zinc-500 text-sm">
                         <i data-lucide="move" class="me-1"></i> Arraste os itens para reordenar
                     </div>
                 </div>
@@ -40,7 +40,7 @@ export class PDFMergeFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
+                    <h5 class="card-title section-title">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="pdf-merge-output" class="form-control" placeholder="Caminho do arquivo final">
                         <button class="btn btn-outline-secondary" id="btn-pdf-merge-output">Selecionar</button>
@@ -163,7 +163,7 @@ export class PDFMergeFeature extends Feature {
     updateList() {
         const list = document.getElementById('pdf-merge-list');
         if (this.files.length === 0) {
-            list.innerHTML = `<p class="text-slate-500 text-center my-4">Nenhum PDF adicionado. Clique em "Adicionar PDFs" para começar.</p>`;
+            list.innerHTML = `<p class="text-zinc-500 text-center my-4">Nenhum PDF adicionado. Clique em "Adicionar PDFs" para começar.</p>`;
             return;
         }
 

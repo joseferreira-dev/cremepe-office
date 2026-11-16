@@ -11,13 +11,13 @@ export class MergeFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Juntar Documentos</h4>
-                <p class="text-slate-500">Combine vários documentos DOC ou DOCX em um único arquivo, mantendo formatação, imagens e quebras de página.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Juntar Documentos</h4>
+                <p class="text-zinc-500">Combine vários documentos DOC ou DOCX em um único arquivo, mantendo formatação, imagens e quebras de página.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Documentos para juntar</h5>
+                    <h5 class="card-title section-title">Documentos para juntar</h5>
                     <div class="mb-2">
                         <label class="form-label">Selecione arquivos Word</label>
                         <div class="input-group">
@@ -31,7 +31,7 @@ export class MergeFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
+                    <h5 class="card-title section-title">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="merge-output" class="form-control" placeholder="Caminho para salvar o documento final">
                         <button class="btn btn-outline-secondary" id="btn-merge-output">Selecionar</button>
@@ -41,7 +41,7 @@ export class MergeFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="merge-page-breaks" checked>
                         <label class="form-check-label">Inserir quebra de página entre documentos</label>
@@ -102,7 +102,7 @@ export class MergeFeature extends Feature {
         const paths = val.split(',').map(s => s.trim()).filter(Boolean);
         const listDiv = document.getElementById('docx-list');
         if (paths.length === 0) {
-            listDiv.innerHTML = '<p class="text-slate-500">Nenhum documento selecionado.</p>';
+            listDiv.innerHTML = '<p class="text-zinc-500">Nenhum documento selecionado.</p>';
         } else {
             listDiv.innerHTML = paths.map(p => `<div><i data-lucide="file-pen" class="me-1"></i> ${p}</div>`).join('');
         }

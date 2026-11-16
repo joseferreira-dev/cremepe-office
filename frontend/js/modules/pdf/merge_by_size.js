@@ -10,14 +10,14 @@ export class PDFMergeBySizeFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Combinar por Tamanho</h4>
-                <p class="text-slate-500">Agrupe PDFs de uma pasta em lotes com tamanho máximo definido. Arquivos individuais que excedem o limite são copiados separadamente.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Combinar por Tamanho</h4>
+                <p class="text-zinc-500">Agrupe PDFs de uma pasta em lotes com tamanho máximo definido. Arquivos individuais que excedem o limite são copiados separadamente.</p>
             </div>
 
             <!-- Pastas (lado a lado) -->
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Pastas</h5>
+                    <h5 class="card-title section-title">Pastas</h5>
                     <div class="grid grid-cols-12 gap-2">
                         <div class="md:col-span-12">
                             <label class="form-label">Pasta de origem</label>
@@ -40,7 +40,7 @@ export class PDFMergeBySizeFeature extends Feature {
             <!-- Configurações (lado a lado) -->
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Configurações</h5>
+                    <h5 class="card-title section-title">Configurações</h5>
                     <div class="grid grid-cols-12 gap-2">
                         <div class="md:col-span-6">
                             <label class="form-label">Tamanho máximo (MB)</label>

@@ -11,13 +11,13 @@ export class PDFSplitFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Dividir</h4>
-                <p class="text-slate-500">Divida um PDF em partes com intervalos personalizados ou tamanho fixo.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Dividir</h4>
+                <p class="text-zinc-500">Divida um PDF em partes com intervalos personalizados ou tamanho fixo.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
+                    <h5 class="card-title section-title">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="split-pdf-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-split-pdf-input">Selecionar</button>
@@ -27,7 +27,7 @@ export class PDFSplitFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Pasta de saída</h5>
+                    <h5 class="card-title section-title">Pasta de saída</h5>
                     <div class="input-group">
                         <input type="text" id="split-pdf-output" class="form-control" placeholder="Selecione a pasta de destino...">
                         <button class="btn btn-outline-secondary" id="btn-split-pdf-output">Selecionar</button>
@@ -37,21 +37,21 @@ export class PDFSplitFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Modo de divisão</h5>
+                    <h5 class="card-title section-title">Modo de divisão</h5>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="md:col-span-6">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="split-mode" id="split-mode-custom" value="custom" checked>
                                 <label class="form-check-label">Intervalo Personalizado</label>
                             </div>
-                            <small class="text-slate-500">Ex: 1-10, 15-16, 20-25</small>
+                            <small class="text-zinc-500">Ex: 1-10, 15-16, 20-25</small>
                         </div>
                         <div class="md:col-span-6">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="split-mode" id="split-mode-fixed" value="fixed">
                                 <label class="form-check-label">Intervalo Fixo</label>
                             </div>
-                            <small class="text-slate-500">Dividir de X em X páginas</small>
+                            <small class="text-zinc-500">Dividir de X em X páginas</small>
                         </div>
                     </div>
                 </div>
@@ -59,7 +59,7 @@ export class PDFSplitFeature extends Feature {
 
             <div class="card mb-4" id="split-custom-config">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Intervalos personalizados</h5>
+                    <h5 class="card-title section-title">Intervalos personalizados</h5>
                     <div class="mb-2">
                         <label class="form-label">Digite os intervalos</label>
                         <input type="text" id="split-intervals" class="form-control" placeholder="Ex: 1-10, 15-16, 20-25">
@@ -69,7 +69,7 @@ export class PDFSplitFeature extends Feature {
 
             <div class="card mb-4" id="split-fixed-config" style="display:none;">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Intervalo Fixo</h5>
+                    <h5 class="card-title section-title">Intervalo Fixo</h5>
                     <div class="mb-2">
                         <label class="form-label">Páginas por arquivo</label>
                         <input type="number" id="split-pages-per-file" class="form-control" value="10" min="1">
@@ -79,7 +79,7 @@ export class PDFSplitFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções de saída</h5>
+                    <h5 class="card-title section-title">Opções de saída</h5>
                     <div class="mb-2">
                         <label class="form-label">Prefixo das partes</label>
                         <input type="text" id="split-part-prefix" class="form-control" placeholder="Ex: documento" value="part">
@@ -91,7 +91,7 @@ export class PDFSplitFeature extends Feature {
                     <div id="split-combine-name-container" style="display:none;" class="mt-2">
                         <label class="form-label">Nome do arquivo final</label>
                         <input type="text" id="split-combine-name" class="form-control" placeholder="Ex: documento_final" value="combined">
-                        <small class="text-slate-500">O arquivo será salvo com extensão .pdf</small>
+                        <small class="text-zinc-500">O arquivo será salvo com extensão .pdf</small>
                     </div>
                 </div>
             </div>
@@ -102,8 +102,8 @@ export class PDFSplitFeature extends Feature {
             </div>
 
             <div id="split-preview-area" style="display:none;" class="mt-4">
-                <label class="font-bold text-brand-600">Pré-visualização</label>
-                <div id="split-preview-list" class="border rounded p-2 border-slate-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+                <label class="font-semibold text-zinc-600">Pré-visualização</label>
+                <div id="split-preview-list" class="border rounded p-2 border-zinc-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
             ${this.progressHTML()}
@@ -166,7 +166,7 @@ export class PDFSplitFeature extends Feature {
         if (mode === 'custom') {
             const parts = intervalsStr.split(',').map(s => s.trim()).filter(Boolean);
             if (parts.length === 0) {
-                html = '<p class="text-slate-500">Nenhum intervalo definido.</p>';
+                html = '<p class="text-zinc-500">Nenhum intervalo definido.</p>';
             } else {
                 html = `<strong>Intervalos definidos (${parts.length}):</strong><br>${parts.map(p => `- ${p}`).join('<br>')}`;
             }

@@ -12,13 +12,13 @@ export class CollectFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Coletar Arquivos</h4>
-                <p class="text-slate-500">Reúna arquivos de múltiplas pastas em um destino.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Coletar Arquivos</h4>
+                <p class="text-zinc-500">Reúna arquivos de múltiplas pastas em um destino.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Diretórios de Origem</h5>
+                    <h5 class="card-title section-title">Diretórios de Origem</h5>
                     <div id="src-dirs-container">
                         <!-- Campos dinâmicos -->
                     </div>
@@ -30,7 +30,7 @@ export class CollectFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Destino</h5>
+                    <h5 class="card-title section-title">Destino</h5>
                     <div class="input-group">
                         <input type="text" id="dst-dir" class="form-control" placeholder="Selecione a pasta de destino...">
                         <button class="btn btn-outline-secondary" id="btn-dst">Selecionar</button>
@@ -40,7 +40,7 @@ export class CollectFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="grid grid-cols-12 gap-2">
                         <div class="md:col-span-4">
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="recursive" checked> <label class="form-check-label">Recursivo (incluir subpastas)</label></div>
@@ -77,8 +77,8 @@ export class CollectFeature extends Feature {
             </div>
 
             <div id="preview-area" style="display:none;">
-                <label class="font-bold text-brand-600">Pré-visualização (<span id="preview-count">0</span> arquivos)</label>
-                <div id="preview-list" class="border rounded p-2 border-slate-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+                <label class="font-semibold text-zinc-600">Pré-visualização (<span id="preview-count">0</span> arquivos)</label>
+                <div id="preview-list" class="border rounded p-2 border-zinc-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
             ${this.progressHTML()}
@@ -196,7 +196,7 @@ export class CollectFeature extends Feature {
             document.getElementById('preview-count').textContent = result.count;
             const listDiv = document.getElementById('preview-list');
             if (result.count === 0) {
-                listDiv.innerHTML = '<p class="text-slate-500">Nenhum arquivo corresponde aos filtros.</p>';
+                listDiv.innerHTML = '<p class="text-zinc-500">Nenhum arquivo corresponde aos filtros.</p>';
             } else {
                 listDiv.innerHTML = result.files.map(f => `
                     <div><i data-lucide="file" class="me-1"></i> ${f.relative} (${(f.size / 1024).toFixed(1)} KB)</div>

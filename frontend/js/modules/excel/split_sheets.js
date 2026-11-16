@@ -10,13 +10,13 @@ export class ExcelSplitSheetsFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Extrair Abas</h4>
-                <p class="text-slate-500">Extraia cada aba de um arquivo Excel para um arquivo separado (XLSX ou CSV).</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Extrair Abas</h4>
+                <p class="text-zinc-500">Extraia cada aba de um arquivo Excel para um arquivo separado (XLSX ou CSV).</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
+                    <h5 class="card-title section-title">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="split-sheets-input" class="form-control" placeholder="Selecione o arquivo .xlsx...">
                         <button class="btn btn-outline-secondary" id="btn-split-sheets-input">Selecionar</button>
@@ -26,7 +26,7 @@ export class ExcelSplitSheetsFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Pasta de destino</h5>
+                    <h5 class="card-title section-title">Pasta de destino</h5>
                     <div class="input-group">
                         <input type="text" id="split-sheets-output" class="form-control" placeholder="Selecione a pasta de destino...">
                         <button class="btn btn-outline-secondary" id="btn-split-sheets-output">Selecionar</button>
@@ -36,7 +36,7 @@ export class ExcelSplitSheetsFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Formato de saída</h5>
+                    <h5 class="card-title section-title">Formato de saída</h5>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="md:col-span-6">
                             <div class="form-check">

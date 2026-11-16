@@ -15,10 +15,10 @@
 </head>
 
 <body>
-    <div id="app" class="flex h-screen bg-slate-50">
+    <div id="app" class="flex h-screen bg-zinc-50">
         <!-- Sidebar -->
         <aside id="sidebar">
-            <div class="px-2 pt-1 pb-5">
+            <div class="sidebar-brand">
                 <img src="assets/logo.svg" alt="CREMEPE Office" id="sidebar-logo">
             </div>
             <nav class="flex flex-col gap-1">
@@ -38,18 +38,18 @@
                     <i data-lucide="file-spreadsheet"></i> Excel
                 </button>
             </nav>
-            <div class="mt-auto space-y-2 border-t border-white/10 pt-4">
+            <div class="mt-auto space-y-2 border-t border-zinc-100 pt-4">
                 <!-- Status do Backend -->
                 <div id="backend-status">
                     <span id="status-dot"></span>
                     <span id="status-text">Verificando...</span>
                 </div>
-                <div id="version" class="text-center text-xs text-white/40">v1.0.0</div>
+                <div id="version" class="text-center text-xs text-zinc-400">v1.0.0</div>
             </div>
         </aside>
 
         <!-- Conteúdo principal -->
-        <main id="content" class="grow overflow-auto bg-slate-50 p-6">
+        <main id="content" class="grow overflow-auto bg-zinc-50 p-7">
             <div id="page-container"></div>
         </main>
     </div>

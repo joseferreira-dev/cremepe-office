@@ -12,13 +12,13 @@ export class OrganizeFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-4">
-                <h4 class="text-brand-600 font-normal">Organizar por Extensão</h4>
-                <p class="text-slate-500">Mova arquivos para subpastas com base em sua extensão (ex: .pdf → PDF/). Arquivos ocultos são ignorados.</p>
+                <h4 class="text-lg font-semibold text-zinc-900">Organizar por Extensão</h4>
+                <p class="text-zinc-500">Mova arquivos para subpastas com base em sua extensão (ex: .pdf → PDF/). Arquivos ocultos são ignorados.</p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Diretório</h5>
+                    <h5 class="card-title section-title">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -31,7 +31,7 @@ export class OrganizeFeature extends Feature {
 
             <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <h5 class="card-title section-title">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="organize-recursive" checked>
                         <label class="form-check-label">Incluir subpastas</label>
@@ -65,8 +65,8 @@ export class OrganizeFeature extends Feature {
             </div>
 
             <div id="organize-preview-area" style="display:none;">
-                <label class="font-bold text-brand-600">Pré-visualização</label>
-                <div id="organize-preview-list" class="border rounded p-2 border-slate-200" style="max-height:300px; overflow:auto; font-size:0.9rem;"></div>
+                <label class="font-semibold text-zinc-600">Pré-visualização</label>
+                <div id="organize-preview-list" class="border rounded p-2 border-zinc-200" style="max-height:300px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
             ${this.progressHTML()}
@@ -113,7 +113,7 @@ export class OrganizeFeature extends Feature {
             previewArea.style.display = 'block';
             const listDiv = document.getElementById('organize-preview-list');
             if (this.previewData.length === 0) {
-                listDiv.innerHTML = '<p class="text-slate-500">Nenhum arquivo encontrado.</p>';
+                listDiv.innerHTML = '<p class="text-zinc-500">Nenhum arquivo encontrado.</p>';
             } else {
                 let html = '';
                 let total = 0;
