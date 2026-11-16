@@ -191,7 +191,6 @@ export class CollectFeature extends Feature {
             if (daysBack) params.days_back = parseInt(daysBack);
 
             const result = await API.file.preview(params);
-            this.module.previewData = result.files;
             const previewArea = document.getElementById('preview-area');
             previewArea.style.display = 'block';
             document.getElementById('preview-count').textContent = result.count;

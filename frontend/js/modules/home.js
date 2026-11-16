@@ -189,32 +189,6 @@ export class HomePage extends Feature {
                         </button>
                     </div>
                 </div>
-
-                <!-- <h2 class="h5 text-success fw-normal mt-4 mb-3">Atividade Recente</h2>
-                <div class="card p-0 border">
-                    <div class="list-group list-group-flush">
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <strong><i class="bi bi-folder2-open me-2 text-success"></i>Coletar Arquivos</strong>
-                            <span class="flex-grow-1 mx-2">Coletados 247 arquivos → C:\\Destino</span>
-                            <small class="text-muted">14:32</small>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <strong><i class="bi bi-pencil-square me-2 text-success"></i>Renomear em Lote</strong>
-                            <span class="flex-grow-1 mx-2">3 arquivos renomeados com prefixo CREME_</span>
-                            <small class="text-muted">11:18</small>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <strong><i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Mesclar PDF</strong>
-                            <span class="flex-grow-1 mx-2">Falha ao abrir contrato_v2.pdf</span>
-                            <small class="text-muted">09:45</small>
-                        </div>
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <strong><i class="bi bi-arrow-left-right me-2 text-success"></i>Converter Documento</strong>
-                            <span class="flex-grow-1 mx-2">relatorio_anual.docx → relatorio_anual.pdf</span>
-                            <small class="text-muted">Ontem</small>
-                        </div>
-                    </div>
-                </div>-->
             </div>
         `;
 

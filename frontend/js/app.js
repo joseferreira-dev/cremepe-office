@@ -7,11 +7,7 @@ import { PDFModule } from './modules/pdf/index.js';
 import { SettingsPage } from './modules/settings.js';
 import { WordModule } from './modules/word/index.js';
 
-console.log('App iniciado');
-
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM carregado');
-
     const pages = {
         home: HomePage,
         files: FileModule,
@@ -25,8 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentModuleInstance = null;
 
     window.navigateTo = (page, feature = null) => {
-        console.log(`Navegando para: ${page}, feature: ${feature}`);
-
         document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
         const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
         if (btn) btn.classList.add('active');

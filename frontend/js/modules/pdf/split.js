@@ -6,7 +6,6 @@ export class PDFSplitFeature extends Feature {
     constructor() {
         super('split-pdf');
         this.mode = 'custom'; // 'custom' ou 'fixed'
-        this.previewData = null;
     }
 
     render(container) {
