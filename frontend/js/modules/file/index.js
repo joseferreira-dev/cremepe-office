@@ -29,7 +29,7 @@ export class FileModule extends DomainModule {
     constructor(container) {
         super(container, {
             title: 'Arquivos e Pastas',
-            icon: 'bi-folder2-open',
+            icon: 'folder-open',
             features: FileModule.features,
         });
     }

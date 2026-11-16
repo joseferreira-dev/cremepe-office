@@ -35,7 +35,7 @@ export class DocCompareFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-compare"><i class="bi bi-play-fill"></i> Comparar</button>
+            <button class="btn btn-success" id="btn-compare"><i data-lucide="play"></i> Comparar</button>
 
             ${this.progressHTML()}
 

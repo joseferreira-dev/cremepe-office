@@ -89,7 +89,7 @@ export class PDFExtractPagesFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-extract-execute"><i class="bi bi-play-fill me-1"></i>Extrair</button>
+            <button class="btn btn-success" id="btn-extract-execute"><i data-lucide="play" class="me-1"></i>Extrair</button>
 
             ${this.progressHTML()}
 

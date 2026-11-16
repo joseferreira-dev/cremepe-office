@@ -33,7 +33,7 @@ export class PDFModule extends DomainModule {
     constructor(container) {
         super(container, {
             title: 'PDF',
-            icon: 'bi-file-earmark-pdf',
+            icon: 'file-text',
             features: PDFModule.features,
         });
     }

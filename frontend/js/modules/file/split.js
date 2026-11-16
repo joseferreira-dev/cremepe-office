@@ -62,7 +62,7 @@ export class SplitFeature extends Feature {
                     </div>
                 </div>
 
-                <button class="btn btn-success" id="btn-split"><i class="bi bi-play-fill"></i> Dividir</button>
+                <button class="btn btn-success" id="btn-split"><i data-lucide="play"></i> Dividir</button>
             </div>
 
             <!-- Conteúdo Remontar -->
@@ -92,7 +92,7 @@ export class SplitFeature extends Feature {
                     </div>
                 </div>
 
-                <button class="btn btn-success" id="btn-merge"><i class="bi bi-play-fill"></i> Remontar</button>
+                <button class="btn btn-success" id="btn-merge"><i data-lucide="play"></i> Remontar</button>
             </div>
 
             ${this.progressHTML()}
@@ -164,7 +164,7 @@ export class SplitFeature extends Feature {
         if (paths.length === 0) {
             listDiv.innerHTML = '<p class="text-muted">Nenhuma parte selecionada.</p>';
         } else {
-            listDiv.innerHTML = paths.map(p => `<div><i class="bi bi-file-earmark me-1"></i> ${p}</div>`).join('');
+            listDiv.innerHTML = paths.map(p => `<div><i data-lucide="file" class="me-1"></i> ${p}</div>`).join('');
         }
     }
 

@@ -92,8 +92,8 @@ export class RenameFeature extends Feature {
             </div>
 
             <div class="d-flex gap-2 mb-3">
-                <button class="btn btn-outline-success" id="btn-rename-preview"><i class="bi bi-eye"></i> Pré-visualizar</button>
-                <button class="btn btn-success" id="btn-rename"><i class="bi bi-play-fill"></i> Renomear Arquivos</button>
+                <button class="btn btn-outline-success" id="btn-rename-preview"><i data-lucide="eye"></i> Pré-visualizar</button>
+                <button class="btn btn-success" id="btn-rename"><i data-lucide="play"></i> Renomear Arquivos</button>
             </div>
 
             <div id="rename-preview-area" style="display:none;">

@@ -22,10 +22,10 @@ export class PDFMergeFeature extends Feature {
                     <div class="mb-2">
                         <div class="input-group">
                             <button class="btn btn-outline-success" id="btn-pdf-merge-add">
-                                <i class="bi bi-plus-circle me-1"></i> Adicionar PDFs
+                                <i data-lucide="circle-plus" class="me-1"></i> Adicionar PDFs
                             </button>
                             <button class="btn btn-outline-secondary" id="btn-pdf-merge-clear">
-                                <i class="bi bi-trash me-1"></i> Limpar todos
+                                <i data-lucide="trash" class="me-1"></i> Limpar todos
                             </button>
                         </div>
                     </div>
@@ -33,7 +33,7 @@ export class PDFMergeFeature extends Feature {
                         <p class="text-muted text-center my-3">Nenhum PDF adicionado. Clique em "Adicionar PDFs" para começar.</p>
                     </div>
                     <div class="mt-2 text-muted small">
-                        <i class="bi bi-arrows-move me-1"></i> Arraste os itens para reordenar
+                        <i data-lucide="move" class="me-1"></i> Arraste os itens para reordenar
                     </div>
                 </div>
             </div>
@@ -49,8 +49,8 @@ export class PDFMergeFeature extends Feature {
             </div>
 
             <div class="d-flex gap-2">
-                <button class="btn btn-success" id="btn-pdf-merge"><i class="bi bi-play-fill me-1"></i> Juntar</button>
-                <button class="btn btn-outline-secondary" id="btn-pdf-merge-preview"><i class="bi bi-eye me-1"></i> Pré-visualizar ordem</button>
+                <button class="btn btn-success" id="btn-pdf-merge"><i data-lucide="play" class="me-1"></i> Juntar</button>
+                <button class="btn btn-outline-secondary" id="btn-pdf-merge-preview"><i data-lucide="eye" class="me-1"></i> Pré-visualizar ordem</button>
             </div>
 
             ${this.progressHTML()}

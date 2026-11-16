@@ -33,6 +33,7 @@ export default [
                 FormData: 'readonly',
                 AbortController: 'readonly',
                 structuredClone: 'readonly',
+                MutationObserver: 'readonly',
                 // Electron (exposto pelo preload via contextBridge)
                 electronAPI: 'readonly',
                 // CDNs

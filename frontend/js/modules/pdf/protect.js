@@ -51,7 +51,7 @@ export class PDFProtectFeature extends Feature {
                     </div>
                 </div>
 
-                <button class="btn btn-success" id="btn-protect"><i class="bi bi-lock-fill me-1"></i>Proteger</button>
+                <button class="btn btn-success" id="btn-protect"><i data-lucide="lock" class="me-1"></i>Proteger</button>
             </div>
 
             <div id="remove-content" style="display:none;">
@@ -82,7 +82,7 @@ export class PDFProtectFeature extends Feature {
                     </div>
                 </div>
 
-                <button class="btn btn-success" id="btn-remove"><i class="bi bi-unlock-fill me-1"></i>Remover Senha</button>
+                <button class="btn btn-success" id="btn-remove"><i data-lucide="unlock" class="me-1"></i>Remover Senha</button>
             </div>
 
             ${this.progressHTML()}

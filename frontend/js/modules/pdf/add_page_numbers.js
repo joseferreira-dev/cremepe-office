@@ -123,7 +123,7 @@ export class PDFAddPageNumbersFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-pn-apply"><i class="bi bi-play-fill me-1"></i>Inserir Numeração</button>
+            <button class="btn btn-success" id="btn-pn-apply"><i data-lucide="play" class="me-1"></i>Inserir Numeração</button>
 
             ${this.progressHTML()}
 

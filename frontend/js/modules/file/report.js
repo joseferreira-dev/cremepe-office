@@ -66,7 +66,7 @@ export class ReportFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-generate-report"><i class="bi bi-play-fill"></i> Gerar Relatório</button>
+            <button class="btn btn-success" id="btn-generate-report"><i data-lucide="play"></i> Gerar Relatório</button>
 
             ${this.progressHTML()}
 

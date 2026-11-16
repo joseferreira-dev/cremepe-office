@@ -119,7 +119,7 @@ export class DuplicatesFeature extends Feature {
                     <div class="mb-2">
                         <strong>Grupo ${idx + 1} (${g.count} arquivos)</strong>
                         <ul class="list-unstyled ms-3">
-                            ${g.files.map(f => `<li><i class="bi bi-file-earmark"></i> ${f}</li>`).join('')}
+                            ${g.files.map(f => `<li><i data-lucide="file"></i> ${f}</li>`).join('')}
                         </ul>
                     </div>
                 `).join('');

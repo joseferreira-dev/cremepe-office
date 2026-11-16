@@ -177,7 +177,7 @@ export class PDFConvertToImageFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-convert-image"><i class="bi bi-play-fill me-1"></i>Converter</button>
+            <button class="btn btn-success" id="btn-convert-image"><i data-lucide="play" class="me-1"></i>Converter</button>
 
             ${this.progressHTML()}
 
@@ -271,7 +271,7 @@ export class PDFConvertToImageFeature extends Feature {
             list.innerHTML = '<p class="text-muted">Nenhuma imagem selecionada.</p>';
             return;
         }
-        list.innerHTML = this.imagePaths.map(p => `<div><i class="bi bi-file-earmark-image me-1"></i> ${p}</div>`).join('');
+        list.innerHTML = this.imagePaths.map(p => `<div><i data-lucide="file-image" class="me-1"></i> ${p}</div>`).join('');
         document.getElementById('image-input-paths').value = this.imagePaths.join(', ');
     }
 
@@ -299,7 +299,7 @@ export class PDFConvertToImageFeature extends Feature {
             list.innerHTML = '<p class="text-muted">Nenhum PDF selecionado.</p>';
             return;
         }
-        list.innerHTML = paths.map(p => `<div><i class="bi bi-file-earmark-pdf me-1"></i> ${p}</div>`).join('');
+        list.innerHTML = paths.map(p => `<div><i data-lucide="file-text" class="me-1"></i> ${p}</div>`).join('');
     }
 
     // ====== EXECUTAR ======

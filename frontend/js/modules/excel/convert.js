@@ -76,7 +76,7 @@ export class ExcelConvertFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-excel-convert"><i class="bi bi-play-fill"></i> Converter</button>
+            <button class="btn btn-success" id="btn-excel-convert"><i data-lucide="play"></i> Converter</button>
 
             ${this.progressHTML()}
 

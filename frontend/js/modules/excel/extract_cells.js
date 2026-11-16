@@ -45,7 +45,7 @@ export class ExcelExtractCellsFeature extends Feature {
                     </div>
                     <div class="mt-2">
                         <button class="btn btn-outline-success btn-sm" id="add-field-btn">
-                            <i class="bi bi-plus-circle"></i> Adicionar Campo
+                            <i data-lucide="circle-plus"></i> Adicionar Campo
                         </button>
                     </div>
                 </div>
@@ -61,7 +61,7 @@ export class ExcelExtractCellsFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-extract-run"><i class="bi bi-play-fill"></i> Extrair</button>
+            <button class="btn btn-success" id="btn-extract-run"><i data-lucide="play"></i> Extrair</button>
 
             ${this.progressHTML()}
 
@@ -120,7 +120,7 @@ export class ExcelExtractCellsFeature extends Feature {
                 <input type="text" class="form-control field-source" placeholder="Ex: A4" value="A${this.cellCounter}">
             </div>
             <div class="col-md-2">
-                <button class="btn btn-outline-danger btn-sm remove-field-btn"><i class="bi bi-trash"></i></button>
+                <button class="btn btn-outline-danger btn-sm remove-field-btn"><i data-lucide="trash"></i></button>
             </div>
         `;
 

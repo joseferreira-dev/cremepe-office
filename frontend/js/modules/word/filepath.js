@@ -117,7 +117,7 @@ export class FilePathFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-fp-apply"><i class="bi bi-play-fill"></i> Inserir Caminho</button>
+            <button class="btn btn-success" id="btn-fp-apply"><i data-lucide="play"></i> Inserir Caminho</button>
 
             ${this.progressHTML()}
 

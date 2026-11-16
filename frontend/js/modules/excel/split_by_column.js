@@ -59,7 +59,7 @@ export class ExcelSplitFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-split-execute"><i class="bi bi-play-fill"></i> Dividir</button>
+            <button class="btn btn-success" id="btn-split-execute"><i data-lucide="play"></i> Dividir</button>
 
             ${this.progressHTML()}
 

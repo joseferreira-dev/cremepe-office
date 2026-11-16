@@ -58,7 +58,7 @@ export class ExcelMergeAllFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-merge-all"><i class="bi bi-play-fill"></i> Mesclar</button>
+            <button class="btn btn-success" id="btn-merge-all"><i data-lucide="play"></i> Mesclar</button>
 
             ${this.progressHTML()}
 

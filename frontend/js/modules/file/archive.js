@@ -100,7 +100,7 @@ export class ArchiveFeature extends Feature {
                     </div>
                 </div>
 
-                <button class="btn btn-success" id="btn-compress"><i class="bi bi-play-fill"></i> Compactar</button>
+                <button class="btn btn-success" id="btn-compress"><i data-lucide="play"></i> Compactar</button>
             </div>
 
             <!-- Conteúdo Extrair -->
@@ -132,7 +132,7 @@ export class ArchiveFeature extends Feature {
                     </div>
                 </div>
 
-                <button class="btn btn-success" id="btn-extract"><i class="bi bi-play-fill"></i> Extrair</button>
+                <button class="btn btn-success" id="btn-extract"><i data-lucide="play"></i> Extrair</button>
             </div>
 
             ${this.progressHTML()}
@@ -233,7 +233,7 @@ export class ArchiveFeature extends Feature {
         if (paths.length === 0) {
             listDiv.innerHTML = '<p class="text-muted">Nenhum arquivo/pasta selecionado.</p>';
         } else {
-            listDiv.innerHTML = paths.map(p => `<div><i class="bi bi-file-earmark me-1"></i> ${p}</div>`).join('');
+            listDiv.innerHTML = paths.map(p => `<div><i data-lucide="file" class="me-1"></i> ${p}</div>`).join('');
         }
     }
 

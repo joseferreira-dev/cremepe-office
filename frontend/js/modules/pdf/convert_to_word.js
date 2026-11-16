@@ -54,7 +54,7 @@ export class PDFConvertToWordFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-convert-execute"><i class="bi bi-play-fill me-1"></i>Converter</button>
+            <button class="btn btn-success" id="btn-convert-execute"><i data-lucide="play" class="me-1"></i>Converter</button>
 
             ${this.progressHTML()}
 

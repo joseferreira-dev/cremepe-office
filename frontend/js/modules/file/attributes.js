@@ -78,7 +78,7 @@ export class AttributesFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-apply-attributes"><i class="bi bi-play-fill"></i> Aplicar</button>
+            <button class="btn btn-success" id="btn-apply-attributes"><i data-lucide="play"></i> Aplicar</button>
 
             ${this.progressHTML()}
 

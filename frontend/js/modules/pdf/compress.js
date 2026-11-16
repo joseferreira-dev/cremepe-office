@@ -79,7 +79,7 @@ export class PDFCompressFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-compress"><i class="bi bi-play-fill me-1"></i>Comprimir</button>
+            <button class="btn btn-success" id="btn-compress"><i data-lucide="play" class="me-1"></i>Comprimir</button>
 
             ${this.progressHTML()}
 

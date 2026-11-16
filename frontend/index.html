@@ -12,8 +12,6 @@
         content="default-src 'self'; script-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:5000; worker-src 'self' blob:; object-src 'none'; base-uri 'self'">
     <!-- Design system Tailwind (gerar com: npm run build:css) -->
     <link rel="stylesheet" href="css/tailwind.css" />
-    <!-- Bootstrap Icons (local) -->
-    <link href="vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet" />
 </head>
 
 <body>
@@ -25,19 +23,19 @@
             </div>
             <nav class="flex flex-col gap-1">
                 <button class="nav-btn active" data-page="home">
-                    <i class="bi bi-house-door"></i> Home
+                    <i data-lucide="house"></i> Home
                 </button>
                 <button class="nav-btn" data-page="files">
-                    <i class="bi bi-folder2-open"></i> Arquivos e Pastas
+                    <i data-lucide="folder-open"></i> Arquivos e Pastas
                 </button>
                 <button class="nav-btn" data-page="pdf">
-                    <i class="bi bi-file-earmark-pdf"></i> PDF
+                    <i data-lucide="file-text"></i> PDF
                 </button>
                 <button class="nav-btn" data-page="word">
-                    <i class="bi bi-file-earmark-word"></i> Word
+                    <i data-lucide="file-pen"></i> Word
                 </button>
                 <button class="nav-btn" data-page="excel">
-                    <i class="bi bi-file-earmark-excel"></i> Excel
+                    <i data-lucide="file-spreadsheet"></i> Excel
                 </button>
             </nav>
             <div class="mt-auto space-y-2 border-t border-white/10 pt-4">
@@ -56,7 +54,8 @@
         </main>
     </div>
 
-    <!-- PDF.js local (script clássico - define o global pdfjsLib) -->
+    <!-- Ícones Lucide (local) + PDF.js local (script clássico - define o global pdfjsLib) -->
+    <script src="vendor/lucide.min.js"></script>
     <script src="vendor/pdf.min.js"></script>
     <!-- App: um único entry point ES module; a ordem de carregamento dos
          ~45 módulos é resolvida pelos imports -->

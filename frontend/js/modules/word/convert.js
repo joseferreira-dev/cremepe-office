@@ -66,7 +66,7 @@ export class ConvertFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-convert"><i class="bi bi-play-fill"></i> Converter</button>
+            <button class="btn btn-success" id="btn-convert"><i data-lucide="play"></i> Converter</button>
 
             ${this.progressHTML()}
 

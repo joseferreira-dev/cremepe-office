@@ -59,6 +59,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.navigateTo('home');
 
+    // ====== ÍCONES LUCIDE ======
+    // Converte <i data-lucide> em <svg> após cada render. A chamada
+    // inicial cobre o sidebar (estático); o observer cobre as trocas
+    // dinâmicas de tela/features. O seletor é restrito a <i> para
+    // ignorar os <svg> já convertidos (que podem herdar o atributo).
+    let iconsPending = false;
+    function renderIcons() {
+        if (iconsPending) return;
+        iconsPending = true;
+        requestAnimationFrame(() => {
+            iconsPending = false;
+            if (window.lucide && document.querySelector('i[data-lucide]')) {
+                window.lucide.createIcons();
+            }
+        });
+    }
+    renderIcons();
+    new MutationObserver(() => renderIcons()).observe(container, {
+        childList: true,
+        subtree: true,
+    });
+
     // ========== HEALTH CHECK DO BACKEND ==========
     // Aparência (cor do ponto) vive no CSS via classes .online/.offline;
     // aqui só troca o estado e o texto.

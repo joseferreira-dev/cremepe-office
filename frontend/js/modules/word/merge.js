@@ -49,7 +49,7 @@ export class MergeFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-merge"><i class="bi bi-play-fill"></i> Juntar</button>
+            <button class="btn btn-success" id="btn-merge"><i data-lucide="play"></i> Juntar</button>
 
             ${this.progressHTML()}
 
@@ -104,7 +104,7 @@ export class MergeFeature extends Feature {
         if (paths.length === 0) {
             listDiv.innerHTML = '<p class="text-muted">Nenhum documento selecionado.</p>';
         } else {
-            listDiv.innerHTML = paths.map(p => `<div><i class="bi bi-file-earmark-word me-1"></i> ${p}</div>`).join('');
+            listDiv.innerHTML = paths.map(p => `<div><i data-lucide="file-pen" class="me-1"></i> ${p}</div>`).join('');
         }
     }
 

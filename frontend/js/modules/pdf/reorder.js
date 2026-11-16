@@ -9,7 +9,7 @@ export class PDFReorderFeature extends Feature {
     render(container) {
         container.innerHTML = `
             <div class="mb-3">
-                <h4 class="text-success fw-normal"><i class="bi bi-arrow-up-down me-2"></i>Reordenar Páginas</h4>
+                <h4 class="text-success fw-normal"><i data-lucide="arrow-up-down" class="me-2"></i>Reordenar Páginas</h4>
                 <p class="text-muted">Defina a nova ordem das páginas do PDF. Você pode especificar páginas individuais ou intervalos.</p>
             </div>
 
@@ -44,7 +44,7 @@ export class PDFReorderFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-reorder-execute"><i class="bi bi-play-fill me-1"></i>Reordenar</button>
+            <button class="btn btn-success" id="btn-reorder-execute"><i data-lucide="play" class="me-1"></i>Reordenar</button>
 
             ${this.progressHTML()}
 

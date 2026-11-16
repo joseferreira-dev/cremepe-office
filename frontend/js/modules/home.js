@@ -10,42 +10,42 @@ import { WordModule } from './word/index.js';
 // index.js) — meta ausente degrada para o label da feature.
 const HOME_META = {
     // ARQUIVOS
-    'files/collect': { id: 'collect', icon: 'bi-folder2-open', title: 'Coletar Arquivos', desc: 'Reúna arquivos de múltiplas pastas.' },
-    'files/rename': { id: 'rename', icon: 'bi-pencil-square', title: 'Renomear em Lote', desc: 'Renomeie vários arquivos de uma vez.' },
-    'files/duplicates': { id: 'duplicates', icon: 'bi-files', title: 'Localizar Duplicatas', desc: 'Encontre arquivos duplicados.' },
-    'files/organize': { id: 'organize', icon: 'bi-diagram-2', title: 'Organizar por Extensão', desc: 'Organize arquivos por tipo.' },
-    'files/rename-by-content': { id: 'rename-by-content', icon: 'bi-tags', title: 'Renomear por Conteúdo', desc: 'Renomeie usando metadados.' },
-    'files/attributes': { id: 'attributes', icon: 'bi-sliders', title: 'Alterar Atributos', desc: 'Modifique datas e permissões.' },
-    'files/report': { id: 'report', icon: 'bi-file-text', title: 'Relatório de Estrutura', desc: 'Exporte árvore de diretórios.' },
-    'files/compare': { id: 'compare', icon: 'bi-arrow-left-right', title: 'Comparar Pastas', desc: 'Compare e sincronize pastas.' },
-    'files/archive': { id: 'archive', icon: 'bi-archive', title: 'Compactar/Extrair', desc: 'Crie ou extraia arquivos ZIP.' },
-    'files/split': { id: 'split-file', icon: 'bi-scissors', title: 'Dividir/Remontar', desc: 'Divida ou remonte arquivos grandes.' },
+    'files/collect': { id: 'collect', icon: 'folder-open', title: 'Coletar Arquivos', desc: 'Reúna arquivos de múltiplas pastas.' },
+    'files/rename': { id: 'rename', icon: 'square-pen', title: 'Renomear em Lote', desc: 'Renomeie vários arquivos de uma vez.' },
+    'files/duplicates': { id: 'duplicates', icon: 'files', title: 'Localizar Duplicatas', desc: 'Encontre arquivos duplicados.' },
+    'files/organize': { id: 'organize', icon: 'network', title: 'Organizar por Extensão', desc: 'Organize arquivos por tipo.' },
+    'files/rename-by-content': { id: 'rename-by-content', icon: 'tags', title: 'Renomear por Conteúdo', desc: 'Renomeie usando metadados.' },
+    'files/attributes': { id: 'attributes', icon: 'sliders-horizontal', title: 'Alterar Atributos', desc: 'Modifique datas e permissões.' },
+    'files/report': { id: 'report', icon: 'file-text', title: 'Relatório de Estrutura', desc: 'Exporte árvore de diretórios.' },
+    'files/compare': { id: 'compare', icon: 'arrow-left-right', title: 'Comparar Pastas', desc: 'Compare e sincronize pastas.' },
+    'files/archive': { id: 'archive', icon: 'archive', title: 'Compactar/Extrair', desc: 'Crie ou extraia arquivos ZIP.' },
+    'files/split': { id: 'split-file', icon: 'scissors', title: 'Dividir/Remontar', desc: 'Divida ou remonte arquivos grandes.' },
     // PDF
-    'pdf/merge': { id: 'pdf-merge', icon: 'bi-file-earmark-pdf', title: 'Combinar PDFs', desc: 'Mescle vários PDFs.' },
-    'pdf/merge-by-size': { id: 'pdf-merge-size', icon: 'bi-file-earmark-pdf', title: 'Combinar por Tamanho', desc: 'Agrupe PDFs por limite de tamanho.' },
-    'pdf/split': { id: 'pdf-split', icon: 'bi-scissors', title: 'Dividir PDF', desc: 'Divida em partes com intervalos.' },
-    'pdf/split-by-size': { id: 'pdf-split-size', icon: 'bi-rulers', title: 'Dividir por Tamanho', desc: 'Divida PDF por MB.' },
-    'pdf/extract-pages': { id: 'pdf-extract', icon: 'bi-file-earmark-pdf', title: 'Extrair Páginas', desc: 'Extraia páginas específicas.' },
-    'pdf/remove-pages': { id: 'pdf-remove', icon: 'bi-file-earmark-pdf', title: 'Remover Páginas', desc: 'Remova páginas indesejadas.' },
-    'pdf/reorder': { id: 'pdf-reorder', icon: 'bi-files', title: 'Reordenar Páginas', desc: 'Altere a ordem das páginas.' },
-    'pdf/add-page-numbers': { id: 'pdf-numbers', icon: 'bi-sort-numeric-down', title: 'Numerar Páginas', desc: 'Adicione numeração.' },
-    'pdf/convert-to-word': { id: 'pdf-to-word', icon: 'bi-file-word', title: 'PDF → Word', desc: 'Converta PDF para Word.' },
-    'pdf/convert-to-image': { id: 'pdf-image', icon: 'bi-image', title: 'PDF ↔ Imagem', desc: 'Converta entre PDF e imagens.' },
-    'pdf/compress': { id: 'pdf-compress', icon: 'bi-file-earmark-pdf', title: 'Comprimir PDF', desc: 'Reduza o tamanho do PDF.' },
-    'pdf/protect': { id: 'pdf-protect', icon: 'bi-lock', title: 'Proteger/Desproteger', desc: 'Adicione ou remova senha.' },
+    'pdf/merge': { id: 'pdf-merge', icon: 'file-text', title: 'Combinar PDFs', desc: 'Mescle vários PDFs.' },
+    'pdf/merge-by-size': { id: 'pdf-merge-size', icon: 'file-text', title: 'Combinar por Tamanho', desc: 'Agrupe PDFs por limite de tamanho.' },
+    'pdf/split': { id: 'pdf-split', icon: 'scissors', title: 'Dividir PDF', desc: 'Divida em partes com intervalos.' },
+    'pdf/split-by-size': { id: 'pdf-split-size', icon: 'ruler', title: 'Dividir por Tamanho', desc: 'Divida PDF por MB.' },
+    'pdf/extract-pages': { id: 'pdf-extract', icon: 'file-text', title: 'Extrair Páginas', desc: 'Extraia páginas específicas.' },
+    'pdf/remove-pages': { id: 'pdf-remove', icon: 'file-text', title: 'Remover Páginas', desc: 'Remova páginas indesejadas.' },
+    'pdf/reorder': { id: 'pdf-reorder', icon: 'files', title: 'Reordenar Páginas', desc: 'Altere a ordem das páginas.' },
+    'pdf/add-page-numbers': { id: 'pdf-numbers', icon: 'arrow-down-wide-narrow', title: 'Numerar Páginas', desc: 'Adicione numeração.' },
+    'pdf/convert-to-word': { id: 'pdf-to-word', icon: 'file-output', title: 'PDF → Word', desc: 'Converta PDF para Word.' },
+    'pdf/convert-to-image': { id: 'pdf-image', icon: 'image', title: 'PDF ↔ Imagem', desc: 'Converta entre PDF e imagens.' },
+    'pdf/compress': { id: 'pdf-compress', icon: 'file-text', title: 'Comprimir PDF', desc: 'Reduza o tamanho do PDF.' },
+    'pdf/protect': { id: 'pdf-protect', icon: 'lock', title: 'Proteger/Desproteger', desc: 'Adicione ou remova senha.' },
     // WORD
-    'word/merge': { id: 'word-merge', icon: 'bi-file-earmark-word', title: 'Juntar Documentos', desc: 'Combine vários Word.' },
-    'word/convert': { id: 'word-convert', icon: 'bi-arrow-left-right', title: 'Converter Word', desc: 'Converta para HTML, TXT, PDF, etc.' },
-    'word/compare': { id: 'word-compare', icon: 'bi-files', title: 'Comparar Docs', desc: 'Compare dois documentos.' },
-    'word/extract-images': { id: 'word-images', icon: 'bi-image', title: 'Extrair Imagens', desc: 'Extraia imagens do documento.' },
-    'word/watermark': { id: 'word-watermark', icon: 'bi-droplet', title: "Marca d'Água", desc: 'Insira texto ou imagem.' },
-    'word/filepath': { id: 'word-filepath', icon: 'bi-file-earmark', title: 'Caminho do Arquivo', desc: 'Insira caminho no documento.' },
+    'word/merge': { id: 'word-merge', icon: 'file-pen', title: 'Juntar Documentos', desc: 'Combine vários Word.' },
+    'word/convert': { id: 'word-convert', icon: 'arrow-left-right', title: 'Converter Word', desc: 'Converta para HTML, TXT, PDF, etc.' },
+    'word/compare': { id: 'word-compare', icon: 'files', title: 'Comparar Docs', desc: 'Compare dois documentos.' },
+    'word/extract-images': { id: 'word-images', icon: 'image', title: 'Extrair Imagens', desc: 'Extraia imagens do documento.' },
+    'word/watermark': { id: 'word-watermark', icon: 'droplet', title: "Marca d'Água", desc: 'Insira texto ou imagem.' },
+    'word/filepath': { id: 'word-filepath', icon: 'file', title: 'Caminho do Arquivo', desc: 'Insira caminho no documento.' },
     // EXCEL
-    'excel/convert': { id: 'excel-convert', icon: 'bi-file-earmark-excel', title: 'Conversão em Lote', desc: 'Converta planilhas em lote.' },
-    'excel/merge-all': { id: 'excel-merge', icon: 'bi-table', title: 'Combinar Planilhas', desc: 'Consolide várias planilhas.' },
-    'excel/extract-cells': { id: 'excel-extract', icon: 'bi-grid', title: 'Extrair Células', desc: 'Extraia células específicas.' },
-    'excel/split': { id: 'excel-split', icon: 'bi-columns', title: 'Dividir por Coluna', desc: 'Divida pela coluna chave.' },
-    'excel/split-sheets': { id: 'excel-sheets', icon: 'bi-files', title: 'Extrair Abas', desc: 'Separe abas em arquivos.' },
+    'excel/convert': { id: 'excel-convert', icon: 'file-spreadsheet', title: 'Conversão em Lote', desc: 'Converta planilhas em lote.' },
+    'excel/merge-all': { id: 'excel-merge', icon: 'table', title: 'Combinar Planilhas', desc: 'Consolide várias planilhas.' },
+    'excel/extract-cells': { id: 'excel-extract', icon: 'grid-2x2', title: 'Extrair Células', desc: 'Extraia células específicas.' },
+    'excel/split': { id: 'excel-split', icon: 'separator-vertical', title: 'Dividir por Coluna', desc: 'Divida pela coluna chave.' },
+    'excel/split-sheets': { id: 'excel-sheets', icon: 'files', title: 'Extrair Abas', desc: 'Separe abas em arquivos.' },
 };
 
 // Ordem das seções na edição de atalhos + módulos consumidos
@@ -71,7 +71,7 @@ function buildAvailableFeatures() {
             const meta = HOME_META[`${page}/${f.id}`] || {};
             return {
                 id: meta.id || `${page}-${f.id}`,
-                icon: meta.icon || 'bi-play-circle',
+                icon: meta.icon || 'circle-play',
                 title: meta.title || f.label,
                 desc: meta.desc || '',
                 section,
@@ -145,7 +145,7 @@ export class HomePage extends Feature {
         if (this.cards.length === 0) {
             cardsHtml = `
                 <div class="rounded-xl border border-dashed border-slate-300 py-10 text-center">
-                    <i class="bi bi-grid-3x3-gap text-4xl text-slate-300"></i>
+                    <i data-lucide="grid-3x3" class="text-4xl text-slate-300"></i>
                     <p class="mt-3 text-sm text-muted">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
                 </div>
             `;
@@ -167,7 +167,7 @@ export class HomePage extends Feature {
                                 <div class="form-check">
                                     <input class="form-check-input feature-checkbox" type="checkbox" value="${f.id}" id="chk-${f.id}" ${cardIds.includes(f.id) ? 'checked' : ''}>
                                     <label class="form-check-label" for="chk-${f.id}">
-                                        <i class="bi ${f.icon}"></i> ${f.title}
+                                        <i data-lucide="${f.icon}"></i> ${f.title}
                                     </label>
                                 </div>
                             </div>
@@ -185,7 +185,7 @@ export class HomePage extends Feature {
                     <h2 class="text-lg font-semibold text-slate-900">Acesso Rápido</h2>
                     <div>
                         <button class="btn btn-outline-success btn-sm" id="toggle-edit-mode">
-                            <i class="bi bi-pencil"></i> ${this.isEditing ? 'Concluir edição' : 'Editar'}
+                            <i data-lucide="pencil"></i> ${this.isEditing ? 'Concluir edição' : 'Editar'}
                         </button>
                     </div>
                 </div>
@@ -195,16 +195,16 @@ export class HomePage extends Feature {
                 </div>
 
                 <div id="edit-area" style="${this.isEditing ? 'display:block;' : 'display:none;'}" class="mt-4 p-3 border rounded bg-light">
-                    <h5 class="text-success"><i class="bi bi-check2-square"></i> Selecione as funcionalidades para exibir</h5>
+                    <h5 class="text-success"><i data-lucide="square-check"></i> Selecione as funcionalidades para exibir</h5>
                     <div id="checkboxes-container">
                         ${checkboxesHtml}
                     </div>
                     <div class="mt-3">
                         <button class="btn btn-success" id="apply-changes-btn">
-                            <i class="bi bi-check2"></i> Aplicar alterações
+                            <i data-lucide="check"></i> Aplicar alterações
                         </button>
                         <button class="btn btn-outline-secondary ms-2" id="reset-cards-btn">
-                            <i class="bi bi-arrow-counterclockwise"></i> Restaurar vazio
+                            <i data-lucide="rotate-ccw"></i> Restaurar vazio
                         </button>
                     </div>
                 </div>
@@ -222,14 +222,14 @@ export class HomePage extends Feature {
             <div class="col-span-6 md:col-span-3 quick-card" draggable="${this.isEditing}" data-id="${card.id}">
                 <div class="card h-full" data-page="${card.page}" data-feature="${card.feature}">
                     <div class="card-body">
-                        <div class="card-icon mb-1"><i class="bi ${card.icon}"></i></div>
+                        <div class="card-icon mb-1"><i data-lucide="${card.icon}"></i></div>
                         <h5 class="card-title">${card.title}</h5>
                         <p class="card-text">${card.desc}</p>
                         <div class="mt-auto flex items-center gap-2 pt-1">
                             <span class="badge">${card.section}</span>
                         </div>
                         <button class="btn btn-success w-full btn-open-card">Abrir</button>
-                        ${this.isEditing ? `<button class="btn btn-outline-danger btn-sm w-full remove-card-btn" data-id="${card.id}"><i class="bi bi-trash"></i> Remover</button>` : ''}
+                        ${this.isEditing ? `<button class="btn btn-outline-danger btn-sm w-full remove-card-btn" data-id="${card.id}"><i data-lucide="trash"></i> Remover</button>` : ''}
                     </div>
                 </div>
             </div>

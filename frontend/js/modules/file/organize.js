@@ -60,8 +60,8 @@ export class OrganizeFeature extends Feature {
             </div>
 
             <div class="d-flex gap-2 mb-3">
-                <button class="btn btn-outline-success" id="btn-organize-preview"><i class="bi bi-eye"></i> Pré-visualizar</button>
-                <button class="btn btn-success" id="btn-organize"><i class="bi bi-play-fill"></i> Organizar</button>
+                <button class="btn btn-outline-success" id="btn-organize-preview"><i data-lucide="eye"></i> Pré-visualizar</button>
+                <button class="btn btn-success" id="btn-organize"><i data-lucide="play"></i> Organizar</button>
             </div>
 
             <div id="organize-preview-area" style="display:none;">
@@ -123,7 +123,7 @@ export class OrganizeFeature extends Feature {
                         <div class="mb-2">
                             <strong>${group.folder}/ (${group.count} arquivos)</strong>
                             <ul class="list-unstyled ms-3">
-                                ${group.files.map(f => `<li><i class="bi bi-file-earmark"></i> ${f}</li>`).join('')}
+                                ${group.files.map(f => `<li><i data-lucide="file"></i> ${f}</li>`).join('')}
                             </ul>
                         </div>
                     `;

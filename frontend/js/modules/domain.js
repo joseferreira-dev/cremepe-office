@@ -10,7 +10,7 @@
  *       constructor(container) {
  *           super(container, {
  *               title: 'PDF',
- *               icon: 'bi-file-earmark-pdf',
+ *               icon: 'file-text',
  *               features: [
  *                   { id: 'merge', label: 'Combinar',
  *                     make: () => new PDFMergeFeature() },
@@ -47,7 +47,7 @@ export class DomainModule {
     render() {
         this.container.innerHTML = `
             <div class="page active">
-                <h2 class="module-title"><i class="bi ${this.icon}"></i>${this.title}</h2>
+                <h2 class="module-title"><i data-lucide="${this.icon}"></i>${this.title}</h2>
                 <div class="flex gap-4">
                     <div class="module-sidebar">
                         <h3>Funcionalidades</h3>

@@ -97,8 +97,8 @@ export class PDFSplitFeature extends Feature {
             </div>
 
             <div class="d-flex gap-2">
-                <button class="btn btn-outline-success" id="btn-split-preview"><i class="bi bi-eye me-1"></i>Pré-visualizar</button>
-                <button class="btn btn-success" id="btn-split-execute"><i class="bi bi-play-fill me-1"></i>Dividir</button>
+                <button class="btn btn-outline-success" id="btn-split-preview"><i data-lucide="eye" class="me-1"></i>Pré-visualizar</button>
+                <button class="btn btn-success" id="btn-split-execute"><i data-lucide="play" class="me-1"></i>Dividir</button>
             </div>
 
             <div id="split-preview-area" style="display:none;" class="mt-3">

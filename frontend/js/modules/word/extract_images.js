@@ -45,7 +45,7 @@ export class ExtractImagesFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-extract"><i class="bi bi-play-fill"></i> Extrair</button>
+            <button class="btn btn-success" id="btn-extract"><i data-lucide="play"></i> Extrair</button>
 
             ${this.progressHTML()}
 
@@ -108,7 +108,7 @@ export class ExtractImagesFeature extends Feature {
             const resultDiv = document.getElementById('extract-result');
             resultDiv.style.display = 'block';
             const listDiv = document.getElementById('extract-list');
-            listDiv.innerHTML = result.images.map(img => `<div><i class="bi bi-image me-1"></i> ${img}</div>`).join('');
+            listDiv.innerHTML = result.images.map(img => `<div><i data-lucide="image" class="me-1"></i> ${img}</div>`).join('');
         } catch (err) {
             this.log(`Erro: ${err.message}`);
         } finally {

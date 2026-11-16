@@ -23,7 +23,7 @@ export class CollectFeature extends Feature {
                         <!-- Campos dinâmicos -->
                     </div>
                     <button class="btn btn-outline-success btn-sm mt-2" id="add-src-dir">
-                        <i class="bi bi-plus-circle"></i> Adicionar Origem
+                        <i data-lucide="circle-plus"></i> Adicionar Origem
                     </button>
                 </div>
             </div>
@@ -72,8 +72,8 @@ export class CollectFeature extends Feature {
             </div>
 
             <div class="d-flex gap-2 mb-3">
-                <button class="btn btn-outline-success" id="btn-preview"><i class="bi bi-eye"></i> Pré-visualizar</button>
-                <button class="btn btn-success" id="btn-collect"><i class="bi bi-play-fill"></i> Coletar Arquivos</button>
+                <button class="btn btn-outline-success" id="btn-preview"><i data-lucide="eye"></i> Pré-visualizar</button>
+                <button class="btn btn-success" id="btn-collect"><i data-lucide="play"></i> Coletar Arquivos</button>
             </div>
 
             <div id="preview-area" style="display:none;">
@@ -96,7 +96,7 @@ export class CollectFeature extends Feature {
             <div class="input-group mb-1">
                 <input type="text" class="form-control src-dir-input" data-idx="${idx}" value="${val}" placeholder="Selecione a pasta de origem...">
                 <button class="btn btn-outline-secondary btn-src-select" data-idx="${idx}">Selecionar</button>
-                ${this.srcDirs.length > 1 ? `<button class="btn btn-outline-danger btn-src-remove" data-idx="${idx}"><i class="bi bi-x"></i></button>` : ''}
+                ${this.srcDirs.length > 1 ? `<button class="btn btn-outline-danger btn-src-remove" data-idx="${idx}"><i data-lucide="x"></i></button>` : ''}
             </div>
         `).join('');
     }
@@ -199,7 +199,7 @@ export class CollectFeature extends Feature {
                 listDiv.innerHTML = '<p class="text-muted">Nenhum arquivo corresponde aos filtros.</p>';
             } else {
                 listDiv.innerHTML = result.files.map(f => `
-                    <div><i class="bi bi-file-earmark me-1"></i> ${f.relative} (${(f.size / 1024).toFixed(1)} KB)</div>
+                    <div><i data-lucide="file" class="me-1"></i> ${f.relative} (${(f.size / 1024).toFixed(1)} KB)</div>
                 `).join('');
             }
             this.log(`Pré-visualização: ${result.count} arquivos encontrados.`);

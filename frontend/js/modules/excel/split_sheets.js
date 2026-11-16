@@ -54,7 +54,7 @@ export class ExcelSplitSheetsFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-split-sheets"><i class="bi bi-play-fill"></i> Extrair Abas</button>
+            <button class="btn btn-success" id="btn-split-sheets"><i data-lucide="play"></i> Extrair Abas</button>
 
             ${this.progressHTML()}
 

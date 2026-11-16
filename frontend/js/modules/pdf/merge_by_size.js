@@ -68,7 +68,7 @@ export class PDFMergeBySizeFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-pdf-merge-size"><i class="bi bi-play-fill"></i> Combinar</button>
+            <button class="btn btn-success" id="btn-pdf-merge-size"><i data-lucide="play"></i> Combinar</button>
 
             ${this.progressHTML()}
 

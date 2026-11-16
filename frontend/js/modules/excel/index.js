@@ -19,7 +19,7 @@ export class ExcelModule extends DomainModule {
     constructor(container) {
         super(container, {
             title: 'Excel',
-            icon: 'bi-file-earmark-excel',
+            icon: 'file-spreadsheet',
             features: ExcelModule.features,
         });
     }

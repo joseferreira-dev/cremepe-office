@@ -55,9 +55,9 @@ export class CompareFeature extends Feature {
             </div>
 
             <div class="d-flex gap-2 mb-3">
-                <button class="btn btn-outline-success" id="btn-compare"><i class="bi bi-eye"></i> Comparar</button>
-                <button class="btn btn-success" id="btn-sync" disabled><i class="bi bi-arrow-left-right"></i> Sincronizar (copiar para destino)</button>
-                <button class="btn btn-danger" id="btn-mirror" disabled><i class="bi bi-arrow-repeat"></i> Espelhar (remover arquivos extras no destino)</button>
+                <button class="btn btn-outline-success" id="btn-compare"><i data-lucide="eye"></i> Comparar</button>
+                <button class="btn btn-success" id="btn-sync" disabled><i data-lucide="arrow-left-right"></i> Sincronizar (copiar para destino)</button>
+                <button class="btn btn-danger" id="btn-mirror" disabled><i data-lucide="repeat"></i> Espelhar (remover arquivos extras no destino)</button>
             </div>
 
             <div id="compare-result" style="display:none;">

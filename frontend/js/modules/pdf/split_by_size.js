@@ -50,7 +50,7 @@ export class PDFSplitBySizeFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-split-size-execute"><i class="bi bi-play-fill me-1"></i>Dividir</button>
+            <button class="btn btn-success" id="btn-split-size-execute"><i data-lucide="play" class="me-1"></i>Dividir</button>
 
             ${this.progressHTML()}
 

@@ -62,7 +62,7 @@ export class PDFRemovePagesFeature extends Feature {
                 </div>
             </div>
 
-            <button class="btn btn-success" id="btn-remove-pages-execute"><i class="bi bi-play-fill me-1"></i>Remover Páginas</button>
+            <button class="btn btn-success" id="btn-remove-pages-execute"><i data-lucide="play" class="me-1"></i>Remover Páginas</button>
 
             ${this.progressHTML()}
 

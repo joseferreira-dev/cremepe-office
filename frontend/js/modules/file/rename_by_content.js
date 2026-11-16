@@ -49,8 +49,8 @@ export class RenameByContentFeature extends Feature {
             </div>
 
             <div class="d-flex gap-2 mb-3">
-                <button class="btn btn-outline-success" id="btn-rename-content-preview"><i class="bi bi-eye"></i> Pré-visualizar</button>
-                <button class="btn btn-success" id="btn-rename-content"><i class="bi bi-play-fill"></i> Renomear</button>
+                <button class="btn btn-outline-success" id="btn-rename-content-preview"><i data-lucide="eye"></i> Pré-visualizar</button>
+                <button class="btn btn-success" id="btn-rename-content"><i data-lucide="play"></i> Renomear</button>
             </div>
 
             <div id="rename-content-preview-area" style="display:none;">

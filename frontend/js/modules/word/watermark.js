@@ -142,7 +142,7 @@ export class WatermarkFeature extends Feature {
                     </div>
                 </div>
 
-                <button class="btn btn-success" id="btn-wm-apply"><i class="bi bi-play-fill"></i> Inserir Marca d'Água</button>
+                <button class="btn btn-success" id="btn-wm-apply"><i data-lucide="play"></i> Inserir Marca d'Água</button>
 
             ${this.progressHTML()}
 

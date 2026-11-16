@@ -21,7 +21,7 @@ export class WordModule extends DomainModule {
     constructor(container) {
         super(container, {
             title: 'Word',
-            icon: 'bi-file-earmark-word',
+            icon: 'file-pen',
             features: WordModule.features,
         });
     }
