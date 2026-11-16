@@ -201,6 +201,7 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
 - O backend escuta **apenas** em `127.0.0.1` (não é exposto na rede local).
 - Debug (reloader + debugger do Werkzeug) fica **desligado** por padrão; em produção (`backend.exe`) nunca é ativado.
 - Erros inesperados respondem `500` com mensagem genérica; o traceback fica apenas no `backend.log`.
+- Interface e bibliotecas (Bootstrap, ícones, pdf.js) ficam em `frontend/vendor/` — **nenhum recurso é baixado de CDN**, o app funciona offline.
 
 ---
 
@@ -222,6 +223,7 @@ cremepe-office/
 │   ├── preload.js          # Ponte segura entre main e renderer
 │   ├── assets/             # Imagens, ícones
 │   ├── css/                # Estilos
+│   ├── vendor/             # Bootstrap, ícones e pdf.js locais (offline)
 │   └── js/                 # JavaScript do renderer (módulos ES)
 │       ├── app.js          # Entry point do renderer
 │       ├── api.js          # Cliente HTTP + polling de jobs

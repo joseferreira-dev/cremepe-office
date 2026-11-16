@@ -5,10 +5,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CREMEPE OFFICE</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <!-- Bootstrap Icons -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <!-- Bootstrap CSS (local — app funciona offline) -->
+    <link href="vendor/bootstrap.min.css" rel="stylesheet" />
+    <!-- Bootstrap Icons (local) -->
+    <link href="vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet" />
     <!-- Custom CSS (cores e sidebar) -->
     <link rel="stylesheet" href="css/styles.css" />
 </head>
@@ -55,13 +55,13 @@
         </main>
     </div>
 
-    <!-- PDF.js (CDN, script clássico - define o global pdfjsLib) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- PDF.js local (script clássico - define o global pdfjsLib) -->
+    <script src="vendor/pdf.min.js"></script>
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
     </script>
-    <!-- Bootstrap JS (CDN, opcional) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Bootstrap JS (local) -->
+    <script src="vendor/bootstrap.bundle.min.js"></script>
     <!-- App: um único entry point ES module; a ordem de carregamento dos
          ~45 módulos é resolvida pelos imports -->
     <script type="module" src="js/app.js"></script>
