@@ -156,15 +156,19 @@ def _noise_photo_pdf(tmp_path, name='foto.pdf'):
 
 
 def _smask_pdf(tmp_path, name='smask.pdf'):
-    """Imagem cinza + /SMask (quadrado central opaco) via pikepdf puro."""
+    """Imagem cinza + /SMask (quadrado central opaco) via pikepdf puro.
+
+    400px exibidos em 100pt (1,39in => ~288dpi efetivo): com alvo72 a
+    imagem E reamostrada (a composicao da mascara roda).
+    """
     import zlib
     import pikepdf
     from PIL import Image as PILImage
-    w = h = 120
+    w = h = 400
     main = PILImage.new('RGB', (w, h), (128, 128, 128))
     mask = PILImage.new('L', (w, h), 0)
-    for x in range(30, 90):
-        for y in range(30, 90):
+    for x in range(150, 250):
+        for y in range(150, 250):
             mask.putpixel((x, y), 255)
     pdf = pikepdf.new()
     page = pdf.add_blank_page(page_size=(300, 300))
@@ -185,11 +189,54 @@ def _smask_pdf(tmp_path, name='smask.pdf'):
     img[pikepdf.Name('/SMask')] = sm
     page.obj.Resources = pikepdf.Dictionary(
         XObject=pikepdf.Dictionary(Im0=img))
-    page.obj.Contents = pdf.make_stream(b'q 300 0 0 300 0 0 cm /Im0 Do Q')
+    page.obj.Contents = pdf.make_stream(b'q 100 0 0 100 0 0 cm /Im0 Do Q')
     out = tmp_path / name
     pdf.save(str(out))
     pdf.close()
     return out
+
+
+def _placed_photo_pdf(tmp_path, name, px, display_pt):
+    """Foto quadrada px x px exibida em display_pt — DPI efetivo conhecido."""
+    from PIL import Image as PILImage
+    img = PILImage.new('RGB', (px, px), (30, 90, 200))
+    jpg = tmp_path / f'{name}.jpg'
+    img.save(jpg, format='JPEG', quality=95)
+    from reportlab.pdfgen import canvas as _canvas
+    from reportlab.lib.pagesizes import A4 as _A4
+    c = _canvas.Canvas(str(tmp_path / name), pagesize=_A4)
+    c.drawImage(str(jpg), 50, 50, width=display_pt, height=display_pt)
+    c.showPage()
+    c.save()
+    return tmp_path / name
+
+
+def test_compress_dpi_efetivo_calculado_pelo_tamanho_exibido(tmp_path):
+    """1800px em 216pt (3in => 600dpi efetivo); alvo150 -> ~450px.
+
+    A heuristica antiga (300dpi fixo) produziria 900px.
+    """
+    import pikepdf
+    from services.pdf_processor import compress
+    src = _placed_photo_pdf(tmp_path, 'dpi.pdf', 1800, 216)
+    result = compress(str(src), str(tmp_path / 'dpi_out.pdf'), 'low', 85)
+    with pikepdf.open(result['output_path']) as p:
+        w = int(list(p.pages[0].get_images().values())[0].Width)
+    assert 430 <= w <= 470, w
+
+
+def test_compress_mantem_imagem_dentro_do_alvo(tmp_path):
+    """100px em 144pt (2in => 50dpi efetivo); alvo100 -> mantida intacta.
+
+    Escala >1: sem resize e sem reencodar (a heuristica antiga daria33px).
+    """
+    import pikepdf
+    from services.pdf_processor import compress
+    src = _placed_photo_pdf(tmp_path, 'pequena.pdf', 100, 144)
+    result = compress(str(src), str(tmp_path / 'pequena_out.pdf'), 'medium', 85)
+    with pikepdf.open(result['output_path']) as p:
+        w = int(list(p.pages[0].get_images().values())[0].Width)
+    assert w == 100, w
 
 
 def test_compress_reamostra_imagens_e_reduz(tmp_path):

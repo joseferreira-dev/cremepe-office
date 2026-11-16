@@ -1277,6 +1277,37 @@ def convert_pdf_to_images(
 
     return stats
 
+def _display_size_inches(input_path: Path) -> dict:
+    """{xref: (largura_in, altura_in)} do tamanho exibido de cada imagem.
+
+    Usa PyMuPDF para ler o retângulo de exibição de cada imagem na página
+    (já resolve Form XObjects). Quando o mesmo objeto aparece em vários
+    lugares, vale o maior exibidor (não se degrada a maior apresentação).
+    Sem informação (imagens inline, anotações etc.) o chamador cai na
+    estimativa legada de 300 DPI.
+    """
+    sizes = {}
+    try:
+        with fitz.open(str(input_path)) as doc:
+            for page in doc:
+                for info in page.get_image_info(xrefs=True):
+                    xref = info.get('xref') or 0
+                    bbox = info.get('bbox') or (0, 0, 0, 0)
+                    w_pt = bbox[2] - bbox[0]
+                    h_pt = bbox[3] - bbox[1]
+                    if xref <= 0 or w_pt <= 0 or h_pt <= 0:
+                        continue
+                    w_in, h_in = w_pt / 72.0, h_pt / 72.0
+                    prev = sizes.get(xref)
+                    if prev is None:
+                        sizes[xref] = (w_in, h_in)
+                    else:
+                        sizes[xref] = (max(prev[0], w_in), max(prev[1], h_in))
+    except Exception as exc:
+        logger.debug('compress: sem mapa de exibicao (%s); usando 300dpi', exc)
+    return sizes
+
+
 def compress(
     input_path: str,
     output_path: str,
@@ -1328,6 +1359,8 @@ def compress(
                 del pdf.Root.Metadata
 
         if downscale_images and dpi_target:
+            # mapa xref -> tamanho exibido (DPI efetivo por imagem)
+            display_inches = _display_size_inches(input_path)
             # Lista primeiro: as trocas de imagem nao podem acontecer
             # durante a iteracao das paginas/imagens.
             targets = []
@@ -1339,15 +1372,32 @@ def compress(
                 try:
                     img_obj = page.get_images()[name]
                     pil_image = pikepdf.PdfImage(img_obj).as_pil_image()
-                    scale_factor = dpi_target / 300.0
-                    if scale_factor < 1:
-                        new_width = int(pil_image.width * scale_factor)
-                        new_height = int(pil_image.height * scale_factor)
-                        if new_width < 1 or new_height < 1:
-                            continue
-                        pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
+
+                    # DPI efetivo = pixels reais vs polegadas exibidas na
+                    # pagina; a escala satisfaz AMBOS os eixos (min) e nunca
+                    # amplia. Sem mapa de exibicao: estimativa de 300 DPI.
+                    display = display_inches.get(img_obj.objgen[0])
+                    if display is not None:
+                        w_in, h_in = display
+                        scale_factor = min(
+                            1.0,
+                            w_in * dpi_target / max(1, pil_image.width),
+                            h_in * dpi_target / max(1, pil_image.height),
+                        )
                     else:
-                        new_width, new_height = pil_image.size
+                        scale_factor = min(1.0, dpi_target / 300.0)
+
+                    if scale_factor >= 1.0:
+                        # imagem ja esta em resolucao igual/menor que o alvo:
+                        # reencodar so perderia qualidade sem ganho de tamanho
+                        logger.debug(
+                            'compress: %s ja esta em <= %s DPI; mantida',
+                            name, dpi_target)
+                        continue
+
+                    new_width = max(1, int(pil_image.width * scale_factor))
+                    new_height = max(1, int(pil_image.height * scale_factor))
+                    pil_image = pil_image.resize((new_width, new_height), Image.LANCZOS)
 
                     if pil_image.mode != 'RGB' or '/SMask' in img_obj:
                         smask_pil = None
