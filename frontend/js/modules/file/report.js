@@ -10,14 +10,14 @@ export class ReportFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Gerar Relatório de Estrutura</h4>
-                <p class="text-muted">Exporte a árvore de diretórios para TXT ou CSV, com opção de incluir ou não os arquivos.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Gerar Relatório de Estrutura</h4>
+                <p class="text-slate-500">Exporte a árvore de diretórios para TXT ou CSV, com opção de incluir ou não os arquivos.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Diretório</h5>
+                    <h5 class="card-title text-brand-600">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -36,17 +36,17 @@ export class ReportFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Formato de saída</h5>
-                    <div class="row">
-                        <div class="col-md-4">
+                    <h5 class="card-title text-brand-600">Formato de saída</h5>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="md:col-span-4">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="report-format" id="report-format-txt" value="txt" checked>
                                 <label class="form-check-label">TXT (indentado)</label>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="md:col-span-4">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="report-format" id="report-format-csv" value="csv">
                                 <label class="form-check-label">CSV</label>
@@ -56,9 +56,9 @@ export class ReportFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Salvar em arquivo (opcional)</h5>
+                    <h5 class="card-title text-brand-600">Salvar em arquivo (opcional)</h5>
                     <div class="input-group">
                         <input type="text" id="report-output-path" class="form-control" placeholder="Caminho para salvar (deixe vazio para visualizar)">
                         <button class="btn btn-outline-secondary" id="btn-report-output">Selecionar</button>
@@ -70,9 +70,9 @@ export class ReportFeature extends Feature {
 
             ${this.progressHTML()}
 
-            <div id="report-result" style="display:none;" class="mt-3">
-                <label class="fw-bold text-success">Resultado</label>
-                <div id="report-content" class="border rounded p-2" style="max-height:400px; overflow:auto; font-family:monospace; font-size:0.85rem; white-space:pre-wrap;"></div>
+            <div id="report-result" style="display:none;" class="mt-4">
+                <label class="font-bold text-brand-600">Resultado</label>
+                <div id="report-content" class="border rounded p-2 border-slate-200" style="max-height:400px; overflow:auto; font-family:monospace; font-size:0.85rem; white-space:pre-wrap;"></div>
             </div>
 
             ${this.logHTML()}

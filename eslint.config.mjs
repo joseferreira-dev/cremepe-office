@@ -34,6 +34,7 @@ export default [
                 AbortController: 'readonly',
                 structuredClone: 'readonly',
                 MutationObserver: 'readonly',
+                requestAnimationFrame: 'readonly',
                 // Electron (exposto pelo preload via contextBridge)
                 electronAPI: 'readonly',
                 // CDNs

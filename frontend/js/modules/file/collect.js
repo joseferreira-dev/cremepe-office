@@ -11,14 +11,14 @@ export class CollectFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Coletar Arquivos</h4>
-                <p class="text-muted">Reúna arquivos de múltiplas pastas em um destino.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Coletar Arquivos</h4>
+                <p class="text-slate-500">Reúna arquivos de múltiplas pastas em um destino.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Diretórios de Origem</h5>
+                    <h5 class="card-title text-brand-600">Diretórios de Origem</h5>
                     <div id="src-dirs-container">
                         <!-- Campos dinâmicos -->
                     </div>
@@ -28,9 +28,9 @@ export class CollectFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Destino</h5>
+                    <h5 class="card-title text-brand-600">Destino</h5>
                     <div class="input-group">
                         <input type="text" id="dst-dir" class="form-control" placeholder="Selecione a pasta de destino...">
                         <button class="btn btn-outline-secondary" id="btn-dst">Selecionar</button>
@@ -38,18 +38,18 @@ export class CollectFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções</h5>
-                    <div class="row g-2">
-                        <div class="col-md-4">
+                    <h5 class="card-title text-brand-600">Opções</h5>
+                    <div class="grid grid-cols-12 gap-2">
+                        <div class="md:col-span-4">
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="recursive" checked> <label class="form-check-label">Recursivo (incluir subpastas)</label></div>
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="copy-files"> <label class="form-check-label">Copiar (manter arquivos originais)</label></div>
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="preserve-structure"> <label class="form-check-label">Preservar estrutura de pastas original</label></div>
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="include-hidden"> <label class="form-check-label">Incluir arquivos ocultos</label></div>
                             <div class="form-check"><input class="form-check-input" type="checkbox" id="delete-empty"> <label class="form-check-label">Excluir pastas vazias (após mover)</label></div>
                         </div>
-                        <div class="col-md-8">
+                        <div class="md:col-span-8">
                             <div class="mb-2">
                                 <label class="form-label">Extensões (separadas por vírgula, ex: .pdf,.docx)</label>
                                 <input type="text" id="extensions" class="form-control" placeholder="Deixe vazio para todas">
@@ -71,14 +71,14 @@ export class CollectFeature extends Feature {
                 </div>
             </div>
 
-            <div class="d-flex gap-2 mb-3">
+            <div class="flex gap-2 mb-4">
                 <button class="btn btn-outline-success" id="btn-preview"><i data-lucide="eye"></i> Pré-visualizar</button>
                 <button class="btn btn-success" id="btn-collect"><i data-lucide="play"></i> Coletar Arquivos</button>
             </div>
 
             <div id="preview-area" style="display:none;">
-                <label class="fw-bold text-success">Pré-visualização (<span id="preview-count">0</span> arquivos)</label>
-                <div id="preview-list" class="border rounded p-2" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
+                <label class="font-bold text-brand-600">Pré-visualização (<span id="preview-count">0</span> arquivos)</label>
+                <div id="preview-list" class="border rounded p-2 border-slate-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
             ${this.progressHTML()}
@@ -196,7 +196,7 @@ export class CollectFeature extends Feature {
             document.getElementById('preview-count').textContent = result.count;
             const listDiv = document.getElementById('preview-list');
             if (result.count === 0) {
-                listDiv.innerHTML = '<p class="text-muted">Nenhum arquivo corresponde aos filtros.</p>';
+                listDiv.innerHTML = '<p class="text-slate-500">Nenhum arquivo corresponde aos filtros.</p>';
             } else {
                 listDiv.innerHTML = result.files.map(f => `
                     <div><i data-lucide="file" class="me-1"></i> ${f.relative} (${(f.size / 1024).toFixed(1)} KB)</div>

@@ -10,14 +10,14 @@ export class AttributesFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Alterar Atributos em Lote</h4>
-                <p class="text-muted">Modifique datas, atributos (somente leitura, oculto, sistema) e permissões de vários arquivos de uma vez.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Alterar Atributos em Lote</h4>
+                <p class="text-slate-500">Modifique datas, atributos (somente leitura, oculto, sistema) e permissões de vários arquivos de uma vez.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Diretório</h5>
+                    <h5 class="card-title text-brand-600">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -32,23 +32,23 @@ export class AttributesFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Atributos (Windows)</h5>
-                    <div class="row">
-                        <div class="col-md-4">
+                    <h5 class="card-title text-brand-600">Atributos (Windows)</h5>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="md:col-span-4">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="attr-readonly">
                                 <label class="form-check-label">Somente leitura</label>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="md:col-span-4">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="attr-hidden">
                                 <label class="form-check-label">Oculto</label>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="md:col-span-4">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="attr-system">
                                 <label class="form-check-label">Sistema</label>
@@ -62,15 +62,15 @@ export class AttributesFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Datas</h5>
-                    <div class="row">
-                        <div class="col-md-6">
+                    <h5 class="card-title text-brand-600">Datas</h5>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="md:col-span-6">
                             <label class="form-label">Data de modificação</label>
                             <input type="datetime-local" id="attr-modification-date" class="form-control">
                         </div>
-                        <div class="col-md-6">
+                        <div class="md:col-span-6">
                             <label class="form-label">Data de criação (Windows)</label>
                             <input type="datetime-local" id="attr-creation-date" class="form-control">
                         </div>

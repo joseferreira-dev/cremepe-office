@@ -11,14 +11,14 @@ export class RenameFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Renomear em Lote</h4>
-                <p class="text-muted">Renomeie vários arquivos de uma só vez com um padrão personalizado.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Renomear em Lote</h4>
+                <p class="text-slate-500">Renomeie vários arquivos de uma só vez com um padrão personalizado.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Diretório</h5>
+                    <h5 class="card-title text-brand-600">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -33,9 +33,9 @@ export class RenameFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Padrão de Renomeação</h5>
+                    <h5 class="card-title text-brand-600">Padrão de Renomeação</h5>
                     <div class="mb-2">
                         <label class="form-label">Prefixo</label>
                         <input type="text" id="prefix" class="form-control" placeholder="ex: CREME_">
@@ -55,9 +55,9 @@ export class RenameFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Substituição (Regex)</h5>
+                    <h5 class="card-title text-brand-600">Substituição (Regex)</h5>
                     <div class="mb-2">
                         <label class="form-label">Presets</label>
                         <select id="regex-preset" class="form-select">
@@ -91,14 +91,14 @@ export class RenameFeature extends Feature {
                 </div>
             </div>
 
-            <div class="d-flex gap-2 mb-3">
+            <div class="flex gap-2 mb-4">
                 <button class="btn btn-outline-success" id="btn-rename-preview"><i data-lucide="eye"></i> Pré-visualizar</button>
                 <button class="btn btn-success" id="btn-rename"><i data-lucide="play"></i> Renomear Arquivos</button>
             </div>
 
             <div id="rename-preview-area" style="display:none;">
-                <label class="fw-bold text-success">Pré-visualização (<span id="rename-preview-count">0</span> arquivos)</label>
-                <div id="rename-preview-list" class="border rounded p-2" style="max-height:250px; overflow:auto; font-size:0.9rem;">
+                <label class="font-bold text-brand-600">Pré-visualização (<span id="rename-preview-count">0</span> arquivos)</label>
+                <div id="rename-preview-list" class="border rounded p-2 border-slate-200" style="max-height:250px; overflow:auto; font-size:0.9rem;">
                     <table class="table table-sm table-striped mb-0">
                         <thead><tr><th>Nome atual</th><th>Novo nome</th></tr></thead>
                         <tbody id="rename-preview-tbody"></tbody>
@@ -244,7 +244,7 @@ export class RenameFeature extends Feature {
             document.getElementById('rename-preview-count').textContent = result.count;
             const tbody = document.getElementById('rename-preview-tbody');
             if (result.count === 0) {
-                tbody.innerHTML = '<tr><td colspan="2" class="text-muted">Nenhum arquivo corresponde aos critérios.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="2" class="text-slate-500">Nenhum arquivo corresponde aos critérios.</td></tr>';
             } else {
                 tbody.innerHTML = result.preview.map(p => `
                     <tr>

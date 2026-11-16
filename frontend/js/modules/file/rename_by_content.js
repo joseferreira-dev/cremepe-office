@@ -11,14 +11,14 @@ export class RenameByContentFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Renomear por Conteúdo</h4>
-                <p class="text-muted">Renomeie arquivos com base em metadados EXIF (imagens), ID3 (áudio) ou primeira linha (textos). Arquivos ocultos são ignorados.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Renomear por Conteúdo</h4>
+                <p class="text-slate-500">Renomeie arquivos com base em metadados EXIF (imagens), ID3 (áudio) ou primeira linha (textos). Arquivos ocultos são ignorados.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Diretório</h5>
+                    <h5 class="card-title text-brand-600">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -29,9 +29,9 @@ export class RenameByContentFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções</h5>
+                    <h5 class="card-title text-brand-600">Opções</h5>
                     <div class="mb-2">
                         <label class="form-label">Padrão de renomeação</label>
                         <select id="rename-content-pattern" class="form-select">
@@ -48,23 +48,23 @@ export class RenameByContentFeature extends Feature {
                 </div>
             </div>
 
-            <div class="d-flex gap-2 mb-3">
+            <div class="flex gap-2 mb-4">
                 <button class="btn btn-outline-success" id="btn-rename-content-preview"><i data-lucide="eye"></i> Pré-visualizar</button>
                 <button class="btn btn-success" id="btn-rename-content"><i data-lucide="play"></i> Renomear</button>
             </div>
 
             <div id="rename-content-preview-area" style="display:none;">
-                <label class="fw-bold text-success">Pré-visualização</label>
-                <div id="rename-content-preview-list" class="border rounded p-2" style="max-height:300px; overflow:auto; font-size:0.9rem;">
+                <label class="font-bold text-brand-600">Pré-visualização</label>
+                <div id="rename-content-preview-list" class="border rounded p-2 border-slate-200" style="max-height:300px; overflow:auto; font-size:0.9rem;">
                     <table class="table table-sm table-striped mb-0">
                         <thead><tr><th>Original</th><th>Novo nome</th><th>Status</th></tr></thead>
                         <tbody id="rename-content-preview-tbody"></tbody>
                     </table>
                 </div>
                 <div class="mt-2">
-                    <span class="badge bg-success">Renomeados: <span id="preview-renamed-count">0</span></span>
-                    <span class="badge bg-warning">Ignorados: <span id="preview-skipped-count">0</span></span>
-                    <span class="badge bg-danger">Erros: <span id="preview-errors-count">0</span></span>
+                    <span class="badge bg-brand-600">Renomeados: <span id="preview-renamed-count">0</span></span>
+                    <span class="badge bg-amber-100">Ignorados: <span id="preview-skipped-count">0</span></span>
+                    <span class="badge bg-rose-600">Erros: <span id="preview-errors-count">0</span></span>
                 </div>
             </div>
 
@@ -120,17 +120,17 @@ export class RenameByContentFeature extends Feature {
 
             let html = '';
             renamed.forEach(item => {
-                html += `<tr><td>${item.original}</td><td><strong>${item.new}</strong></td><td class="text-success">✓</td></tr>`;
+                html += `<tr><td>${item.original}</td><td><strong>${item.new}</strong></td><td class="text-brand-600">✓</td></tr>`;
             });
             skipped.forEach(item => {
                 const reason = item.reason || 'Desconhecido';
-                html += `<tr><td>${item.path}</td><td>—</td><td class="text-warning">Ignorado: ${reason}</td></tr>`;
+                html += `<tr><td>${item.path}</td><td>—</td><td class="text-amber-600">Ignorado: ${reason}</td></tr>`;
             });
             errors.forEach(item => {
-                html += `<tr><td>${item.file}</td><td>—</td><td class="text-danger">${item.error}</td></tr>`;
+                html += `<tr><td>${item.file}</td><td>—</td><td class="text-rose-600">${item.error}</td></tr>`;
             });
             if (html === '') {
-                html = '<tr><td colspan="3" class="text-muted">Nenhum arquivo processado.</td></tr>';
+                html = '<tr><td colspan="3" class="text-slate-500">Nenhum arquivo processado.</td></tr>';
             }
             tbody.innerHTML = html;
             this.log(`Pré-visualização: ${renamed.length} arquivos serão renomeados.`);

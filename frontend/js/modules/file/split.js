@@ -11,13 +11,13 @@ export class SplitFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Dividir / Remontar Arquivos</h4>
-                <p class="text-muted">Divida um arquivo grande em partes menores ou remonte partes em um único arquivo.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Dividir / Remontar Arquivos</h4>
+                <p class="text-slate-500">Divida um arquivo grande em partes menores ou remonte partes em um único arquivo.</p>
             </div>
 
             <!-- Tabs -->
-            <ul class="nav nav-tabs mb-3" role="tablist">
+            <ul class="nav nav-tabs mb-4" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" data-mode="split" id="tab-split">Dividir</button>
                 </li>
@@ -28,9 +28,9 @@ export class SplitFeature extends Feature {
 
             <!-- Conteúdo Dividir -->
             <div id="split-content">
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Arquivo para dividir</h5>
+                        <h5 class="card-title text-brand-600">Arquivo para dividir</h5>
                         <div class="input-group">
                             <input type="text" id="split-file" class="form-control" placeholder="Selecione o arquivo...">
                             <button class="btn btn-outline-secondary" id="btn-split-file">Selecionar</button>
@@ -38,9 +38,9 @@ export class SplitFeature extends Feature {
                     </div>
                 </div>
 
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Destino</h5>
+                        <h5 class="card-title text-brand-600">Destino</h5>
                         <div class="input-group">
                             <input type="text" id="split-output-dir" class="form-control" placeholder="Pasta para salvar as partes...">
                             <button class="btn btn-outline-secondary" id="btn-split-dir">Selecionar</button>
@@ -48,9 +48,9 @@ export class SplitFeature extends Feature {
                     </div>
                 </div>
 
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Opções</h5>
+                        <h5 class="card-title text-brand-600">Opções</h5>
                         <div class="mb-2">
                             <label class="form-label">Tamanho de cada parte (MB)</label>
                             <input type="number" id="split-size" class="form-control" value="100" min="1" step="1">
@@ -67,9 +67,9 @@ export class SplitFeature extends Feature {
 
             <!-- Conteúdo Remontar -->
             <div id="merge-content" style="display:none;">
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Selecione as partes (.partNNNN)</h5>
+                        <h5 class="card-title text-brand-600">Selecione as partes (.partNNNN)</h5>
                         <div class="mb-2">
                             <label class="form-label">Partes</label>
                             <div class="input-group">
@@ -162,7 +162,7 @@ export class SplitFeature extends Feature {
         const paths = val.split(',').map(s => s.trim()).filter(Boolean);
         const listDiv = document.getElementById('parts-list');
         if (paths.length === 0) {
-            listDiv.innerHTML = '<p class="text-muted">Nenhuma parte selecionada.</p>';
+            listDiv.innerHTML = '<p class="text-slate-500">Nenhuma parte selecionada.</p>';
         } else {
             listDiv.innerHTML = paths.map(p => `<div><i data-lucide="file" class="me-1"></i> ${p}</div>`).join('');
         }

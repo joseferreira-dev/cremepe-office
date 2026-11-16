@@ -11,14 +11,14 @@ export class CompareFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Comparar e Sincronizar Pastas</h4>
-                <p class="text-muted">Compare duas pastas e sincronize arquivos novos/modificados.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Comparar e Sincronizar Pastas</h4>
+                <p class="text-slate-500">Compare duas pastas e sincronize arquivos novos/modificados.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Pastas</h5>
+                    <h5 class="card-title text-brand-600">Pastas</h5>
                     <div class="mb-2">
                         <label class="form-label">Origem</label>
                         <div class="input-group">
@@ -36,9 +36,9 @@ export class CompareFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções</h5>
+                    <h5 class="card-title text-brand-600">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="compare-recursive" checked>
                         <label class="form-check-label">Incluir subpastas</label>
@@ -54,20 +54,20 @@ export class CompareFeature extends Feature {
                 </div>
             </div>
 
-            <div class="d-flex gap-2 mb-3">
+            <div class="flex gap-2 mb-4">
                 <button class="btn btn-outline-success" id="btn-compare"><i data-lucide="eye"></i> Comparar</button>
                 <button class="btn btn-success" id="btn-sync" disabled><i data-lucide="arrow-left-right"></i> Sincronizar (copiar para destino)</button>
                 <button class="btn btn-danger" id="btn-mirror" disabled><i data-lucide="repeat"></i> Espelhar (remover arquivos extras no destino)</button>
             </div>
 
             <div id="compare-result" style="display:none;">
-                <div class="row g-2 mb-2">
-                    <div class="col-6 col-md-3"><span class="badge bg-primary">Origem: <span id="total-source">0</span> arquivos</span></div>
-                    <div class="col-6 col-md-3"><span class="badge bg-secondary">Destino: <span id="total-target">0</span> arquivos</span></div>
-                    <div class="col-6 col-md-3"><span class="badge bg-success">Idênticos: <span id="identical-count">0</span></span></div>
-                    <div class="col-6 col-md-3"><span class="badge bg-warning">Diferentes: <span id="modified-count">0</span></span></div>
-                    <div class="col-6 col-md-3"><span class="badge bg-info">Apenas na origem: <span id="only-source-count">0</span></span></div>
-                    <div class="col-6 col-md-3"><span class="badge bg-danger">Apenas no destino: <span id="only-target-count">0</span></span></div>
+                <div class="grid grid-cols-12 gap-2 mb-2">
+                    <div class="col-span-6 md:col-span-3"><span class="badge bg-brand-600">Origem: <span id="total-source">0</span> arquivos</span></div>
+                    <div class="col-span-6 md:col-span-3"><span class="badge bg-slate-500">Destino: <span id="total-target">0</span> arquivos</span></div>
+                    <div class="col-span-6 md:col-span-3"><span class="badge bg-brand-600">Idênticos: <span id="identical-count">0</span></span></div>
+                    <div class="col-span-6 md:col-span-3"><span class="badge bg-amber-100">Diferentes: <span id="modified-count">0</span></span></div>
+                    <div class="col-span-6 md:col-span-3"><span class="badge bg-sky-100">Apenas na origem: <span id="only-source-count">0</span></span></div>
+                    <div class="col-span-6 md:col-span-3"><span class="badge bg-rose-600">Apenas no destino: <span id="only-target-count">0</span></span></div>
                 </div>
 
                 <div id="compare-details" style="max-height:300px; overflow:auto; border:1px solid #dee2e6; border-radius:0.375rem; padding:8px; font-size:0.9rem;">
@@ -140,25 +140,25 @@ export class CompareFeature extends Feature {
             const detailsDiv = document.getElementById('compare-details');
             let html = '';
             if (result.only_in_source.length) {
-                html += `<strong><span class="text-info">Apenas na origem:</span></strong><ul>`;
+                html += `<strong><span class="text-sky-600">Apenas na origem:</span></strong><ul>`;
                 result.only_in_source.forEach(p => html += `<li>${p}</li>`);
                 html += '</ul>';
             }
             if (result.only_in_target.length) {
-                html += `<strong><span class="text-danger">Apenas no destino:</span></strong><ul>`;
+                html += `<strong><span class="text-rose-600">Apenas no destino:</span></strong><ul>`;
                 result.only_in_target.forEach(p => html += `<li>${p}</li>`);
                 html += '</ul>';
             }
             if (result.modified_in_source.length) {
-                html += `<strong><span class="text-warning">Modificados na origem:</span></strong><ul>`;
+                html += `<strong><span class="text-amber-600">Modificados na origem:</span></strong><ul>`;
                 result.modified_in_source.forEach(p => html += `<li>${p}</li>`);
                 html += '</ul>';
             }
             if (result.identical.length) {
-                html += `<strong><span class="text-success">Idênticos:</span></strong> ${result.identical.length} arquivos`;
+                html += `<strong><span class="text-brand-600">Idênticos:</span></strong> ${result.identical.length} arquivos`;
             }
             if (!html) {
-                html = '<p class="text-muted">Nenhuma diferença encontrada.</p>';
+                html = '<p class="text-slate-500">Nenhuma diferença encontrada.</p>';
             }
             detailsDiv.innerHTML = html;
 

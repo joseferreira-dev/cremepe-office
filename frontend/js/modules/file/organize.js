@@ -11,14 +11,14 @@ export class OrganizeFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Organizar por Extensão</h4>
-                <p class="text-muted">Mova arquivos para subpastas com base em sua extensão (ex: .pdf → PDF/). Arquivos ocultos são ignorados.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Organizar por Extensão</h4>
+                <p class="text-slate-500">Mova arquivos para subpastas com base em sua extensão (ex: .pdf → PDF/). Arquivos ocultos são ignorados.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Diretório</h5>
+                    <h5 class="card-title text-brand-600">Diretório</h5>
                     <div class="mb-2">
                         <label class="form-label">Pasta</label>
                         <div class="input-group">
@@ -29,9 +29,9 @@ export class OrganizeFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções</h5>
+                    <h5 class="card-title text-brand-600">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="organize-recursive" checked>
                         <label class="form-check-label">Incluir subpastas</label>
@@ -59,14 +59,14 @@ export class OrganizeFeature extends Feature {
                 </div>
             </div>
 
-            <div class="d-flex gap-2 mb-3">
+            <div class="flex gap-2 mb-4">
                 <button class="btn btn-outline-success" id="btn-organize-preview"><i data-lucide="eye"></i> Pré-visualizar</button>
                 <button class="btn btn-success" id="btn-organize"><i data-lucide="play"></i> Organizar</button>
             </div>
 
             <div id="organize-preview-area" style="display:none;">
-                <label class="fw-bold text-success">Pré-visualização</label>
-                <div id="organize-preview-list" class="border rounded p-2" style="max-height:300px; overflow:auto; font-size:0.9rem;"></div>
+                <label class="font-bold text-brand-600">Pré-visualização</label>
+                <div id="organize-preview-list" class="border rounded p-2 border-slate-200" style="max-height:300px; overflow:auto; font-size:0.9rem;"></div>
             </div>
 
             ${this.progressHTML()}
@@ -113,7 +113,7 @@ export class OrganizeFeature extends Feature {
             previewArea.style.display = 'block';
             const listDiv = document.getElementById('organize-preview-list');
             if (this.previewData.length === 0) {
-                listDiv.innerHTML = '<p class="text-muted">Nenhum arquivo encontrado.</p>';
+                listDiv.innerHTML = '<p class="text-slate-500">Nenhum arquivo encontrado.</p>';
             } else {
                 let html = '';
                 let total = 0;
@@ -122,7 +122,7 @@ export class OrganizeFeature extends Feature {
                     html += `
                         <div class="mb-2">
                             <strong>${group.folder}/ (${group.count} arquivos)</strong>
-                            <ul class="list-unstyled ms-3">
+                            <ul class="list-none ms-4">
                                 ${group.files.map(f => `<li><i data-lucide="file"></i> ${f}</li>`).join('')}
                             </ul>
                         </div>
