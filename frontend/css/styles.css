@@ -83,6 +83,23 @@ body {
     letter-spacing: 0.3px;
 }
 
+.feature-search {
+    padding: 0.5rem 1rem;
+}
+
+.feature-search .form-control:focus {
+    border-color: #007A51;
+    box-shadow: 0 0 0 0.15rem rgba(0, 122, 81, 0.15);
+}
+
+.feature-list li[hidden] {
+    display: none;
+}
+
+.feature-empty {
+    padding-top: 0.25rem;
+}
+
 .feature-list {
     list-style: none;
     padding: 0.5rem 0;

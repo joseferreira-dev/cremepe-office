@@ -2,8 +2,8 @@
  * Base dos módulos de domínio (PDF, Word, Excel, Arquivos).
  *
  * Cada módulo declara título, ícone e a lista de features (id, label e
- * fábrica `make`). A base cuida do menu lateral, da montagem/desmontagem
- * da feature ativa e da troca de página.
+ * fábrica `make`). A base cuida do menu lateral (com filtro de busca),
+ * da montagem/desmontagem da feature ativa e da troca de página.
  *
  * Uso:
  *   export class PdfModule extends DomainModule {
@@ -29,6 +29,10 @@
  *   - `make(module)` recebe o módulo: features que compartilham estado
  *     com o módulo o recebem pelo construtor.
  */
+// Texto normalizado para busca: sem acentos e em minúsculas
+// ("numerar" encontra "Numerar Páginas").
+const normalizeText = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 export class DomainModule {
     constructor(container, { title, icon, features }) {
         this.container = container;
@@ -47,9 +51,15 @@ export class DomainModule {
                 <div class="d-flex gap-3" style="height: calc(100% - 60px);">
                     <div class="module-sidebar flex-shrink-0" style="width: 240px;">
                         <h3>Funcionalidades</h3>
+                        <div class="feature-search">
+                            <input type="search" class="form-control form-control-sm"
+                                   id="feature-search" placeholder="Buscar..."
+                                   aria-label="Buscar funcionalidade">
+                        </div>
                         <ul class="feature-list">
                             ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">${f.label}</li>`).join('')}
                         </ul>
+                        <p class="feature-empty px-3 small text-muted" hidden>Nenhuma funcionalidade</p>
                     </div>
                     <div class="flex-grow-1 overflow-auto" id="feature-content"></div>
                 </div>
@@ -60,7 +70,30 @@ export class DomainModule {
             item.addEventListener('click', () => this.selectFeature(item.dataset.feature));
         });
 
+        this.bindFeatureSearch();
+
         this.renderCurrentFeature();
+    }
+
+    // Filtro do menu: esconde itens que não batem com a busca
+    // (acentos/case-insensitive). Os listeners morrem junto com o
+    // innerHTML ao trocar de página.
+    bindFeatureSearch() {
+        const input = this.container.querySelector('#feature-search');
+        const items = this.container.querySelectorAll('.feature-list li');
+        const empty = this.container.querySelector('.feature-empty');
+        if (!input) return;
+
+        input.addEventListener('input', () => {
+            const query = normalizeText(input.value.trim());
+            let visible = 0;
+            items.forEach((li) => {
+                const match = !query || normalizeText(li.textContent).includes(query);
+                li.hidden = !match;
+                if (match) visible++;
+            });
+            if (empty) empty.hidden = visible > 0;
+        });
     }
 
     selectFeature(featureId) {
