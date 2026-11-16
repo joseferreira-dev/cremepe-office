@@ -10,14 +10,14 @@ export class PDFExtractPagesFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Extrair Páginas</h4>
-                <p class="text-muted">Extraia páginas individuais ou selecionadas de um PDF.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Extrair Páginas</h4>
+                <p class="text-slate-500">Extraia páginas individuais ou selecionadas de um PDF.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="extract-pdf-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-extract-pdf-input">Selecionar</button>
@@ -25,9 +25,9 @@ export class PDFExtractPagesFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Pasta de saída</h5>
+                    <h5 class="card-title text-brand-600">Pasta de saída</h5>
                     <div class="input-group">
                         <input type="text" id="extract-pdf-output" class="form-control" placeholder="Selecione a pasta de destino...">
                         <button class="btn btn-outline-secondary" id="btn-extract-pdf-output">Selecionar</button>
@@ -35,42 +35,42 @@ export class PDFExtractPagesFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Modo de extração</h5>
-                    <div class="row">
-                        <div class="col-md-6">
+                    <h5 class="card-title text-brand-600">Modo de extração</h5>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="md:col-span-6">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="extract-mode" id="extract-mode-all" value="all" checked>
                                 <label class="form-check-label">Extrair todas as páginas</label>
                             </div>
-                            <small class="text-muted">Cada página será salva como um arquivo PDF separado</small>
+                            <small class="text-slate-500">Cada página será salva como um arquivo PDF separado</small>
                         </div>
-                        <div class="col-md-6">
+                        <div class="md:col-span-6">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="extract-mode" id="extract-mode-selected" value="selected">
                                 <label class="form-check-label">Extrair páginas selecionadas</label>
                             </div>
-                            <small class="text-muted">Ex: 1,3,5-7 (páginas 1, 3, 5, 6 e 7)</small>
+                            <small class="text-slate-500">Ex: 1,3,5-7 (páginas 1, 3, 5, 6 e 7)</small>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card mb-3" id="extract-selected-config" style="display:none;">
+            <div class="card mb-4" id="extract-selected-config" style="display:none;">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Seleção de páginas</h5>
+                    <h5 class="card-title text-brand-600">Seleção de páginas</h5>
                     <div class="mb-2">
                         <label class="form-label">Páginas a extrair</label>
                         <input type="text" id="extract-pages-selection" class="form-control" placeholder="Ex: 1,3,5-7,10,15-20">
-                        <small class="text-muted">Use números separados por vírgula ou intervalos com hífen</small>
+                        <small class="text-slate-500">Use números separados por vírgula ou intervalos com hífen</small>
                     </div>
                 </div>
             </div>
 
-            <div class="card mb-3" id="extract-combine-config" style="display:none;">
+            <div class="card mb-4" id="extract-combine-config" style="display:none;">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções de combinação</h5>
+                    <h5 class="card-title text-brand-600">Opções de combinação</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="extract-combine">
                         <label class="form-check-label">Combinar páginas extraídas em um único PDF</label>
@@ -82,9 +82,9 @@ export class PDFExtractPagesFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Prefixo (opcional)</h5>
+                    <h5 class="card-title text-brand-600">Prefixo (opcional)</h5>
                     <input type="text" id="extract-prefix" class="form-control" placeholder="ex: pagina">
                 </div>
             </div>

@@ -9,24 +9,24 @@ export class PDFMergeBySizeFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Combinar por Tamanho</h4>
-                <p class="text-muted">Agrupe PDFs de uma pasta em lotes com tamanho máximo definido. Arquivos individuais que excedem o limite são copiados separadamente.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Combinar por Tamanho</h4>
+                <p class="text-slate-500">Agrupe PDFs de uma pasta em lotes com tamanho máximo definido. Arquivos individuais que excedem o limite são copiados separadamente.</p>
             </div>
 
             <!-- Pastas (lado a lado) -->
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Pastas</h5>
-                    <div class="row g-2">
-                        <div class="col-md-12">
+                    <h5 class="card-title text-brand-600">Pastas</h5>
+                    <div class="grid grid-cols-12 gap-2">
+                        <div class="md:col-span-12">
                             <label class="form-label">Pasta de origem</label>
                             <div class="input-group">
                                 <input type="text" id="pdf-merge-size-source" class="form-control" placeholder="Selecione a pasta...">
                                 <button class="btn btn-outline-secondary" id="btn-pdf-merge-size-source">Selecionar</button>
                             </div>
                         </div>
-                        <div class="col-md-12">
+                        <div class="md:col-span-12">
                             <label class="form-label">Pasta de destino</label>
                             <div class="input-group">
                                 <input type="text" id="pdf-merge-size-dest" class="form-control" placeholder="Selecione a pasta...">
@@ -38,15 +38,15 @@ export class PDFMergeBySizeFeature extends Feature {
             </div>
 
             <!-- Configurações (lado a lado) -->
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Configurações</h5>
-                    <div class="row g-2">
-                        <div class="col-md-6">
+                    <h5 class="card-title text-brand-600">Configurações</h5>
+                    <div class="grid grid-cols-12 gap-2">
+                        <div class="md:col-span-6">
                             <label class="form-label">Tamanho máximo (MB)</label>
                             <input type="number" id="pdf-merge-size-max" class="form-control" value="50" min="1" step="0.5">
                         </div>
-                        <div class="col-md-6">
+                        <div class="md:col-span-6">
                             <label class="form-label">Ordem dos arquivos</label>
                             <select id="pdf-merge-size-order" class="form-select">
                                 <option value="name">Alfabética (A-Z)</option>
@@ -54,11 +54,11 @@ export class PDFMergeBySizeFeature extends Feature {
                                 <option value="mtime_old">Data de modificação (mais antigo primeiro)</option>
                             </select>
                         </div>
-                        <div class="col-md-12">
+                        <div class="md:col-span-12">
                             <label class="form-label">Prefixo (opcional)</label>
                             <input type="text" id="pdf-merge-size-prefix" class="form-control" placeholder="ex: relatorio_">
                         </div>
-                        <div class="col-md-12 d-flex align-items-end">
+                        <div class="md:col-span-12 flex items-end">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="pdf-merge-size-recursive">
                                 <label class="form-check-label">Incluir subpastas</label>

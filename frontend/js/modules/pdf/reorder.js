@@ -8,14 +8,14 @@ export class PDFReorderFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal"><i data-lucide="arrow-up-down" class="me-2"></i>Reordenar Páginas</h4>
-                <p class="text-muted">Defina a nova ordem das páginas do PDF. Você pode especificar páginas individuais ou intervalos.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal"><i data-lucide="arrow-up-down" class="me-2"></i>Reordenar Páginas</h4>
+                <p class="text-slate-500">Defina a nova ordem das páginas do PDF. Você pode especificar páginas individuais ou intervalos.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="reorder-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-reorder-input">Selecionar</button>
@@ -23,20 +23,20 @@ export class PDFReorderFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Nova ordem das páginas</h5>
+                    <h5 class="card-title text-brand-600">Nova ordem das páginas</h5>
                     <div class="mb-2">
                         <label class="form-label">Digite a nova ordem</label>
                         <input type="text" id="reorder-order" class="form-control" placeholder="Ex: 5,1,3,2,4 ou 1-3,5,4">
-                        <small class="text-muted">Use vírgula para separar, hífen para intervalos. Ex: 5,1,3,2,4 (reorganiza as 5 páginas na ordem 5,1,3,2,4). Todas as páginas devem ser incluídas exatamente uma vez.</small>
+                        <small class="text-slate-500">Use vírgula para separar, hífen para intervalos. Ex: 5,1,3,2,4 (reorganiza as 5 páginas na ordem 5,1,3,2,4). Todas as páginas devem ser incluídas exatamente uma vez.</small>
                     </div>
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="reorder-output" class="form-control" placeholder="Caminho do arquivo reordenado">
                         <button class="btn btn-outline-secondary" id="btn-reorder-output">Selecionar</button>

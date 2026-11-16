@@ -9,14 +9,14 @@ export class PDFSplitBySizeFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Dividir por Tamanho</h4>
-                <p class="text-muted">Divida um PDF em partes com tamanho máximo definido (em MB).</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Dividir por Tamanho</h4>
+                <p class="text-slate-500">Divida um PDF em partes com tamanho máximo definido (em MB).</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="split-size-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-split-size-input">Selecionar</button>
@@ -24,9 +24,9 @@ export class PDFSplitBySizeFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Pasta de saída</h5>
+                    <h5 class="card-title text-brand-600">Pasta de saída</h5>
                     <div class="input-group">
                         <input type="text" id="split-size-output" class="form-control" placeholder="Selecione a pasta de destino...">
                         <button class="btn btn-outline-secondary" id="btn-split-size-output">Selecionar</button>
@@ -34,15 +34,15 @@ export class PDFSplitBySizeFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Configurações</h5>
-                    <div class="row g-2">
-                        <div class="col-md-6">
+                    <h5 class="card-title text-brand-600">Configurações</h5>
+                    <div class="grid grid-cols-12 gap-2">
+                        <div class="md:col-span-6">
                             <label class="form-label">Tamanho máximo (MB)</label>
                             <input type="number" id="split-size-max" class="form-control" value="5" min="0.1" step="0.1">
                         </div>
-                        <div class="col-md-6">
+                        <div class="md:col-span-6">
                             <label class="form-label">Prefixo das partes (opcional)</label>
                             <input type="text" id="split-size-prefix" class="form-control" placeholder="ex: relatorio_">
                         </div>

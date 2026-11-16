@@ -11,22 +11,22 @@ export class PDFConvertToImageFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Converter para Imagem</h4>
-                <p class="text-muted">Converta imagens para PDF ou PDF para imagens.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Converter para Imagem</h4>
+                <p class="text-slate-500">Converta imagens para PDF ou PDF para imagens.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Modo de conversão</h5>
-                    <div class="row">
-                        <div class="col-md-6">
+                    <h5 class="card-title text-brand-600">Modo de conversão</h5>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="md:col-span-6">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convert-mode" id="mode-images-to-pdf" value="images_to_pdf" checked>
                                 <label class="form-check-label">Imagem → PDF</label>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="md:col-span-6">
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" name="convert-mode" id="mode-pdf-to-images" value="pdf_to_images">
                                 <label class="form-check-label">PDF → Imagem</label>
@@ -38,9 +38,9 @@ export class PDFConvertToImageFeature extends Feature {
 
             <!-- Imagem → PDF -->
             <div id="images-to-pdf-config">
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Arquivos de entrada (imagens)</h5>
+                        <h5 class="card-title text-brand-600">Arquivos de entrada (imagens)</h5>
                         <div class="input-group">
                             <input type="text" id="image-input-paths" class="form-control" placeholder="Selecione uma ou mais imagens">
                             <button class="btn btn-outline-secondary" id="btn-add-images">Adicionar imagens</button>
@@ -50,22 +50,22 @@ export class PDFConvertToImageFeature extends Feature {
                     </div>
                 </div>
 
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Opções</h5>
-                        <div class="row g-2">
-                            <div class="col-md-4">
+                        <h5 class="card-title text-brand-600">Opções</h5>
+                        <div class="grid grid-cols-12 gap-2">
+                            <div class="md:col-span-4">
                                 <label class="form-label">Margem (cm)</label>
                                 <input type="number" id="margin-cm" class="form-control" value="0.5" step="0.1" min="0">
                             </div>
-                            <div class="col-md-4">
+                            <div class="md:col-span-4">
                                 <label class="form-label">Orientação</label>
                                 <select id="orientation-select" class="form-select">
                                     <option value="portrait">Retrato</option>
                                     <option value="landscape">Paisagem</option>
                                 </select>
                             </div>
-                            <div class="col-md-4">
+                            <div class="md:col-span-4">
                                 <label class="form-label">Redimensionamento</label>
                                 <select id="resize-mode" class="form-select">
                                     <option value="cover">Preencher (cortar excesso)</option>
@@ -74,8 +74,8 @@ export class PDFConvertToImageFeature extends Feature {
                             </div>
                         </div>
                         <!-- Modo de redimensionamento -->
-                        <div class="row g-2 mt-2">
-                            <div class="col-md-4 d-flex align-items-end">
+                        <div class="grid grid-cols-12 gap-2 mt-2">
+                            <div class="md:col-span-4 flex items-end">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" id="combine-images" checked>
                                     <label class="form-check-label">Combinar em único PDF</label>
@@ -86,9 +86,9 @@ export class PDFConvertToImageFeature extends Feature {
                 </div>
 
                 <!-- Saída para arquivo único -->
-                <div id="output-file-group" class="card mb-3">
+                <div id="output-file-group" class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Arquivo de saída (PDF)</h5>
+                        <h5 class="card-title text-brand-600">Arquivo de saída (PDF)</h5>
                         <div class="input-group">
                             <input type="text" id="image-to-pdf-output" class="form-control" placeholder="Caminho do PDF de saída">
                             <button class="btn btn-outline-secondary" id="btn-image-to-pdf-output">Selecionar</button>
@@ -97,23 +97,23 @@ export class PDFConvertToImageFeature extends Feature {
                 </div>
 
                 <!-- Saída para múltiplos arquivos -->
-                <div id="output-folder-group" style="display:none;" class="card mb-3">
+                <div id="output-folder-group" style="display:none;" class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Pasta de saída</h5>
+                        <h5 class="card-title text-brand-600">Pasta de saída</h5>
                         <div class="input-group">
                             <input type="text" id="image-to-pdf-folder" class="form-control" placeholder="Selecione a pasta de destino">
                             <button class="btn btn-outline-secondary" id="btn-image-to-pdf-folder">Selecionar</button>
                         </div>
                         <div class="mt-2">
                             <label class="form-label">Nome dos arquivos</label>
-                            <div class="row g-2">
-                                <div class="col-md-6">
+                            <div class="grid grid-cols-12 gap-2">
+                                <div class="md:col-span-6">
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="naming-mode" id="naming-original" value="original" checked>
                                         <label class="form-check-label">Manter nome original</label>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="md:col-span-6">
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio" name="naming-mode" id="naming-prefix" value="prefix">
                                         <label class="form-check-label">Usar prefixo</label>
@@ -130,9 +130,9 @@ export class PDFConvertToImageFeature extends Feature {
 
             <!-- PDF → Imagem -->
             <div id="pdf-to-images-config" style="display:none;">
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Arquivos PDF de entrada</h5>
+                        <h5 class="card-title text-brand-600">Arquivos PDF de entrada</h5>
                         <div class="input-group">
                             <input type="text" id="pdf-input-paths" class="form-control" placeholder="Selecione um ou mais PDFs">
                             <button class="btn btn-outline-secondary" id="btn-add-pdfs">Adicionar PDFs</button>
@@ -142,23 +142,23 @@ export class PDFConvertToImageFeature extends Feature {
                     </div>
                 </div>
 
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Opções</h5>
-                        <div class="row g-2">
-                            <div class="col-md-4">
+                        <h5 class="card-title text-brand-600">Opções</h5>
+                        <div class="grid grid-cols-12 gap-2">
+                            <div class="md:col-span-4">
                                 <label class="form-label">Páginas</label>
                                 <input type="text" id="pdf-pages-selection" class="form-control" placeholder="Deixe em branco para todas">
-                                <small class="text-muted">Ex: 1,3-5,10</small>
+                                <small class="text-slate-500">Ex: 1,3-5,10</small>
                             </div>
-                            <div class="col-md-4">
+                            <div class="md:col-span-4">
                                 <label class="form-label">Formato da imagem</label>
                                 <select id="image-format-select" class="form-select">
                                     <option value="png">PNG</option>
                                     <option value="jpg">JPG</option>
                                 </select>
                             </div>
-                            <div class="col-md-4">
+                            <div class="md:col-span-4">
                                 <label class="form-label">Prefixo (opcional)</label>
                                 <input type="text" id="image-prefix-pdf" class="form-control" placeholder="ex: pagina">
                             </div>
@@ -166,9 +166,9 @@ export class PDFConvertToImageFeature extends Feature {
                     </div>
                 </div>
 
-                <div class="card mb-3">
+                <div class="card mb-4">
                     <div class="card-body">
-                        <h5 class="card-title text-success">Pasta de saída</h5>
+                        <h5 class="card-title text-brand-600">Pasta de saída</h5>
                         <div class="input-group">
                             <input type="text" id="pdf-to-images-output" class="form-control" placeholder="Pasta para salvar as imagens">
                             <button class="btn btn-outline-secondary" id="btn-pdf-to-images-output">Selecionar</button>
@@ -268,7 +268,7 @@ export class PDFConvertToImageFeature extends Feature {
     updateImageList() {
         const list = document.getElementById('image-list');
         if (this.imagePaths.length === 0) {
-            list.innerHTML = '<p class="text-muted">Nenhuma imagem selecionada.</p>';
+            list.innerHTML = '<p class="text-slate-500">Nenhuma imagem selecionada.</p>';
             return;
         }
         list.innerHTML = this.imagePaths.map(p => `<div><i data-lucide="file-image" class="me-1"></i> ${p}</div>`).join('');
@@ -296,7 +296,7 @@ export class PDFConvertToImageFeature extends Feature {
         const paths = val.split(',').map(s => s.trim()).filter(Boolean);
         const list = document.getElementById('pdf-list');
         if (paths.length === 0) {
-            list.innerHTML = '<p class="text-muted">Nenhum PDF selecionado.</p>';
+            list.innerHTML = '<p class="text-slate-500">Nenhum PDF selecionado.</p>';
             return;
         }
         list.innerHTML = paths.map(p => `<div><i data-lucide="file-text" class="me-1"></i> ${p}</div>`).join('');

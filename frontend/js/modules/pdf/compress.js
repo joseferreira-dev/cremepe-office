@@ -13,14 +13,14 @@ export class PDFCompressFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Comprimir PDF</h4>
-                <p class="text-muted">Reduza o tamanho do PDF reamostrando imagens e aplicando compressão JPEG.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Comprimir PDF</h4>
+                <p class="text-slate-500">Reduza o tamanho do PDF reamostrando imagens e aplicando compressão JPEG.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="compress-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-compress-input">Selecionar</button>
@@ -28,12 +28,12 @@ export class PDFCompressFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Nível de compressão</h5>
-                    <div class="row g-2">
+                    <h5 class="card-title text-brand-600">Nível de compressão</h5>
+                    <div class="grid grid-cols-12 gap-2">
                         ${this.compressionLevels.map(lvl => `
-                            <div class="col-md-4">
+                            <div class="md:col-span-4">
                                 <div class="form-check">
                                     <input class="form-check-input" type="radio" name="compress-level" id="compress-${lvl.value}" value="${lvl.value}" ${lvl.value === 'medium' ? 'checked' : ''}>
                                     <label class="form-check-label" for="compress-${lvl.value}">${lvl.label}</label>
@@ -44,20 +44,20 @@ export class PDFCompressFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Qualidade das imagens (JPEG)</h5>
-                    <div class="d-flex align-items-center gap-3">
-                        <input type="range" id="jpeg-quality" class="form-range flex-grow-1" min="10" max="100" value="85">
-                        <span id="jpeg-quality-label" class="fw-bold" style="min-width:45px;">85%</span>
+                    <h5 class="card-title text-brand-600">Qualidade das imagens (JPEG)</h5>
+                    <div class="flex items-center gap-4">
+                        <input type="range" id="jpeg-quality" class="form-range grow" min="10" max="100" value="85">
+                        <span id="jpeg-quality-label" class="font-bold" style="min-width:45px;">85%</span>
                     </div>
-                    <small class="text-muted">Valores mais baixos = arquivos menores, porém com perda de qualidade.</small>
+                    <small class="text-slate-500">Valores mais baixos = arquivos menores, porém com perda de qualidade.</small>
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Opções</h5>
+                    <h5 class="card-title text-brand-600">Opções</h5>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="compress-remove-metadata">
                         <label class="form-check-label">Remover metadados (autor, título, etc.)</label>
@@ -69,9 +69,9 @@ export class PDFCompressFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="compress-output" class="form-control" placeholder="Caminho do PDF comprimido">
                         <button class="btn btn-outline-secondary" id="btn-compress-output">Selecionar</button>
@@ -83,12 +83,12 @@ export class PDFCompressFeature extends Feature {
 
             ${this.progressHTML()}
 
-            <div id="compress-result" style="display:none;" class="mt-3">
-                <div class="row g-2">
-                    <div class="col-6"><span class="badge bg-secondary">Original: <span id="orig-size">0</span> KB</span></div>
-                    <div class="col-6"><span class="badge bg-success">Comprimido: <span id="comp-size">0</span> KB</span></div>
+            <div id="compress-result" style="display:none;" class="mt-4">
+                <div class="grid grid-cols-12 gap-2">
+                    <div class="col-span-6"><span class="badge bg-slate-500">Original: <span id="orig-size">0</span> KB</span></div>
+                    <div class="col-span-6"><span class="badge bg-brand-600">Comprimido: <span id="comp-size">0</span> KB</span></div>
                 </div>
-                <div class="mt-2"><span class="badge bg-info">Redução: <span id="comp-ratio">0</span>%</span></div>
+                <div class="mt-2"><span class="badge bg-sky-100">Redução: <span id="comp-ratio">0</span>%</span></div>
             </div>
 
             ${this.logHTML()}

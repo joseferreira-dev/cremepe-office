@@ -10,14 +10,14 @@ export class PDFAddPageNumbersFeature extends Feature {
 
     render(container) {
         container.innerHTML = `
-            <div class="mb-3">
-                <h4 class="text-success fw-normal">Numerar Páginas</h4>
-                <p class="text-muted">Adicione numeração às páginas de um PDF com controle de posição, cores e estilo.</p>
+            <div class="mb-4">
+                <h4 class="text-brand-600 font-normal">Numerar Páginas</h4>
+                <p class="text-slate-500">Adicione numeração às páginas de um PDF com controle de posição, cores e estilo.</p>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de entrada</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de entrada</h5>
                     <div class="input-group">
                         <input type="text" id="pn-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-pn-input">Selecionar</button>
@@ -25,21 +25,21 @@ export class PDFAddPageNumbersFeature extends Feature {
                 </div>
             </div>
 
-            <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                    <div class="card mb-3">
+            <div class="grid grid-cols-12 gap-4 mb-4">
+                <div class="md:col-span-6">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Configuração</h5>
-                            <div class="row g-2">
-                                <div class="col-6">
+                            <h5 class="card-title text-brand-600">Configuração</h5>
+                            <div class="grid grid-cols-12 gap-2">
+                                <div class="col-span-6">
                                     <label class="form-label">Página inicial</label>
                                     <input type="number" id="pn-start-page" class="form-control" value="1" min="1">
                                 </div>
-                                <div class="col-6">
+                                <div class="col-span-6">
                                     <label class="form-label">Página final</label>
                                     <input type="number" id="pn-end-page" class="form-control" placeholder="vazio = até o final">
                                 </div>
-                                <div class="col-12">
+                                <div class="col-span-12">
                                     <label class="form-label">Número inicial</label>
                                     <input type="number" id="pn-start-number" class="form-control" value="1" min="0">
                                 </div>
@@ -47,25 +47,25 @@ export class PDFAddPageNumbersFeature extends Feature {
                         </div>
                     </div>
 
-                    <div class="card mb-3">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Estilo</h5>
-                            <div class="row g-2">
-                                <div class="col-6">
+                            <h5 class="card-title text-brand-600">Estilo</h5>
+                            <div class="grid grid-cols-12 gap-2">
+                                <div class="col-span-6">
                                     <label class="form-label">Cor do número</label>
                                     <input type="color" id="pn-color" class="form-control" value="#000000">
                                 </div>
-                                <div class="col-6">
+                                <div class="col-span-6">
                                     <label class="form-label">Cor do fundo</label>
                                     <input type="color" id="pn-bg-color" class="form-control" value="#ffffff">
                                 </div>
-                                <div class="col-12">
+                                <div class="col-span-12">
                                     <div class="form-check">
                                         <input class="form-check-input" type="checkbox" id="pn-show-bg" checked>
                                         <label class="form-check-label">Mostrar fundo (retângulo)</label>
                                     </div>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-span-6">
                                     <label class="form-label">Tamanho da fonte</label>
                                     <select id="pn-font-size" class="form-select">
                                         <option value="8">8</option>
@@ -75,16 +75,16 @@ export class PDFAddPageNumbersFeature extends Feature {
                                         <option value="12" selected>12</option>
                                     </select>
                                 </div>
-                                <div class="col-6">
+                                <div class="col-span-6">
                                     <label class="form-label">Margem da borda (cm)</label>
                                     <input type="number" id="pn-margin" class="form-control" value="1.0" min="0" step="0.1">
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <div class="card mb-3">
+                    <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Posição</h5>
+                            <h5 class="card-title text-brand-600">Posição</h5>
                             <select id="pn-position" class="form-select">
                                 <option value="top-left">Superior Esquerdo</option>
                                 <option value="top-center">Superior Central</option>
@@ -98,10 +98,10 @@ export class PDFAddPageNumbersFeature extends Feature {
                     </div>
                 </div>
 
-                <div class="col-md-6">
+                <div class="md:col-span-6">
                     <div class="card">
                         <div class="card-body">
-                            <h5 class="card-title text-success">Preview</h5>
+                            <h5 class="card-title text-brand-600">Preview</h5>
                             <div style="position:relative; width:100%; max-width:400px; margin:0 auto; border:2px solid #007A51; border-radius:8px; padding:4px; background:#f8f9fa;">
                                 <canvas id="${this.previewCanvasId}" width="400" height="566" style="width:100%; height:auto; display:block;"></canvas>
                                 <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); font-size:12px; color:#6c757d; pointer-events:none;">
@@ -113,9 +113,9 @@ export class PDFAddPageNumbersFeature extends Feature {
                 </div>
             </div>
 
-            <div class="card mb-3">
+            <div class="card mb-4">
                 <div class="card-body">
-                    <h5 class="card-title text-success">Arquivo de saída</h5>
+                    <h5 class="card-title text-brand-600">Arquivo de saída</h5>
                     <div class="input-group">
                         <input type="text" id="pn-output" class="form-control" placeholder="Caminho do PDF numerado">
                         <button class="btn btn-outline-secondary" id="btn-pn-output">Selecionar</button>
@@ -127,10 +127,10 @@ export class PDFAddPageNumbersFeature extends Feature {
 
             ${this.progressHTML()}
 
-            <div id="pn-result" style="display:none;" class="mt-3">
-                <div class="row g-2">
-                    <div class="col-6"><span class="badge bg-secondary">Total páginas: <span id="pn-total-pages">0</span></span></div>
-                    <div class="col-6"><span class="badge bg-success">Processadas: <span id="pn-processed">0</span></span></div>
+            <div id="pn-result" style="display:none;" class="mt-4">
+                <div class="grid grid-cols-12 gap-2">
+                    <div class="col-span-6"><span class="badge bg-slate-500">Total páginas: <span id="pn-total-pages">0</span></span></div>
+                    <div class="col-span-6"><span class="badge bg-brand-600">Processadas: <span id="pn-processed">0</span></span></div>
                 </div>
             </div>
 
