@@ -1,4 +1,77 @@
 import { Feature } from './feature.js';
+import { ExcelModule } from './excel/index.js';
+import { FileModule } from './file/index.js';
+import { PDFModule } from './pdf/index.js';
+import { WordModule } from './word/index.js';
+
+// Metadados exclusivos da Home por "pagina/feature": id legado do card
+// (persistido no electron-store), icone, titulo e descricao. A lista de
+// funcionalidades e a navegacao vem dos modulos (static features de cada
+// index.js) — meta ausente degrada para o label da feature.
+const HOME_META = {
+    // ARQUIVOS
+    'files/collect': { id: 'collect', icon: 'bi-folder2-open', title: 'Coletar Arquivos', desc: 'Reúna arquivos de múltiplas pastas.' },
+    'files/rename': { id: 'rename', icon: 'bi-pencil-square', title: 'Renomear em Lote', desc: 'Renomeie vários arquivos de uma vez.' },
+    'files/duplicates': { id: 'duplicates', icon: 'bi-files', title: 'Localizar Duplicatas', desc: 'Encontre arquivos duplicados.' },
+    'files/organize': { id: 'organize', icon: 'bi-diagram-2', title: 'Organizar por Extensão', desc: 'Organize arquivos por tipo.' },
+    'files/rename-by-content': { id: 'rename-by-content', icon: 'bi-tags', title: 'Renomear por Conteúdo', desc: 'Renomeie usando metadados.' },
+    'files/attributes': { id: 'attributes', icon: 'bi-sliders', title: 'Alterar Atributos', desc: 'Modifique datas e permissões.' },
+    'files/report': { id: 'report', icon: 'bi-file-text', title: 'Relatório de Estrutura', desc: 'Exporte árvore de diretórios.' },
+    'files/compare': { id: 'compare', icon: 'bi-arrow-left-right', title: 'Comparar Pastas', desc: 'Compare e sincronize pastas.' },
+    'files/archive': { id: 'archive', icon: 'bi-archive', title: 'Compactar/Extrair', desc: 'Crie ou extraia arquivos ZIP.' },
+    'files/split': { id: 'split-file', icon: 'bi-scissors', title: 'Dividir/Remontar', desc: 'Divida ou remonte arquivos grandes.' },
+    // PDF
+    'pdf/merge': { id: 'pdf-merge', icon: 'bi-file-earmark-pdf', title: 'Combinar PDFs', desc: 'Mescle vários PDFs.' },
+    'pdf/merge-by-size': { id: 'pdf-merge-size', icon: 'bi-file-earmark-pdf', title: 'Combinar por Tamanho', desc: 'Agrupe PDFs por limite de tamanho.' },
+    'pdf/split': { id: 'pdf-split', icon: 'bi-scissors', title: 'Dividir PDF', desc: 'Divida em partes com intervalos.' },
+    'pdf/split-by-size': { id: 'pdf-split-size', icon: 'bi-rulers', title: 'Dividir por Tamanho', desc: 'Divida PDF por MB.' },
+    'pdf/extract-pages': { id: 'pdf-extract', icon: 'bi-file-earmark-pdf', title: 'Extrair Páginas', desc: 'Extraia páginas específicas.' },
+    'pdf/remove-pages': { id: 'pdf-remove', icon: 'bi-file-earmark-pdf', title: 'Remover Páginas', desc: 'Remova páginas indesejadas.' },
+    'pdf/reorder': { id: 'pdf-reorder', icon: 'bi-files', title: 'Reordenar Páginas', desc: 'Altere a ordem das páginas.' },
+    'pdf/add-page-numbers': { id: 'pdf-numbers', icon: 'bi-sort-numeric-down', title: 'Numerar Páginas', desc: 'Adicione numeração.' },
+    'pdf/convert-to-word': { id: 'pdf-to-word', icon: 'bi-file-word', title: 'PDF → Word', desc: 'Converta PDF para Word.' },
+    'pdf/convert-to-image': { id: 'pdf-image', icon: 'bi-image', title: 'PDF ↔ Imagem', desc: 'Converta entre PDF e imagens.' },
+    'pdf/compress': { id: 'pdf-compress', icon: 'bi-file-earmark-pdf', title: 'Comprimir PDF', desc: 'Reduza o tamanho do PDF.' },
+    'pdf/protect': { id: 'pdf-protect', icon: 'bi-lock', title: 'Proteger/Desproteger', desc: 'Adicione ou remova senha.' },
+    // WORD
+    'word/merge': { id: 'word-merge', icon: 'bi-file-earmark-word', title: 'Juntar Documentos', desc: 'Combine vários Word.' },
+    'word/convert': { id: 'word-convert', icon: 'bi-arrow-left-right', title: 'Converter Word', desc: 'Converta para HTML, TXT, PDF, etc.' },
+    'word/compare': { id: 'word-compare', icon: 'bi-files', title: 'Comparar Docs', desc: 'Compare dois documentos.' },
+    'word/extract-images': { id: 'word-images', icon: 'bi-image', title: 'Extrair Imagens', desc: 'Extraia imagens do documento.' },
+    'word/watermark': { id: 'word-watermark', icon: 'bi-droplet', title: "Marca d'Água", desc: 'Insira texto ou imagem.' },
+    'word/filepath': { id: 'word-filepath', icon: 'bi-file-earmark', title: 'Caminho do Arquivo', desc: 'Insira caminho no documento.' },
+    // EXCEL
+    'excel/convert': { id: 'excel-convert', icon: 'bi-file-earmark-excel', title: 'Conversão em Lote', desc: 'Converta planilhas em lote.' },
+    'excel/merge-all': { id: 'excel-merge', icon: 'bi-table', title: 'Combinar Planilhas', desc: 'Consolide várias planilhas.' },
+    'excel/extract-cells': { id: 'excel-extract', icon: 'bi-grid', title: 'Extrair Células', desc: 'Extraia células específicas.' },
+    'excel/split': { id: 'excel-split', icon: 'bi-columns', title: 'Dividir por Coluna', desc: 'Divida pela coluna chave.' },
+    'excel/split-sheets': { id: 'excel-sheets', icon: 'bi-files', title: 'Extrair Abas', desc: 'Separe abas em arquivos.' },
+};
+
+// Ordem das seções na edição de atalhos + módulos consumidos
+const MODULE_CATALOG = [
+    { page: 'files', section: 'Arquivos', module: FileModule },
+    { page: 'pdf', section: 'PDF', module: PDFModule },
+    { page: 'word', section: 'Word', module: WordModule },
+    { page: 'excel', section: 'Excel', module: ExcelModule },
+];
+
+function buildAvailableFeatures() {
+    return MODULE_CATALOG.flatMap(({ page, section, module }) =>
+        module.features.map((f) => {
+            const meta = HOME_META[`${page}/${f.id}`] || {};
+            return {
+                id: meta.id || `${page}-${f.id}`,
+                icon: meta.icon || 'bi-play-circle',
+                title: meta.title || f.label,
+                desc: meta.desc || '',
+                section,
+                page,
+                feature: f.id,
+            };
+        })
+    );
+}
 
 export class HomePage extends Feature {
     constructor(container) {
@@ -9,46 +82,8 @@ export class HomePage extends Feature {
         this.draggedId = null;
         this.cards = [];
 
-        // ====== TODAS AS FUNCIONALIDADES DISPONÍVEIS (PRÉ‑DEFINIDAS) ======
-        this.availableFeatures = [
-            // ARQUIVOS
-            { id: 'collect', icon: 'bi-folder2-open', title: 'Coletar Arquivos', desc: 'Reúna arquivos de múltiplas pastas.', section: 'Arquivos', page: 'files', feature: 'collect' },
-            { id: 'rename', icon: 'bi-pencil-square', title: 'Renomear em Lote', desc: 'Renomeie vários arquivos de uma vez.', section: 'Arquivos', page: 'files', feature: 'rename' },
-            { id: 'duplicates', icon: 'bi-files', title: 'Localizar Duplicatas', desc: 'Encontre arquivos duplicados.', section: 'Arquivos', page: 'files', feature: 'duplicates' },
-            { id: 'organize', icon: 'bi-diagram-2', title: 'Organizar por Extensão', desc: 'Organize arquivos por tipo.', section: 'Arquivos', page: 'files', feature: 'organize' },
-            { id: 'rename-by-content', icon: 'bi-tags', title: 'Renomear por Conteúdo', desc: 'Renomeie usando metadados.', section: 'Arquivos', page: 'files', feature: 'rename-by-content' },
-            { id: 'attributes', icon: 'bi-sliders', title: 'Alterar Atributos', desc: 'Modifique datas e permissões.', section: 'Arquivos', page: 'files', feature: 'attributes' },
-            { id: 'report', icon: 'bi-file-text', title: 'Relatório de Estrutura', desc: 'Exporte árvore de diretórios.', section: 'Arquivos', page: 'files', feature: 'report' },
-            { id: 'compare', icon: 'bi-arrow-left-right', title: 'Comparar Pastas', desc: 'Compare e sincronize pastas.', section: 'Arquivos', page: 'files', feature: 'compare' },
-            { id: 'archive', icon: 'bi-archive', title: 'Compactar/Extrair', desc: 'Crie ou extraia arquivos ZIP.', section: 'Arquivos', page: 'files', feature: 'archive' },
-            { id: 'split-file', icon: 'bi-scissors', title: 'Dividir/Remontar', desc: 'Divida ou remonte arquivos grandes.', section: 'Arquivos', page: 'files', feature: 'split' },
-            // PDF
-            { id: 'pdf-merge', icon: 'bi-file-earmark-pdf', title: 'Combinar PDFs', desc: 'Mescle vários PDFs.', section: 'PDF', page: 'pdf', feature: 'merge' },
-            { id: 'pdf-merge-size', icon: 'bi-file-earmark-pdf', title: 'Combinar por Tamanho', desc: 'Agrupe PDFs por limite de tamanho.', section: 'PDF', page: 'pdf', feature: 'merge-by-size' },
-            { id: 'pdf-split', icon: 'bi-scissors', title: 'Dividir PDF', desc: 'Divida em partes com intervalos.', section: 'PDF', page: 'pdf', feature: 'split' },
-            { id: 'pdf-split-size', icon: 'bi-rulers', title: 'Dividir por Tamanho', desc: 'Divida PDF por MB.', section: 'PDF', page: 'pdf', feature: 'split-by-size' },
-            { id: 'pdf-extract', icon: 'bi-file-earmark-pdf', title: 'Extrair Páginas', desc: 'Extraia páginas específicas.', section: 'PDF', page: 'pdf', feature: 'extract-pages' },
-            { id: 'pdf-remove', icon: 'bi-file-earmark-pdf', title: 'Remover Páginas', desc: 'Remova páginas indesejadas.', section: 'PDF', page: 'pdf', feature: 'remove-pages' },
-            { id: 'pdf-reorder', icon: 'bi-files', title: 'Reordenar Páginas', desc: 'Altere a ordem das páginas.', section: 'PDF', page: 'pdf', feature: 'reorder' },
-            { id: 'pdf-numbers', icon: 'bi-sort-numeric-down', title: 'Numerar Páginas', desc: 'Adicione numeração.', section: 'PDF', page: 'pdf', feature: 'add-page-numbers' },
-            { id: 'pdf-to-word', icon: 'bi-file-word', title: 'PDF → Word', desc: 'Converta PDF para Word.', section: 'PDF', page: 'pdf', feature: 'convert-to-word' },
-            { id: 'pdf-image', icon: 'bi-image', title: 'PDF ↔ Imagem', desc: 'Converta entre PDF e imagens.', section: 'PDF', page: 'pdf', feature: 'convert-to-image' },
-            { id: 'pdf-compress', icon: 'bi-file-earmark-pdf', title: 'Comprimir PDF', desc: 'Reduza o tamanho do PDF.', section: 'PDF', page: 'pdf', feature: 'compress' },
-            { id: 'pdf-protect', icon: 'bi-lock', title: 'Proteger/Desproteger', desc: 'Adicione ou remova senha.', section: 'PDF', page: 'pdf', feature: 'protect' },
-            // WORD
-            { id: 'word-merge', icon: 'bi-file-earmark-word', title: 'Juntar Documentos', desc: 'Combine vários Word.', section: 'Word', page: 'word', feature: 'merge' },
-            { id: 'word-convert', icon: 'bi-arrow-left-right', title: 'Converter Word', desc: 'Converta para HTML, TXT, PDF, etc.', section: 'Word', page: 'word', feature: 'convert' },
-            { id: 'word-compare', icon: 'bi-files', title: 'Comparar Docs', desc: 'Compare dois documentos.', section: 'Word', page: 'word', feature: 'compare' },
-            { id: 'word-images', icon: 'bi-image', title: 'Extrair Imagens', desc: 'Extraia imagens do documento.', section: 'Word', page: 'word', feature: 'extract-images' },
-            { id: 'word-watermark', icon: 'bi-droplet', title: 'Marca d\'Água', desc: 'Insira texto ou imagem.', section: 'Word', page: 'word', feature: 'watermark' },
-            { id: 'word-filepath', icon: 'bi-file-earmark', title: 'Caminho do Arquivo', desc: 'Insira caminho no documento.', section: 'Word', page: 'word', feature: 'filepath' },
-            // EXCEL
-            { id: 'excel-convert', icon: 'bi-file-earmark-excel', title: 'Conversão em Lote', desc: 'Converta planilhas em lote.', section: 'Excel', page: 'excel', feature: 'convert' },
-            { id: 'excel-merge', icon: 'bi-table', title: 'Combinar Planilhas', desc: 'Consolide várias planilhas.', section: 'Excel', page: 'excel', feature: 'merge-all' },
-            { id: 'excel-extract', icon: 'bi-grid', title: 'Extrair Células', desc: 'Extraia células específicas.', section: 'Excel', page: 'excel', feature: 'extract-cells' },
-            { id: 'excel-split', icon: 'bi-columns', title: 'Dividir por Coluna', desc: 'Divida pela coluna chave.', section: 'Excel', page: 'excel', feature: 'split' },
-            { id: 'excel-sheets', icon: 'bi-files', title: 'Extrair Abas', desc: 'Separe abas em arquivos.', section: 'Excel', page: 'excel', feature: 'split-sheets' },
-        ];
+        // Catálogo derivado dos módulos (fonte única de ids/navegação)
+        this.availableFeatures = buildAvailableFeatures();
 
         // Inicializa eventos uma única vez
         this.setupEventListeners();
