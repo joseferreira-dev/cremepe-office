@@ -309,15 +309,15 @@ export class HomePage extends Feature {
                 return;
             }
 
-            // 4. Alternar edição
-            if (target.id === 'toggle-edit-mode') {
+            // 4. Alternar edição (closest: o clique pode cair no ícone)
+            if (target.closest('#toggle-edit-mode')) {
                 this.isEditing = !this.isEditing;
                 this.render();
                 return;
             }
 
             // 5. Aplicar alterações (checkboxes)
-            if (target.id === 'apply-changes-btn') {
+            if (target.closest('#apply-changes-btn')) {
                 const checkedBoxes = document.querySelectorAll('.feature-checkbox:checked');
                 const selectedIds = Array.from(checkedBoxes).map(cb => cb.value);
                 const selectedFeatures = this.availableFeatures.filter(f => selectedIds.includes(f.id));
@@ -341,7 +341,7 @@ export class HomePage extends Feature {
             }
 
             // 6. Restaurar vazio
-            if (target.id === 'reset-cards-btn') {
+            if (target.closest('#reset-cards-btn')) {
                 if (confirm('Remover todos os atalhos da Home?')) {
                     await this.saveCards([]);
                     this.render();

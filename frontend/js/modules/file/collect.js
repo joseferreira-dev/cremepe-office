@@ -121,22 +121,24 @@ export class CollectFeature extends Feature {
         // Coletar
         container.querySelector('#btn-collect').addEventListener('click', () => this.executeCollect());
 
-        // Delegação para botões dinâmicos de origem
+        // Delegação para botões dinâmicos de origem — o matching usa
+        // closest(): o clique pode cair no SVG do ícone dentro do botão.
         // this.on() rastreia o listener: o #feature-content persiste entre
         // features do módulo, então destroy() o remove ao sair da feature
         // (evita que um clique seja processado N vezes).
         this.on(container, 'click', (e) => {
-            const target = e.target;
-            if (target.classList.contains('btn-src-select')) {
+            const selectBtn = e.target.closest('.btn-src-select');
+            if (selectBtn) {
                 e.stopPropagation();
                 e.preventDefault();
-                const idx = target.dataset.idx;
-                this.selectDirectoryForSrc(idx, container);
+                this.selectDirectoryForSrc(selectBtn.dataset.idx, container);
+                return;
             }
-            if (target.classList.contains('btn-src-remove')) {
+            const removeBtn = e.target.closest('.btn-src-remove');
+            if (removeBtn) {
                 e.stopPropagation();
                 e.preventDefault();
-                const idx = parseInt(target.dataset.idx);
+                const idx = parseInt(removeBtn.dataset.idx);
                 this.srcDirs.splice(idx, 1);
                 this.renderSrcDirs(container);
             }
