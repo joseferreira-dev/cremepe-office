@@ -65,8 +65,12 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
    Ou, em terminais separados:
    ```bash
    npm run start-backend   # backend Flask
-   npm start               # Electron
+   npm start               # Electron (compila o TS antes)
    ```
+
+> **TypeScript**: o `npm run dev` compila os `.ts` uma vez e mantém o
+> `watch:ts` (rebuild do bundle a cada salvamento). Após editar `.ts`
+> fora do dev, rode `npm run build:ts` antes de testar.
 
 > **venv automático**: o `npm run dev`/`start-backend` e o Electron
 > resolvem sozinhos o interpretador de `venv/` (com fallback para o
@@ -88,7 +92,7 @@ Aplicação desktop para gerenciamento de arquivos, PDFs, documentos Word e plan
 
 ### Backend — pytest
 
-A suíte fica em `tests/` (76 testes) e a configuração está no
+A suíte fica em `tests/` (94 testes) e a configuração está no
 `pyproject.toml`: `pythonpath` resolve os imports absolutos e `testpaths`
 aponta para `tests/`.
 
@@ -120,10 +124,18 @@ Cobertura:
   `127.0.0.1`, debug condicional (`FLASK_DEBUG`) e não-bloqueio do
   health check durante operação longa
 
-### Frontend — Tailwind CSS e ESLint
+### Frontend — TypeScript, Tailwind CSS e ESLint
+
+O renderer e o processo main do Electron estão em **TypeScript**
+(`strict: true`); o JavaScript é gerado com esbuild (`scripts/build-ts.js`)
+e os bundles ficam versionados em `frontend/dist/` (`index.html` carrega
+`dist/app.js`).
 
 ```bash
-npm run lint           # eslint frontend/js (0 erros = ok)
+npm run typecheck      # tsc --noEmit (0 erros = ok)
+npm run build:ts       # compila o TS -> dist/app.js, dist/main.js, dist/preload.js
+npm run watch:ts       # rebuild incremental ao salvar (usado pelo npm run dev)
+npm run lint           # eslint frontend/**/*.ts (0 erros = ok)
 npm run build:css      # gera frontend/css/tailwind.css a partir de input.css
 npm run watch:css      # rebuild em modo watch (desenvolvimento)
 npm run check:classes  # toda classe dos templates precisa existir no CSS
@@ -203,12 +215,12 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
 
 - O ícone do aplicativo pode ser definido em `frontend/assets/icon.ico` (referenciado no `package.json`).
 - Para alterar o nome do produto ou outras configurações, edite a seção `"build"` no `package.json`.
-- O backend é copiado para a pasta de recursos do Electron via `extraResources`; o código em `frontend/main.js` já detecta o ambiente de produção e inicia o `backend.exe` corretamente.
+- O backend é copiado para a pasta de recursos do Electron via `extraResources`; o código em `frontend/main.ts` (bundle em `frontend/dist/main.js`) já detecta o ambiente de produção e inicia o `backend.exe` corretamente.
 
 ### Solução de problemas comuns
 
 - **Erro ao compilar o backend com PyInstaller**: Algumas bibliotecas (como `pikepdf`, `cryptography`, `pywin32`) podem precisar de `--hidden-import` ou hooks. Se ocorrer erro, adicione os imports necessários manualmente ou instale os pacotes `pyinstaller-hooks-contrib`.
-- **O instalador não inicia o backend**: Verifique se o `backend.exe` foi copiado para `resources/` dentro do app instalado. O caminho usado em `frontend/main.js` (`process.resourcesPath`) deve apontar para o local correto.
+- **O instalador não inicia o backend**: Verifique se o `backend.exe` foi copiado para `resources/` dentro do app instalado. O caminho usado em `frontend/main.ts` (`process.resourcesPath`) deve apontar para o local correto.
 - **Porta 5000 em uso**: O backend usa a porta 5000 por padrão. Se houver conflito, altere a variável `PORT` no código ou no ambiente.
 
 ---
@@ -235,20 +247,23 @@ cremepe-office/
 │   ├── services/           # Processadores de domínio (PDF, Word, Excel, arquivos)
 │   ├── routes/             # Endpoints da API
 │   └── utils/              # Erros globais, validação, jobs, logging
-├── frontend/               # Código Electron (HTML/CSS/JS)
+├── frontend/               # Código Electron (HTML/CSS/TS)
 │   ├── index.html          # Página principal
-│   ├── main.js             # Processo principal do Electron
-│   ├── preload.js          # Ponte segura entre main e renderer
+│   ├── main.ts             # Processo principal do Electron (fonte)
+│   ├── preload.ts          # Ponte segura entre main e renderer (fonte)
+│   ├── dist/               # Bundles gerados pelo esbuild (versionados)
 │   ├── assets/             # Imagens, ícones
 │   ├── css/                # input.css (fonte) + tailwind.css (gerado)
 │   ├── vendor/             # pdf.js e Lucide locais (offline)
-│   └── js/                 # JavaScript do renderer (módulos ES)
-│       ├── app.js          # Entry point do renderer
-│       ├── api.js          # Cliente HTTP + polling de jobs
+│   ├── types/              # Tipos globais (globals.d.ts)
+│   └── js/                 # TypeScript do renderer (módulos ES)
+│       ├── app.ts          # Entry point do renderer
+│       ├── api.ts          # Cliente HTTP + polling de jobs
 │       └── modules/        # Features por domínio (pdf/, word/, excel/, file/)
 ├── tests/                  # Suíte pytest (unit + integração)
-├── scripts/                # Auxiliares (check_frontend_classes.py, start, etc.)
-├── eslint.config.mjs       # Configuração do ESLint
+├── scripts/                # build-ts.js, check_frontend_classes.py, run-backend.ts
+├── tsconfig.json           # TypeScript strict (noEmit, resolução bundler)
+├── eslint.config.mjs       # Configuração do ESLint (typescript-eslint)
 ├── package.json            # Dependências Node e scripts (dev, lint, dist)
 ├── pyproject.toml           # Metadados e dependências Python (fonte única)
 └── README.md               # Este arquivo

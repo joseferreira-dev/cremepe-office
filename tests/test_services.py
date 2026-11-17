@@ -838,3 +838,56 @@ def test_word_insert_filepath(tmp_path):
             if name.endswith(".xml")
         )
     assert found, "caminho do arquivo nao encontrado em nenhum XML do documento"
+
+
+# ===== EXCEL: rota de leitura (preview de colunas) =====
+# Contrato da rota /api/excel/read usada pelo botao "Visualizar colunas"
+# da feature dividir-por-coluna (bug original: a rota nao existia e o
+# clique falhava em runtime).
+
+def test_rota_excel_read_preview_colunas(client, tmp_path):
+    from openpyxl import Workbook
+
+    from helpers import post_sync
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Estado", "Cidade"])
+    ws.append(["SP", "Sao Paulo"])
+    ws.append(["RJ", "Rio de Janeiro"])
+    src = tmp_path / "estados.xlsx"
+    wb.save(src)
+
+    ok = post_sync(client, "/api/excel/read", json={"file_path": str(src)})
+    assert ok.status_code == 200, ok.get_json()
+    body = ok.get_json()
+    assert body["success"] is True
+    assert body["headers"] == ["Estado", "Cidade"]
+    assert body["data"] == [
+        {"Estado": "SP", "Cidade": "Sao Paulo"},
+        {"Estado": "RJ", "Cidade": "Rio de Janeiro"},
+    ]
+    assert body["total_rows"] == 2
+
+    # max_rows limita a devolucao (total_rows continua o total do arquivo)
+    capped = post_sync(client, "/api/excel/read",
+                       json={"file_path": str(src), "max_rows": 1})
+    assert capped.status_code == 200, capped.get_json()
+    assert len(capped.get_json()["data"]) == 1
+    assert capped.get_json()["total_rows"] == 2
+
+    # campo obrigatorio ausente -> 400 imediato (sem job)
+    missing = post_sync(client, "/api/excel/read", json={})
+    assert missing.status_code == 400, missing.status_code
+
+    # arquivo inexistente -> 404 (handler global FileNotFoundError)
+    notfound = post_sync(
+        client, "/api/excel/read", json={"file_path": str(tmp_path / "nao.xlsx")}
+    )
+    assert notfound.status_code == 404, notfound.status_code
+
+    # formato fora de .xlsx/.csv -> 400 (ValueError)
+    txt = tmp_path / "notas.txt"
+    txt.write_text("texto qualquer", encoding="utf-8")
+    bad = post_sync(client, "/api/excel/read", json={"file_path": str(txt)})
+    assert bad.status_code == 400, bad.status_code

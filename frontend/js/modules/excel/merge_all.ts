@@ -1,0 +1,155 @@
+import { API } from '../../api.js';
+import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
+
+export class ExcelMergeAllFeature extends Feature {
+    constructor() {
+        super('merge-all');
+    }
+
+    render(container: HTMLElement) {
+        container.innerHTML = `
+            <div class="mb-4">
+                <h4 class="text-lg font-semibold text-zinc-900">Combinar Planilhas</h4>
+                <p class="text-zinc-500">Consolide todos os arquivos XLSX de uma pasta em um único arquivo mestre.</p>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title section-title">Pastas</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Pasta de origem (com os arquivos .xlsx)</label>
+                        <div class="input-group">
+                            <input type="text" id="merge-source-dir" class="form-control" placeholder="Selecione a pasta...">
+                            <button class="btn btn-outline-secondary" id="btn-merge-source">Selecionar</button>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Arquivo de destino (.xlsx)</label>
+                        <div class="input-group">
+                            <input type="text" id="merge-dest-file" class="form-control" placeholder="Caminho do arquivo de saída...">
+                            <button class="btn btn-outline-secondary" id="btn-merge-dest">Salvar como</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title section-title">Opções</h5>
+                    <div class="mb-2">
+                        <label class="form-label">Modo de mesclagem</label>
+                        <select id="merge-mode" class="form-select">
+                            <option value="sheets">Cada arquivo em uma aba separada</option>
+                            <option value="stack">Empilhar todas as linhas em uma única aba</option>
+                        </select>
+                    </div>
+                    <div id="merge-header-option" class="mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="merge-include-header" checked>
+                            <label class="form-check-label">Incluir cabeçalho (apenas do primeiro arquivo)</label>
+                        </div>
+                        <small class="text-zinc-500">Se desmarcado, todas as linhas (incluindo cabeçalhos) serão tratadas como dados.</small>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="merge-recursive">
+                        <label class="form-check-label">Incluir subpastas</label>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-success" id="btn-merge-all"><i data-lucide="play"></i> Mesclar</button>
+
+            ${this.progressHTML()}
+
+            ${this.logHTML()}
+        `;
+
+        // Mostrar/ocultar opção de cabeçalho conforme modo
+        document.getElementById('merge-mode')!.addEventListener('change', (e) => {
+            const showHeader = (e.target as DomElement).value === 'stack';
+            document.getElementById('merge-header-option')!.style.display = showHeader ? 'block' : 'none';
+        });
+        // Inicializar estado
+        document.getElementById('merge-header-option')!.style.display =
+            (document.getElementById('merge-mode') as DomElement).value === 'stack' ? 'block' : 'none';
+
+        this.attachEvents();
+    }
+
+    attachEvents() {
+        document.getElementById('btn-merge-source')!.addEventListener('click', (e) => {
+            e.stopPropagation();
+            FileUtils.selectDirectory('merge-source-dir');
+        });
+
+        document.getElementById('btn-merge-dest')!.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (window.electronAPI && window.electronAPI.showSaveDialog) {
+                window.electronAPI.showSaveDialog({
+                    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
+                }).then(result => {
+                    if (!result.canceled && result.filePath) {
+                        (document.getElementById('merge-dest-file') as DomElement).value = result.filePath;
+                    }
+                });
+            }
+        });
+
+        document.getElementById('btn-merge-all')!.addEventListener('click', () => this.mergeAll());
+    }
+
+    async mergeAll() {
+        const sourceDir = (document.getElementById('merge-source-dir') as DomElement).value.trim();
+        const destFile = (document.getElementById('merge-dest-file') as DomElement).value.trim();
+        const mode = (document.getElementById('merge-mode') as DomElement).value;
+        const includeHeader = (document.getElementById('merge-include-header') as DomElement).checked;
+        const recursive = (document.getElementById('merge-recursive') as DomElement).checked;
+
+        if (!sourceDir || !destFile) {
+            this.log('Selecione a pasta de origem e o arquivo de destino.');
+            return;
+        }
+
+        // Verifica se o destino está dentro da origem (para evitar recursão infinita)
+        const normalizedSource = sourceDir.replace(/\\/g, '/');
+        const normalizedDest = destFile.replace(/\\/g, '/');
+        const destDir = normalizedDest.substring(0, normalizedDest.lastIndexOf('/'));
+        if (destDir === normalizedSource) {
+            this.log('O arquivo de destino não pode estar dentro da pasta de origem.');
+            return;
+        }
+
+        const btn = document.getElementById('btn-merge-all')!;
+        (btn as DomElement).disabled = true;
+        this.clearLog();
+        this.log(`Iniciando mesclagem (modo: ${mode})...`);
+
+        try {
+            const result = await API.excel.mergeAll({
+                source_dir: sourceDir,
+                dest_file: destFile,
+                mode: mode,
+                include_header: includeHeader,
+                recursive: recursive
+            });
+
+            const { processed, total_rows, total_sheets, errors } = result;
+            if (mode === 'sheets') {
+                this.log(`Concluído! ${processed} arquivos processados, ${total_sheets} abas criadas.`);
+            } else {
+                this.log(`Concluído! ${processed} arquivos processados, ${total_rows} linhas consolidadas.`);
+            }
+            if (errors.length) {
+                this.log(`Erros: ${errors.length}`);
+                errors.forEach((e: any) => this.log(`  ${e}`));
+            }
+            this.setProgress(100);
+        } catch (err) {
+            this.log(`Erro: ${(err as Error).message}`);
+        } finally {
+            (btn as DomElement).disabled = false;
+        }
+    }
+}
+

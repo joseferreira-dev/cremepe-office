@@ -8,7 +8,7 @@ __pycache__/
 *.so
 *.egg
 *.egg-info/
-dist/
+/dist/
 build/
 
 # Node

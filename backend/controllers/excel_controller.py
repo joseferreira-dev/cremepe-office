@@ -2,6 +2,7 @@ from services.excel_processor import (
     batch_convert,
     extract_cells_from_directory,
     merge_all_files,
+    read_excel,
     split_by_column,
     split_sheets_to_files
 )
@@ -23,3 +24,6 @@ class ExcelController:
     
     def split_sheets(self, input_file, output_dir, output_format='xlsx'):
         return split_sheets_to_files(input_file, output_dir, output_format)
+
+    def read(self, file_path, max_rows=50):
+        return read_excel(file_path, max_rows)

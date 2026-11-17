@@ -1,0 +1,87 @@
+/**
+ * Logger do processo principal (Electron).
+ *
+ * Em desenvolvimento escreve também no console; em produção (app GUI)
+ * o console não existe, então tudo é gravado em arquivo em
+ * app.getPath('logs') — normalmente %APPDATA%\<app>\Logs no Windows.
+ *
+ * Uso:
+ *   import * as logger from './logger';
+ *   logger.init(app);          // uma vez, no whenReady
+ *   logger.log('iniciando');
+ *   logger.error('falha:', err);
+ */
+import fs from 'fs';
+import path from 'path';
+import type { App } from 'electron';
+
+type Level = 'INFO' | 'WARN' | 'ERROR';
+
+let stream: fs.WriteStream | null = null;
+let logPath: string | null = null;
+
+export function init(app: App): string | null {
+    if (stream) return logPath;
+    try {
+        const dir = app.getPath('logs');
+        fs.mkdirSync(dir, { recursive: true });
+        logPath = path.join(dir, 'cremepe-office.log');
+        stream = fs.createWriteStream(logPath, { flags: 'a' });
+        stream.on('error', (e: Error) => {
+            console.error('Logger: erro ao gravar log:', e.message);
+            stream = null;
+        });
+    } catch (e) {
+        console.error('Logger: não foi possível abrir arquivo de log:', (e as Error).message);
+        stream = null;
+    }
+    return logPath;
+}
+
+export function close(): void {
+    if (stream) {
+        try { stream.end(); } catch { /* ignora */ }
+        stream = null;
+    }
+}
+
+function formatArgs(args: unknown[]): string {
+    return args.map((a) => {
+        if (a instanceof Error) return a.stack || a.message;
+        if (typeof a === 'object' && a !== null) {
+            try { return JSON.stringify(a); } catch { return String(a); }
+        }
+        return String(a);
+    }).join(' ');
+}
+
+function write(level: Level, args: unknown[]): void {
+    const line = `${new Date().toISOString()} [${level}] ${formatArgs(args)}`;
+    // Console (visível em dev; ignora silenciosamente em app GUI)
+    if (level === 'ERROR') console.error(line);
+    else console.log(line);
+
+    if (stream) {
+        try {
+            stream.write(line + '\n');
+        } catch {
+            // Log nunca pode derrubar o app
+        }
+    }
+}
+
+export function getLogPath(): string | null {
+    return logPath;
+}
+
+export function log(...args: unknown[]): void {
+    write('INFO', args);
+}
+
+export function warn(...args: unknown[]): void {
+    write('WARN', args);
+}
+
+export function error(...args: unknown[]): void {
+    write('ERROR', args);
+}

@@ -26,6 +26,7 @@ ALLOW_NO_STYLE = {
 
 def template_tokens():
     files = [ROOT / 'frontend/index.html', ROOT / 'frontend/splash.html']
+    files += sorted((ROOT / 'frontend/js').rglob('*.ts'))
     files += sorted((ROOT / 'frontend/js').rglob('*.js'))
     toks = set()
     for p in files:

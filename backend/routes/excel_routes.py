@@ -71,3 +71,14 @@ def split_sheets(data):
         output_format=data.get('output_format', 'xlsx')
     )
     return jsonify({"success": True, **result}), 200
+
+# Leitura rapida (sync, sem job): preview de cabecalhos para o botao
+# "Visualizar colunas" da feature dividir-por-coluna.
+@excel_bp.route('/read', methods=['POST'])
+@require('file_path')
+def read_excel(data):
+    result = controller.read(
+        file_path=data['file_path'],
+        max_rows=data.get('max_rows', 50)
+    )
+    return jsonify({"success": True, **result}), 200

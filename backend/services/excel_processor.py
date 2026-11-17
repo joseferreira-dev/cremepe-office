@@ -622,3 +622,78 @@ def split_sheets_to_files(input_file: str, output_dir: str, output_format: str =
                 stats['errors'].append(f"{sheet_name}: {str(e)}")
     
     return stats
+
+
+# ========== LEITURA / PREVIEW DE COLUNAS ==========
+def _jsonable(value):
+    """Converte celula em algo serializavel em JSON (datetime etc -> str)."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def read_excel(file_path: str, max_rows: int = 50) -> dict:
+    """
+    Le as primeiras linhas de uma planilha (preview dos cabecalhos).
+
+    Usado pelo botao "Visualizar colunas" da feature dividir-por-coluna:
+    devolve as linhas como lista de dicts (chave = cabecalho), que e o
+    formato que o frontend usa para extrair Object.keys(data[0]).
+
+    Args:
+        file_path: Caminho do arquivo (.xlsx/.xlsm via openpyxl, .csv via csv)
+        max_rows: Quantidade maxima de linhas de dados devolvida
+
+    Returns:
+        dict: headers (lista de str), data (lista de dicts, uma por linha),
+              total_rows (total de linhas de dados do arquivo)
+
+    Raises:
+        FileNotFoundError: arquivo inexistente (handler global -> 404)
+        ValueError: formato nao suportado ou arquivo sem dados (-> 400)
+    """
+    path = Path(file_path).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Arquivo nao encontrado: {file_path}")
+
+    suffix = path.suffix.lower()
+    if suffix == '.csv':
+        with open(path, newline='', encoding='utf-8-sig') as fh:
+            all_rows = list(csv.reader(fh))
+    elif suffix in ('.xlsx', '.xlsm'):
+        wb = load_workbook(path, data_only=True, read_only=True)
+        try:
+            ws = wb.active
+            if ws is None:
+                raise ValueError("Planilha vazia")
+            all_rows = [list(row) for row in ws.iter_rows(values_only=True)]
+        finally:
+            wb.close()
+    else:
+        raise ValueError(
+            f"Formato nao suportado: {suffix} (use .xlsx ou .csv)"
+        )
+
+    if not all_rows:
+        raise ValueError("Arquivo sem dados")
+
+    # Cabecalhos: celula vazia vira col{i} (dict precisa de chave unica)
+    headers = [
+        str(h) if h is not None and str(h).strip() != '' else f'col{i}'
+        for i, h in enumerate(all_rows[0])
+    ]
+
+    limit = max(1, min(int(max_rows), 1000))
+    data = []
+    for row in all_rows[1:]:
+        # pula linhas totalmente vazias
+        if not row or all(v is None or str(v).strip() == '' for v in row):
+            continue
+        data.append({
+            headers[i]: _jsonable(row[i]) if i < len(row) else None
+            for i in range(len(headers))
+        })
+        if len(data) >= limit:
+            break
+
+    return {"headers": headers, "data": data, "total_rows": len(all_rows) - 1}
