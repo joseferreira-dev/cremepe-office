@@ -1708,7 +1708,7 @@ def protect_password(
             'protected_size': final_size,
             'ratio': ratio,
             'output_path': str(output_path),
-            'password': password,
+            # Nunca devolver a senha: o job e a resposta ficam em log/memória.
         }
 
     except Exception as e:

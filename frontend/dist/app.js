@@ -285,6 +285,9 @@ var FileUtils = {
 };
 
 // frontend/js/modules/feature.ts
+function escapeHtml(value) {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 var Feature = class {
   prefix;
   logId;
@@ -3928,7 +3931,7 @@ var PDFConvertToImageFeature = class extends Feature {
       list.innerHTML = '<p class="text-zinc-500">Nenhuma imagem selecionada.</p>';
       return;
     }
-    list.innerHTML = this.imagePaths.map((p) => `<div><i data-lucide="file-image" class="me-1"></i> ${p}</div>`).join("");
+    list.innerHTML = this.imagePaths.map((p) => `<div><i data-lucide="file-image" class="me-1"></i> ${escapeHtml(p)}</div>`).join("");
     document.getElementById("image-input-paths").value = this.imagePaths.join(", ");
   }
   // ====== PDF → IMAGEM ======
@@ -3954,7 +3957,7 @@ var PDFConvertToImageFeature = class extends Feature {
       list.innerHTML = '<p class="text-zinc-500">Nenhum PDF selecionado.</p>';
       return;
     }
-    list.innerHTML = paths.map((p) => `<div><i data-lucide="file-text" class="me-1"></i> ${p}</div>`).join("");
+    list.innerHTML = paths.map((p) => `<div><i data-lucide="file-text" class="me-1"></i> ${escapeHtml(p)}</div>`).join("");
   }
   // ====== EXECUTAR ======
   async executeConvert() {
@@ -4565,8 +4568,8 @@ var PDFMergeFeature = class extends Feature {
       const thumbSrc = file.thumbnail || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="120" height="160" viewBox="0 0 120 160"%3E%3Crect width="120" height="160" fill="%23f0f0f0"/%3E%3Ctext x="60" y="80" font-family="Arial" font-size="14" fill="%23999" text-anchor="middle"%3EPDF%3C/text%3E%3C/svg%3E';
       html += `
                 <div class="pdf-item" draggable="true" data-index="${index}" style="display:inline-block; margin:6px; padding:4px; border:1px solid #dee2e6; border-radius:6px; background:white; cursor:grab; width:120px; text-align:center; vertical-align:top;">
-                    <img src="${thumbSrc}" alt="${file.name}" style="width:100%; height:auto; border-radius:4px;">
-                    <div style="font-size:11px; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px;" title="${file.name}">${file.name}</div>
+                    <img src="${thumbSrc}" alt="${escapeHtml(file.name)}" style="width:100%; height:auto; border-radius:4px;">
+                    <div style="font-size:11px; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:110px;" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</div>
                     <button class="btn btn-sm btn-outline-danger" style="margin-top:4px; padding:1px 6px; font-size:10px;" data-remove="${index}">\u2715</button>
                 </div>
             `;
@@ -4966,13 +4969,20 @@ var PDFProtectFeature = class extends Feature {
     this.clearLog();
     this.log("Protegendo PDF...");
     try {
-      const result = await API.pdf.protectPassword({
+      await API.pdf.protectPassword({
         input_path: inputPath,
         output_path: outputPath,
         password
       });
       document.getElementById("protect-result").style.display = "block";
-      document.getElementById("password-info").innerHTML = `<div><strong>Senha:</strong> ${result.password}</div>`;
+      const pwdInfo = document.getElementById("password-info");
+      pwdInfo.textContent = "";
+      const pwdLine = document.createElement("div");
+      const pwdStrong = document.createElement("strong");
+      pwdStrong.textContent = "Senha: ";
+      pwdLine.appendChild(pwdStrong);
+      pwdLine.appendChild(document.createTextNode(password));
+      pwdInfo.appendChild(pwdLine);
       this.log(`PDF protegido com sucesso!`);
       this.setProgress(100);
     } catch (err) {
@@ -4999,7 +5009,7 @@ var PDFProtectFeature = class extends Feature {
         output_path: outputPath,
         password
       });
-      document.getElementById("password-info").innerHTML = "";
+      document.getElementById("password-info").textContent = "";
       this.log(`Senha removida! Arquivo salvo em: ${result.output_path}`);
       this.setProgress(100);
     } catch (err) {
@@ -5463,15 +5473,15 @@ var PDFSplitFeature = class extends Feature {
       if (parts.length === 0) {
         html = '<p class="text-zinc-500">Nenhum intervalo definido.</p>';
       } else {
-        html = `<strong>Intervalos definidos (${parts.length}):</strong><br>${parts.map((p) => `- ${p}`).join("<br>")}`;
+        html = `<strong>Intervalos definidos (${parts.length}):</strong><br>${parts.map((p) => `- ${escapeHtml(p)}`).join("<br>")}`;
       }
     } else {
       html = `<strong>Intervalo fixo:</strong> ${pagesPerFile} p\xE1ginas por arquivo`;
     }
     if (combine) {
-      html += `<br><br><strong>Modo combinado:</strong> ser\xE1 gerado apenas o arquivo <strong>${combineName}.pdf</strong>`;
+      html += `<br><br><strong>Modo combinado:</strong> ser\xE1 gerado apenas o arquivo <strong>${escapeHtml(combineName)}.pdf</strong>`;
     } else {
-      html += `<br><br><strong>Modo partes:</strong> ser\xE3o gerados arquivos com prefixo <strong>${partPrefix}_</strong>`;
+      html += `<br><br><strong>Modo partes:</strong> ser\xE3o gerados arquivos com prefixo <strong>${escapeHtml(partPrefix)}_</strong>`;
     }
     listDiv.innerHTML = html;
     this.log("Pr\xE9-visualiza\xE7\xE3o gerada.");
@@ -5787,15 +5797,15 @@ var PDFValidateFeature = class extends Feature {
     if (s.encrypted) statBadges.push("Criptografado");
     if (s.repaired) statBadges.push("Precisou de reparo");
     if (s.producer) statBadges.push(String(s.producer).slice(0, 40));
-    document.getElementById("validate-stats").innerHTML = statBadges.map((t) => `<span class="badge">${t}</span>`).join("");
+    document.getElementById("validate-stats").innerHTML = statBadges.map((t) => `<span class="badge">${escapeHtml(t)}</span>`).join("");
     document.getElementById("validate-checks").innerHTML = r.checks.map((c) => {
       const st = STATUS_STYLE[c.status] || STATUS_STYLE.warn;
       return `
                 <li class="flex items-start gap-3 px-5 py-3">
                     <i data-lucide="${st.icon}" class="${st.cls} mt-0.5 shrink-0"></i>
                     <div class="min-w-0">
-                        <div class="text-sm font-semibold text-zinc-800">${c.label}</div>
-                        ${c.detail ? `<div class="text-sm break-words text-zinc-500">${c.detail}</div>` : ""}
+                        <div class="text-sm font-semibold text-zinc-800">${escapeHtml(c.label)}</div>
+                        ${c.detail ? `<div class="text-sm break-words text-zinc-500">${escapeHtml(c.detail)}</div>` : ""}
                     </div>
                 </li>
             `;

@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from '../file/utils.js';
 
 export class PDFSplitFeature extends Feature {
@@ -169,16 +169,16 @@ export class PDFSplitFeature extends Feature {
             if (parts.length === 0) {
                 html = '<p class="text-zinc-500">Nenhum intervalo definido.</p>';
             } else {
-                html = `<strong>Intervalos definidos (${parts.length}):</strong><br>${parts.map(p => `- ${p}`).join('<br>')}`;
+                html = `<strong>Intervalos definidos (${parts.length}):</strong><br>${parts.map(p => `- ${escapeHtml(p)}`).join('<br>')}`;
             }
         } else {
             html = `<strong>Intervalo fixo:</strong> ${pagesPerFile} páginas por arquivo`;
         }
 
         if (combine) {
-            html += `<br><br><strong>Modo combinado:</strong> será gerado apenas o arquivo <strong>${combineName}.pdf</strong>`;
+            html += `<br><br><strong>Modo combinado:</strong> será gerado apenas o arquivo <strong>${escapeHtml(combineName)}.pdf</strong>`;
         } else {
-            html += `<br><br><strong>Modo partes:</strong> serão gerados arquivos com prefixo <strong>${partPrefix}_</strong>`;
+            html += `<br><br><strong>Modo partes:</strong> serão gerados arquivos com prefixo <strong>${escapeHtml(partPrefix)}_</strong>`;
         }
 
         listDiv.innerHTML = html;

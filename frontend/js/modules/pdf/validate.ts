@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 
 const STATUS_STYLE: Record<string, { icon: string; cls: string }> = {
     ok: { icon: 'circle-check', cls: 'text-emerald-600' },
@@ -139,7 +139,7 @@ export class PDFValidateFeature extends Feature {
         if (s.repaired) statBadges.push('Precisou de reparo');
         if (s.producer) statBadges.push(String(s.producer).slice(0, 40));
         document.getElementById('validate-stats')!.innerHTML = statBadges
-            .map(t => `<span class="badge">${t}</span>`).join('');
+            .map(t => `<span class="badge">${escapeHtml(t)}</span>`).join('');
 
         document.getElementById('validate-checks')!.innerHTML = r.checks.map((c: any) => {
             const st = STATUS_STYLE[c.status] || STATUS_STYLE.warn;
@@ -147,8 +147,8 @@ export class PDFValidateFeature extends Feature {
                 <li class="flex items-start gap-3 px-5 py-3">
                     <i data-lucide="${st.icon}" class="${st.cls} mt-0.5 shrink-0"></i>
                     <div class="min-w-0">
-                        <div class="text-sm font-semibold text-zinc-800">${c.label}</div>
-                        ${c.detail ? `<div class="text-sm break-words text-zinc-500">${c.detail}</div>` : ''}
+                        <div class="text-sm font-semibold text-zinc-800">${escapeHtml(c.label)}</div>
+                        ${c.detail ? `<div class="text-sm break-words text-zinc-500">${escapeHtml(c.detail)}</div>` : ''}
                     </div>
                 </li>
             `;

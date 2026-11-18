@@ -191,14 +191,23 @@ export class PDFProtectFeature extends Feature {
         this.log('Protegendo PDF...');
 
         try {
-            const result = await API.pdf.protectPassword({
+            await API.pdf.protectPassword({
                 input_path: inputPath,
                 output_path: outputPath,
                 password: password
             });
 
             document.getElementById('protect-result')!.style.display = 'block';
-            document.getElementById('password-info')!.innerHTML = `<div><strong>Senha:</strong> ${result.password}</div>`;
+            // Exibe a senha digitada (a do usuário, não a do backend — que
+            // não a devolve mais) via textContent: senha não é HTML.
+            const pwdInfo = document.getElementById('password-info')!;
+            pwdInfo.textContent = '';
+            const pwdLine = document.createElement('div');
+            const pwdStrong = document.createElement('strong');
+            pwdStrong.textContent = 'Senha: ';
+            pwdLine.appendChild(pwdStrong);
+            pwdLine.appendChild(document.createTextNode(password));
+            pwdInfo.appendChild(pwdLine);
 
             this.log(`PDF protegido com sucesso!`);
             this.setProgress(100);
@@ -231,7 +240,7 @@ export class PDFProtectFeature extends Feature {
                 password: password
             });
 
-            document.getElementById('password-info')!.innerHTML = '';
+            document.getElementById('password-info')!.textContent = '';
 
             this.log(`Senha removida! Arquivo salvo em: ${result.output_path}`);
             this.setProgress(100);

@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from '../file/utils.js';
 
 export class PDFConvertToImageFeature extends Feature {
@@ -273,7 +273,7 @@ export class PDFConvertToImageFeature extends Feature {
             list.innerHTML = '<p class="text-zinc-500">Nenhuma imagem selecionada.</p>';
             return;
         }
-        list.innerHTML = this.imagePaths.map((p: any) => `<div><i data-lucide="file-image" class="me-1"></i> ${p}</div>`).join('');
+        list.innerHTML = this.imagePaths.map((p: any) => `<div><i data-lucide="file-image" class="me-1"></i> ${escapeHtml(p)}</div>`).join('');
         (document.getElementById('image-input-paths') as DomElement).value = this.imagePaths.join(', ');
     }
 
@@ -301,7 +301,7 @@ export class PDFConvertToImageFeature extends Feature {
             list.innerHTML = '<p class="text-zinc-500">Nenhum PDF selecionado.</p>';
             return;
         }
-        list.innerHTML = paths.map(p => `<div><i data-lucide="file-text" class="me-1"></i> ${p}</div>`).join('');
+        list.innerHTML = paths.map(p => `<div><i data-lucide="file-text" class="me-1"></i> ${escapeHtml(p)}</div>`).join('');
     }
 
     // ====== EXECUTAR ======

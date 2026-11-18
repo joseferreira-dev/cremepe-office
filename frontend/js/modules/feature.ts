@@ -27,6 +27,23 @@
  */
 import { FileUtils } from './file/utils.js';
 
+/**
+ * Escapa texto para uso seguro em innerHTML.
+ *
+ * Use em TODO valor dinâmico interpolado em template HTML (nomes de
+ * arquivo, caminhos, metadados vindos de arquivos, entrada do usuário).
+ * Sem escape, um arquivo chamado `a<img src=x onerror=...>.pdf` executa
+ * script ao ser listado na tela.
+ */
+export function escapeHtml(value: unknown): string {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 export class Feature {
     prefix: string;
     logId: string;
