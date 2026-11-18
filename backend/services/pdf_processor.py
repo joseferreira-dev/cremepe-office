@@ -1471,6 +1471,45 @@ def compress(
     except Exception as e:
         raise RuntimeError(f"Erro ao comprimir PDF: {str(e)}")
 
+def pdf_info(pdf_path: str) -> dict:
+    """Leitura rapida (sync, sem job) da paginacao de um PDF.
+
+    Usada pelas features dividir/extrair/reordenar para exibir a
+    contagem de paginas do arquivo selecionado e validar intervalos
+    antes de disparar um job.
+
+    Usa fitz (e nao PyPDF2): conta paginas mesmo em PDF criptografado —
+    o PyPDF2 instalado nao tem PyCryptodome e falha em AES — e levanta
+    erro claro quando o arquivo nao e um PDF valido.
+    """
+    path = Path(pdf_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+    if not path.is_file():
+        raise ValueError(f"Caminho não é um arquivo: {path}")
+    try:
+        with fitz.open(str(path)) as doc:
+            try:
+                meta = doc.metadata or {}
+            except Exception:
+                # PDF criptografado pode esconder os metadados
+                meta = {}
+            return {
+                "pages": int(doc.page_count),
+                "encrypted": bool(doc.is_encrypted),
+                "needs_pass": bool(doc.needs_pass),
+                "file_size": path.stat().st_size,
+                "title": meta.get("title") or "",
+                "producer": meta.get("producer") or meta.get("creator") or "",
+            }
+    except (FileNotFoundError, ValueError):
+        raise
+    except Exception as exc:
+        # fitz.FileDataError (arquivo que nao e PDF valido) e demais
+        # falhas de leitura -> 400 com mensagem clara, nao 500.
+        raise ValueError(f"Não foi possível ler o PDF: {str(exc)[:200]}") from exc
+
+
 def validate_pdf(pdf_path: str) -> dict:
     """Analisa a integridade de um PDF (corrupção, truncamento, refs).
 

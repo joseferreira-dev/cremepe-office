@@ -476,6 +476,47 @@ def test_rota_validate_contrato_e_404(client, pdf_factory, tmp_path):
     assert missing.status_code == 404, missing.status_code
 
 
+# ===== pdf/info: contagem de paginas (sync) para validar antes do job =====
+
+def test_rota_pdf_info_paginas_e_status(client, pdf_factory, tmp_path):
+    import fitz
+
+    from helpers import post_sync
+
+    src = pdf_factory(4, 'info.pdf')
+    ok = post_sync(client, '/api/pdf/info', json={'pdf_path': str(src)})
+    assert ok.status_code == 200, ok.get_json()
+    body = ok.get_json()
+    assert body['success'] is True
+    assert body['pages'] == 4
+    assert body['encrypted'] is False
+    assert body['file_size'] == src.stat().st_size
+
+    # criptografado: conta as paginas mesmo sem a senha (fitz; o PyPDF2
+    # instalado nao tem PyCryptodome e falharia em AES)
+    enc = tmp_path / 'info_enc.pdf'
+    doc = fitz.open(str(src))
+    doc.save(str(enc), encryption=fitz.PDF_ENCRYPT_AES_256,
+             owner_pw='segredo', user_pw='segredo')
+    doc.close()
+    ok_enc = post_sync(client, '/api/pdf/info', json={'pdf_path': str(enc)})
+    assert ok_enc.status_code == 200, ok_enc.get_json()
+    assert ok_enc.get_json()['pages'] == 4
+    assert ok_enc.get_json()['encrypted'] is True
+
+    # inexistente -> 404 (handlers globais)
+    missing = post_sync(client, '/api/pdf/info',
+                        json={'pdf_path': str(tmp_path / 'nao_existe.pdf')})
+    assert missing.status_code == 404, missing.status_code
+
+    # arquivo que nao e PDF -> 400 com mensagem (ValueError do servico)
+    lixo = tmp_path / 'lixo.pdf'
+    lixo.write_bytes(b'isto nao e um pdf')
+    bad = post_sync(client, '/api/pdf/info', json={'pdf_path': str(lixo)})
+    assert bad.status_code == 400, bad.status_code
+    assert bad.get_json()['error']
+
+
 # ===== files: duplicates/remove com validacao amigavel =====
 # Cobre: acoes invalidas rejeitadas, validacao de todos os caminhos
 # antes de alterar o disco (sem exclusao parcial) e grupos malformados.

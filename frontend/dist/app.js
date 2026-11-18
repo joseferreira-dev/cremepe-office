@@ -63,6 +63,8 @@ var API = {
     merge: (params) => apiRequest("/files/merge", "POST", params)
   },
   pdf: {
+    // leitura rapida (sync, sem job) — paginacao p/ validar antes de executar
+    info: (params) => apiRequest("/pdf/info", "POST", params),
     merge: (params) => apiRequest("/pdf/merge", "POST", params),
     mergeBySize: (params) => apiRequest("/pdf/merge-by-size", "POST", params),
     splitCustom: (params) => apiRequest("/pdf/split-custom", "POST", params),
@@ -4217,9 +4219,63 @@ var PDFConvertToWordFeature = class extends Feature {
   }
 };
 
+// frontend/js/modules/pdf/pageinfo.ts
+var TONE_CLASS = {
+  muted: "mt-2 text-zinc-500",
+  ok: "mt-2 text-emerald-600",
+  err: "mt-2 text-rose-600"
+};
+function attachPageInfoHint(inputId, hintId) {
+  const state = {};
+  let seq = 0;
+  const render = (tone, text) => {
+    const hint = document.getElementById(hintId);
+    if (!hint) return;
+    hint.style.display = text ? "block" : "none";
+    hint.className = TONE_CLASS[tone];
+    hint.textContent = text;
+  };
+  const refresh = () => {
+    const input = document.getElementById(inputId);
+    const path = input ? input.value.trim() : "";
+    const mySeq = ++seq;
+    state.pages = void 0;
+    if (!path) {
+      render("muted", "");
+      return;
+    }
+    render("muted", "Consultando p\xE1ginas...");
+    API.pdf.info({ pdf_path: path }).then((info) => {
+      if (mySeq !== seq) return;
+      state.pages = info.pages;
+      render("ok", `${info.pages} p\xE1gina(s)` + (info.encrypted ? " \u2014 criptografado" : ""));
+    }).catch((err) => {
+      if (mySeq !== seq) return;
+      render("err", `n\xE3o foi poss\xEDvel ler: ${err.message}`);
+    });
+  };
+  document.getElementById(inputId)?.addEventListener("change", refresh);
+  return { refresh, pages: () => state.pages };
+}
+function validatePageRange(expr, pages) {
+  const parts = expr.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return "Nenhuma p\xE1gina definida.";
+  for (const part of parts) {
+    const m = part.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if (!m) return `Trecho inv\xE1lido: "${part}" (use algo como "1-3, 5").`;
+    const a = parseInt(m[1], 10);
+    const b = m[2] !== void 0 ? parseInt(m[2], 10) : a;
+    if (b < a) return `Intervalo invertido: "${part}".`;
+    if (a < 1) return "As p\xE1ginas come\xE7am em 1.";
+    if (b > pages) return `A p\xE1gina ${b} n\xE3o existe \u2014 o PDF tem ${pages} p\xE1gina(s).`;
+  }
+  return null;
+}
+
 // frontend/js/modules/pdf/extract_pages.ts
 var PDFExtractPagesFeature = class extends Feature {
   mode;
+  pageInfo;
   constructor() {
     super("extract");
     this.mode = "all";
@@ -4238,6 +4294,7 @@ var PDFExtractPagesFeature = class extends Feature {
                         <input type="text" id="extract-pdf-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-extract-pdf-input">Selecionar</button>
                     </div>
+                    <div id="extract-info-hint" class="mt-2 text-zinc-500" style="display:none;"></div>
                 </div>
             </div>
 
@@ -4326,6 +4383,7 @@ var PDFExtractPagesFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
+    this.pageInfo = attachPageInfoHint("extract-pdf-input", "extract-info-hint");
     document.getElementById("btn-extract-pdf-input").addEventListener("click", () => {
       if (window.electronAPI && window.electronAPI.showOpenDialog) {
         window.electronAPI.showOpenDialog({
@@ -4334,6 +4392,7 @@ var PDFExtractPagesFeature = class extends Feature {
         }).then((result) => {
           if (!result.canceled) {
             document.getElementById("extract-pdf-input").value = result.filePaths[0];
+            this.pageInfo.refresh();
           }
         });
       }
@@ -4368,6 +4427,13 @@ var PDFExtractPagesFeature = class extends Feature {
         const pagesSelection = document.getElementById("extract-pages-selection").value.trim();
         if (!pagesSelection) {
           this.log("Selecione pelo menos uma p\xE1gina.");
+          btn.disabled = false;
+          return;
+        }
+        const pages = this.pageInfo.pages();
+        const problem = pages !== void 0 ? validatePageRange(pagesSelection, pages) : null;
+        if (problem) {
+          this.log(`Erro: ${problem}`);
           btn.disabled = false;
           return;
         }
@@ -5193,6 +5259,7 @@ var PDFRemovePagesFeature = class extends Feature {
 
 // frontend/js/modules/pdf/reorder.ts
 var PDFReorderFeature = class extends Feature {
+  pageInfo;
   constructor() {
     super("reorder");
   }
@@ -5210,6 +5277,7 @@ var PDFReorderFeature = class extends Feature {
                         <input type="text" id="reorder-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-reorder-input">Selecionar</button>
                     </div>
+                    <div id="reorder-info-hint" class="mt-2 text-zinc-500" style="display:none;"></div>
                 </div>
             </div>
 
@@ -5243,6 +5311,7 @@ var PDFReorderFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
+    this.pageInfo = attachPageInfoHint("reorder-input", "reorder-info-hint");
     document.getElementById("btn-reorder-input").addEventListener("click", () => {
       if (window.electronAPI && window.electronAPI.showOpenDialog) {
         window.electronAPI.showOpenDialog({
@@ -5252,6 +5321,7 @@ var PDFReorderFeature = class extends Feature {
           if (!result.canceled) {
             document.getElementById("reorder-input").value = result.filePaths[0];
             this.suggestOutput();
+            this.pageInfo.refresh();
           }
         });
       }
@@ -5291,6 +5361,12 @@ var PDFReorderFeature = class extends Feature {
       this.log("Defina a nova ordem das p\xE1ginas.");
       return;
     }
+    const pages = this.pageInfo.pages();
+    const problem = pages !== void 0 ? validatePageRange(orderStr, pages) : null;
+    if (problem) {
+      this.log(`Erro: ${problem}`);
+      return;
+    }
     const btn = document.getElementById("btn-reorder-execute");
     btn.disabled = true;
     this.clearLog();
@@ -5320,6 +5396,7 @@ var PDFReorderFeature = class extends Feature {
 // frontend/js/modules/pdf/split.ts
 var PDFSplitFeature = class extends Feature {
   mode;
+  pageInfo;
   constructor() {
     super("split-pdf");
     this.mode = "custom";
@@ -5338,6 +5415,7 @@ var PDFSplitFeature = class extends Feature {
                         <input type="text" id="split-pdf-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-split-pdf-input">Selecionar</button>
                     </div>
+                    <div id="split-info-hint" class="mt-2 text-zinc-500" style="display:none;"></div>
                 </div>
             </div>
 
@@ -5439,6 +5517,7 @@ var PDFSplitFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
+    this.pageInfo = attachPageInfoHint("split-pdf-input", "split-info-hint");
     document.getElementById("btn-split-pdf-input").addEventListener("click", () => {
       if (window.electronAPI && window.electronAPI.showOpenDialog) {
         window.electronAPI.showOpenDialog({
@@ -5447,6 +5526,7 @@ var PDFSplitFeature = class extends Feature {
         }).then((result) => {
           if (!result.canceled) {
             document.getElementById("split-pdf-input").value = result.filePaths[0];
+            this.pageInfo.refresh();
           }
         });
       }
@@ -5507,6 +5587,13 @@ var PDFSplitFeature = class extends Feature {
         const intervalsStr = document.getElementById("split-intervals").value.trim();
         if (!intervalsStr) {
           this.log("Digite os intervalos.");
+          btn.disabled = false;
+          return;
+        }
+        const pages = this.pageInfo.pages();
+        const problem = pages !== void 0 ? validatePageRange(intervalsStr, pages) : null;
+        if (problem) {
+          this.log(`Erro: ${problem}`);
           btn.disabled = false;
           return;
         }

@@ -83,6 +83,8 @@ export const API = {
         merge: (params: Params) => apiRequest('/files/merge', 'POST', params),
     },
     pdf: {
+        // leitura rapida (sync, sem job) — paginacao p/ validar antes de executar
+        info: (params: Params) => apiRequest('/pdf/info', 'POST', params),
         merge: (params: Params) => apiRequest('/pdf/merge', 'POST', params),
         mergeBySize: (params: Params) => apiRequest('/pdf/merge-by-size', 'POST', params),
         splitCustom: (params: Params) => apiRequest('/pdf/split-custom', 'POST', params),

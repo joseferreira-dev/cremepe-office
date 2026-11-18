@@ -234,3 +234,13 @@ def remove_password(data):
 def validate(data):
     result = controller.validate(pdf_path=data['pdf_path'])
     return jsonify({"success": True, **result}), 200
+
+
+# Leitura rapida (sync, sem job): contagem de paginas para as features
+# dividir/extrair/reordenar exibirem a paginacao e validarem intervalos
+# antes de disparar um job.
+@pdf_bp.route('/info', methods=['POST'])
+@require('pdf_path')
+def info(data):
+    result = controller.info(pdf_path=data['pdf_path'])
+    return jsonify({"success": True, **result}), 200

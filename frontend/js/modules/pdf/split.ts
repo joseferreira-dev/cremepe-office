@@ -1,9 +1,11 @@
 import { API } from '../../api.js';
 import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from '../file/utils.js';
+import { attachPageInfoHint, validatePageRange } from './pageinfo.js';
 
 export class PDFSplitFeature extends Feature {
     mode!: string;
+    pageInfo!: ReturnType<typeof attachPageInfoHint>;
     constructor() {
         super('split-pdf');
         this.mode = 'custom'; // 'custom' ou 'fixed'
@@ -23,6 +25,7 @@ export class PDFSplitFeature extends Feature {
                         <input type="text" id="split-pdf-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-split-pdf-input">Selecionar</button>
                     </div>
+                    <div id="split-info-hint" class="mt-2 text-zinc-500" style="display:none;"></div>
                 </div>
             </div>
 
@@ -130,6 +133,8 @@ export class PDFSplitFeature extends Feature {
     }
 
     attachEvents() {
+        this.pageInfo = attachPageInfoHint('split-pdf-input', 'split-info-hint');
+
         document.getElementById('btn-split-pdf-input')!.addEventListener('click', () => {
             if (window.electronAPI && window.electronAPI.showOpenDialog) {
                 window.electronAPI.showOpenDialog({
@@ -138,6 +143,7 @@ export class PDFSplitFeature extends Feature {
                 }).then(result => {
                     if (!result.canceled) {
                         (document.getElementById('split-pdf-input') as DomElement).value = result.filePaths[0];
+                        this.pageInfo.refresh();
                     }
                 });
             }
@@ -209,6 +215,16 @@ export class PDFSplitFeature extends Feature {
                 const intervalsStr = (document.getElementById('split-intervals') as DomElement).value.trim();
                 if (!intervalsStr) {
                     this.log('Digite os intervalos.');
+                    (btn as DomElement).disabled = false;
+                    return;
+                }
+                // Valida localmente contra a contagem real de paginas
+                // (se a leitura ainda nao voltou, o back valida de novo).
+                const pages = this.pageInfo.pages();
+                const problem = pages !== undefined
+                    ? validatePageRange(intervalsStr, pages) : null;
+                if (problem) {
+                    this.log(`Erro: ${problem}`);
                     (btn as DomElement).disabled = false;
                     return;
                 }

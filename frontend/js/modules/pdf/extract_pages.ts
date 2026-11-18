@@ -1,9 +1,11 @@
 import { API } from '../../api.js';
 import { Feature } from '../feature.js';
 import { FileUtils } from '../file/utils.js';
+import { attachPageInfoHint, validatePageRange } from './pageinfo.js';
 
 export class PDFExtractPagesFeature extends Feature {
     mode!: string;
+    pageInfo!: ReturnType<typeof attachPageInfoHint>;
     constructor() {
         super('extract');
         this.mode = 'all'; // 'all' ou 'selected'
@@ -23,6 +25,7 @@ export class PDFExtractPagesFeature extends Feature {
                         <input type="text" id="extract-pdf-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-extract-pdf-input">Selecionar</button>
                     </div>
+                    <div id="extract-info-hint" class="mt-2 text-zinc-500" style="display:none;"></div>
                 </div>
             </div>
 
@@ -119,6 +122,8 @@ export class PDFExtractPagesFeature extends Feature {
     }
 
     attachEvents() {
+        this.pageInfo = attachPageInfoHint('extract-pdf-input', 'extract-info-hint');
+
         document.getElementById('btn-extract-pdf-input')!.addEventListener('click', () => {
             if (window.electronAPI && window.electronAPI.showOpenDialog) {
                 window.electronAPI.showOpenDialog({
@@ -127,6 +132,7 @@ export class PDFExtractPagesFeature extends Feature {
                 }).then(result => {
                     if (!result.canceled) {
                         (document.getElementById('extract-pdf-input') as DomElement).value = result.filePaths[0];
+                        this.pageInfo.refresh();
                     }
                 });
             }
@@ -168,6 +174,16 @@ export class PDFExtractPagesFeature extends Feature {
                 const pagesSelection = (document.getElementById('extract-pages-selection') as DomElement).value.trim();
                 if (!pagesSelection) {
                     this.log('Selecione pelo menos uma página.');
+                    (btn as DomElement).disabled = false;
+                    return;
+                }
+                // Valida localmente contra a contagem real de paginas
+                // (se a leitura ainda nao voltou, o back valida de novo).
+                const pages = this.pageInfo.pages();
+                const problem = pages !== undefined
+                    ? validatePageRange(pagesSelection, pages) : null;
+                if (problem) {
+                    this.log(`Erro: ${problem}`);
                     (btn as DomElement).disabled = false;
                     return;
                 }

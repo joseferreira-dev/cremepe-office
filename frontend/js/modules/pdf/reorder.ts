@@ -1,7 +1,10 @@
 import { API } from '../../api.js';
 import { Feature } from '../feature.js';
+import { attachPageInfoHint, validatePageRange } from './pageinfo.js';
 
 export class PDFReorderFeature extends Feature {
+    pageInfo!: ReturnType<typeof attachPageInfoHint>;
+
     constructor() {
         super('reorder');
     }
@@ -20,6 +23,7 @@ export class PDFReorderFeature extends Feature {
                         <input type="text" id="reorder-input" class="form-control" placeholder="Selecione o PDF...">
                         <button class="btn btn-outline-secondary" id="btn-reorder-input">Selecionar</button>
                     </div>
+                    <div id="reorder-info-hint" class="mt-2 text-zinc-500" style="display:none;"></div>
                 </div>
             </div>
 
@@ -55,6 +59,8 @@ export class PDFReorderFeature extends Feature {
     }
 
     attachEvents() {
+        this.pageInfo = attachPageInfoHint('reorder-input', 'reorder-info-hint');
+
         document.getElementById('btn-reorder-input')!.addEventListener('click', () => {
             if (window.electronAPI && window.electronAPI.showOpenDialog) {
                 window.electronAPI.showOpenDialog({
@@ -64,6 +70,7 @@ export class PDFReorderFeature extends Feature {
                     if (!result.canceled) {
                         (document.getElementById('reorder-input') as DomElement).value = result.filePaths[0];
                         this.suggestOutput();
+                        this.pageInfo.refresh();
                     }
                 });
             }
@@ -107,6 +114,16 @@ export class PDFReorderFeature extends Feature {
 
         if (!orderStr) {
             this.log('Defina a nova ordem das páginas.');
+            return;
+        }
+
+        // Valida localmente contra a contagem real de paginas (se a
+        // leitura ainda nao voltou, o back valida de novo).
+        const pages = this.pageInfo.pages();
+        const problem = pages !== undefined
+            ? validatePageRange(orderStr, pages) : null;
+        if (problem) {
+            this.log(`Erro: ${problem}`);
             return;
         }
 

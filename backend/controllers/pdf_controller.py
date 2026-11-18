@@ -7,6 +7,7 @@ from services.pdf_processor import (
     extract_all_pages,
     extract_selected_pages,
     merge, merge_by_size,
+    pdf_info,
     protect_password,
     remove_pages,
     remove_password,
@@ -73,6 +74,9 @@ class PDFController:
 
     def validate(self, pdf_path):
         return validate_pdf(pdf_path)
+
+    def info(self, pdf_path):
+        return pdf_info(pdf_path)
 
     def protect_password(self, input_path, output_path, password):
         return protect_password(input_path, output_path, password)
