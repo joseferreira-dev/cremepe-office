@@ -65,10 +65,20 @@ def merge_by_size(
     """
     source_path = Path(source_dir).resolve()
     dest_path = Path(dest_dir).resolve()
-    
+
     if not source_path.exists():
         raise FileNotFoundError(f"Pasta não encontrada: {source_dir}")
-    
+
+    # Guarda: destino igual a origem ou dentro dela cria laco de
+    # realimentacao — os PDFs gerados viram entrada da proxima execucao
+    # e o conteudo duplica a cada rodada (recursive pega a subpasta de
+    # saida tambem). Rejeita antes de criar qualquer pasta.
+    if dest_path == source_path or source_path in dest_path.parents:
+        raise ValueError(
+            f"A pasta de destino não pode ser igual à origem nem estar "
+            f"dentro dela: {dest_dir}"
+        )
+
     dest_path.mkdir(parents=True, exist_ok=True)
     
     # Coletar arquivos PDF

@@ -34,6 +34,58 @@ def test_merge_arquivo_inexistente_levanta_file_not_found(tmp_path):
         merge([str(tmp_path / "nao.pdf")], str(tmp_path / "out.pdf"))
 
 
+# ===== PDF: merge por tamanho — guarda de destino dentro da origem =====
+# Sem o guarda, os PDFs gerados voltam como entrada na proxima execucao
+# (laco de realimentacao) e o conteudo duplica a cada rodada.
+
+def test_merge_by_size_recusa_destino_dentro_da_origem(tmp_path):
+    from services.pdf_processor import merge_by_size
+
+    src = tmp_path / "origem"
+    src.mkdir()
+
+    # destino igual a origem
+    with pytest.raises(ValueError, match="destino"):
+        merge_by_size(str(src), str(src), 1.0)
+
+    # destino em subpasta da origem (recursive pegaria a saida)
+    with pytest.raises(ValueError, match="destino"):
+        merge_by_size(str(src), str(src / "saida"), 1.0)
+
+    # rejeitado antes do mkdir: a pasta de saida nem foi criada
+    assert not (src / "saida").exists()
+
+
+def test_merge_by_size_destino_fora_da_origem_funciona(pdf_factory, tmp_path):
+    from services.pdf_processor import merge_by_size
+
+    src = tmp_path / "origem"
+    src.mkdir()
+    pdf_factory(1, "a.pdf").rename(src / "a.pdf")
+    pdf_factory(1, "b.pdf").rename(src / "b.pdf")
+
+    dest = tmp_path / "saida"  # irma da origem: permitido
+    stats = merge_by_size(str(src), str(dest), 1.0)
+
+    assert stats["merged_groups"] == 1, stats
+    assert stats["errors"] == [], stats
+    assert list(dest.glob("*.pdf"))
+
+
+def test_rota_merge_by_size_recusa_destino_dentro_da_origem(client, tmp_path):
+    from helpers import post_sync
+
+    src = tmp_path / "origem"
+    src.mkdir()
+    r = post_sync(client, "/api/pdf/merge-by-size", json={
+        "source_dir": str(src),
+        "dest_dir": str(src / "saida"),
+        "max_size_mb": 1.0,
+    })
+    assert r.status_code == 400, r.status_code
+    assert "destino" in r.get_json()["error"]
+
+
 # ===== PDF: split por tamanho fixo =====
 
 def test_split_fixed_gera_partes_com_paginas_corretas(pdf_factory, tmp_path):
