@@ -1,6 +1,12 @@
 // frontend/js/api.ts
 var API_BASE = "http://127.0.0.1:5000/api";
 var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function assertSuccessEnvelope(data) {
+  const ok = data !== null && typeof data === "object" && data.success === true;
+  if (!ok) {
+    throw new Error("Resposta da API sem envelope de sucesso (success: true)");
+  }
+}
 async function pollJob(jobId) {
   const bar = document.querySelector(".progress-bar");
   const startedAt = Date.now();
@@ -15,7 +21,10 @@ async function pollJob(jobId) {
     if (!response.ok) {
       throw new Error(job.error || "Job n\xE3o encontrado ou expirado");
     }
-    if (job.status === "done") return job.result;
+    if (job.status === "done") {
+      assertSuccessEnvelope(job.result);
+      return job.result;
+    }
     if (job.status === "error") throw new Error(job.error || "Erro na opera\xE7\xE3o");
     if (bar && typeof job.progress === "number") {
       bar.style.width = `${job.progress}%`;
@@ -34,6 +43,7 @@ async function apiRequest(endpoint, method = "GET", body = null) {
     if (data && data.job_id && data.status) {
       return await pollJob(data.job_id);
     }
+    assertSuccessEnvelope(data);
     return data;
   } catch (error) {
     console.error("API Error:", error);

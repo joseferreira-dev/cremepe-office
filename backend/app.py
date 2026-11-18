@@ -37,7 +37,9 @@ app.register_blueprint(jobs_bp, url_prefix='/api/jobs')
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return {"status": "ok"}, 200
+    # Envelope de sucesso padrao da API: todo 2xx de acao devolve
+    # success:true (o frontend valida o envelope em apiRequest).
+    return {"success": True, "status": "ok"}, 200
 
 logger.info("Backend iniciado | logs em %s", log_dir)
 

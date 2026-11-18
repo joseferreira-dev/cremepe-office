@@ -1,4 +1,6 @@
 """Validacao @require das 50 rotas POST da API."""
+from pathlib import Path
+
 from helpers import post_sync
 
 
@@ -10,6 +12,35 @@ def _post_rules(app):
 
 def test_sao_50_rotas_post(app):
     assert len(_post_rules(app)) == 50
+
+
+# ===== Envelope de sucesso padrao (opcao 5 da auditoria) =====
+# Todo retorno 200 de ACAO devolve {success: True, ...} — o frontend
+# valida o envelope em apiRequest/pollJob e lanca erro se faltar.
+# jobs_routes.py fica fora: e leitura de recurso (GET de status de
+# job), nao uma acao com resultado de sucesso.
+
+def test_todo_retorno_200_carrega_envelope_de_sucesso():
+    root = Path(__file__).resolve().parent.parent
+    files = [
+        f for f in (root / "backend" / "routes").glob("*.py")
+        if f.name != "jobs_routes.py"
+    ]
+    files.append(root / "backend" / "app.py")
+
+    missing = []
+    for f in files:
+        for lineno, line in enumerate(
+            f.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            s = line.strip()
+            if s.startswith("return ") and s.endswith(", 200"):
+                if '"success"' not in s and "'success'" not in s:
+                    missing.append(f"{f.name}:{lineno}: {s}")
+    assert not missing, (
+        "retornos 200 sem envelope success:True (o front lancaria erro):\n"
+        + "\n".join(missing)
+    )
 
 
 def test_todas_as_rotas_validam_corpo_vazio(app, client):

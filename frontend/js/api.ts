@@ -12,6 +12,21 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * A barra e capturada uma unica vez: se o usuario trocar de tela, o
  * elemento fica detached e as escritas viram no-op (sem barra errada).
  */
+/**
+ * Envelope de sucesso padrao da API: todo 2xx de acao (rota POST,
+ * resultado final de job e /health) devolve {success: true, ...}.
+ * Resposta sem o envelope = contrato quebrado — lanca erro em vez de
+ * seguir silencioso (o shape e validado pelos testes do backend e
+ * pela auditoria funcional).
+ */
+function assertSuccessEnvelope(data: unknown): void {
+    const ok = data !== null && typeof data === 'object'
+        && (data as { success?: unknown }).success === true;
+    if (!ok) {
+        throw new Error('Resposta da API sem envelope de sucesso (success: true)');
+    }
+}
+
 // Contrato dos jobs/respostas: `any` deliberado na fronteira HTTP — o
 // shape e validado pela auditoria funcional (48/48) e pelos testes do
 // backend; tipar aqui seria duplicar o contrato Flask em TS.
@@ -31,7 +46,10 @@ async function pollJob(jobId: string): Promise<any> {
         if (!response.ok) {
             throw new Error(job.error || 'Job não encontrado ou expirado');
         }
-        if (job.status === 'done') return job.result;
+        if (job.status === 'done') {
+            assertSuccessEnvelope(job.result);
+            return job.result;
+        }
         if (job.status === 'error') throw new Error(job.error || 'Erro na operação');
 
         if (bar && typeof job.progress === 'number') {
@@ -54,6 +72,7 @@ async function apiRequest(endpoint: string, method = 'GET', body: unknown = null
         if (data && data.job_id && data.status) {
             return await pollJob(data.job_id);
         }
+        assertSuccessEnvelope(data);
         return data;
     } catch (error) { console.error('API Error:', error); throw error; }
 }

@@ -56,7 +56,7 @@ def test_describe_excecao_generica_vira_500():
 def test_health_ok(client):
     r = client.get("/api/health")
     assert r.status_code == 200
-    assert r.get_json() == {"status": "ok"}
+    assert r.get_json() == {"success": True, "status": "ok"}
 
 
 def test_rota_inexistente_vira_404_json(client):
