@@ -14,6 +14,7 @@
         "build:css": "tailwindcss -i frontend/css/input.css -o frontend/css/tailwind.css --minify",
         "watch:css": "tailwindcss -i frontend/css/input.css -o frontend/css/tailwind.css --watch",
         "check:classes": "python scripts/check_frontend_classes.py",
+        "smoke": "node scripts/smoke_nav.js",
         "predist": "npm run build:ts && npm run build:css",
         "dist": "electron-builder"
     },
