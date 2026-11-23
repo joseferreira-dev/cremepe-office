@@ -397,16 +397,25 @@ class FileController:
             elif ext in ['.txt', '.log', '.csv', '.md', '.json', '.xml']:
                 metadata = get_text_metadata(file_path)
             else:
-                result['skipped'].append(str(file_path))
+                result['skipped'].append({
+                    'path': str(file_path),
+                    'reason': 'extensão não suportada',
+                })
                 continue
 
             if metadata is None:
-                result['skipped'].append(str(file_path))
+                result['skipped'].append({
+                    'path': str(file_path),
+                    'reason': 'metadados ilegíveis',
+                })
                 continue
 
             new_name = generate_new_name(file_path, metadata, pattern)
             if new_name is None:
-                result['skipped'].append(str(file_path))
+                result['skipped'].append({
+                    'path': str(file_path),
+                    'reason': 'sem nome gerado a partir dos metadados',
+                })
                 continue
 
             new_full = file_path.parent / (new_name + ext)

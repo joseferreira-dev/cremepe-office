@@ -1160,6 +1160,39 @@ def test_duplicates_remove_funciona(tmp_path):
     assert a.exists(), "o original deve ser preservado"
 
 
+# ===== rename-by-content: skipped vem como {path, reason} =====
+# O front renderiza item.path/item.reason — strings viravam "undefined"
+# na tabela de preview (bug de contrato).
+
+def test_rename_by_content_preview_skipped_com_path_e_motivo(client,
+                                                             tmp_path):
+    from helpers import post_sync
+
+    d = tmp_path / 'rbc'
+    d.mkdir()
+    (d / 'relatorio.txt').write_text('relatorio', encoding='utf-8')
+    (d / 'foto.xyz').write_bytes(b'conteudo')
+
+    r = post_sync(client, '/api/files/rename-by-content/preview',
+                  json={'dir': str(d), 'pattern': 'auto'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+
+    # skipped: dicts com path+reason (antes: strings -> undefined no front)
+    assert body['skipped'], body
+    for sk in body['skipped']:
+        assert isinstance(sk, dict) and 'path' in sk and 'reason' in sk, sk
+    foto = [s for s in body['skipped'] if s['path'].endswith('foto.xyz')]
+    assert foto, body['skipped']
+    assert foto[0]['reason'] == 'extensão não suportada', foto
+
+    # renamed continua com original/new
+    if body['renamed']:
+        entry = body['renamed'][0]
+        assert 'original' in entry and 'new' in entry, entry
+
+
 # ===== Progresso real em services (canal ContextVar) =====
 
 def test_collect_files_reporta_progresso(tmp_path, progress_collector):
