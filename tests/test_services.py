@@ -1193,6 +1193,62 @@ def test_rename_by_content_preview_skipped_com_path_e_motivo(client,
         assert 'original' in entry and 'new' in entry, entry
 
 
+# ===== Arquivos: archive com senha e tar (filter='data') =====
+# O fluxo com senha nao tinha NENHUM teste (nem pytest nem audit) e o
+# extractall do tar dependia do default implicito do Python.
+
+def test_archive_zip_com_password_cria_e_extrai(tmp_path):
+    import pyzipper
+    from services.file_archive_manager import create_zip, extract_archive
+
+    src = tmp_path / 'dados'
+    src.mkdir()
+    (src / 'a.txt').write_text('conteudo confidencial', encoding='utf-8')
+    out = tmp_path / 'secreto.zip'
+
+    create_zip([str(src / 'a.txt')], str(out), password='segredo123')
+
+    dest = tmp_path / 'extraido'
+    extract_archive(str(out), str(dest), password='segredo123')
+    assert (dest / 'a.txt').read_text(encoding='utf-8') == \
+        'conteudo confidencial'
+
+    # sem a senha a extracao falha (erro honesto, sem mascaramento)
+    with pytest.raises(Exception):
+        extract_archive(str(out), str(tmp_path / 'sem_senha'), password=None)
+
+    # o zip realmente esta criptografado (pyzipper AES)
+    with pyzipper.AESZipFile(str(out), 'r') as zf:
+        assert zf.getinfo('a.txt').flag_bits & 0x1, 'flag de cripto ausente'
+
+
+def test_archive_tar_extrai_e_bloqueia_tar_slip(tmp_path):
+    import io
+    import tarfile as tf
+    from services.file_archive_manager import extract_archive
+
+    # tar normal: extrai com filter='data'
+    orig = tmp_path / 't.txt'
+    orig.write_text('ola', encoding='utf-8')
+    tar_path = tmp_path / 'arq.tar'
+    with tf.open(str(tar_path), 'w') as tar:
+        tar.add(str(orig), arcname='t.txt')
+    dest = tmp_path / 'out'
+    extract_archive(str(tar_path), str(dest))
+    assert (dest / 't.txt').read_text(encoding='utf-8') == 'ola'
+
+    # tar-slip: entrada ../ saindo do destino -> filter='data' bloqueia
+    mal = tmp_path / 'mal.tar'
+    with tf.open(str(mal), 'w') as tar:
+        info = tf.TarInfo(name='../fora.txt')
+        payload = b'vazamento'
+        info.size = len(payload)
+        tar.addfile(info, io.BytesIO(payload))
+    with pytest.raises(Exception):
+        extract_archive(str(mal), str(tmp_path / 'saida'))
+    assert not (tmp_path / 'fora.txt').exists()
+
+
 # ===== Progresso real em services (canal ContextVar) =====
 
 def test_collect_files_reporta_progresso(tmp_path, progress_collector):

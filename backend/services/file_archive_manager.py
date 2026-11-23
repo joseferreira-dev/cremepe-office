@@ -246,16 +246,32 @@ def extract_archive(
 
 
 def _extract_zip(archive_path, extract_path, password):
+    pwd = password.encode('utf-8') if password else None
+    if pyzipper is None:
+        # pyzipper ausente: apenas o zipfile legado (ZipCrypto)
+        with zipfile.ZipFile(archive_path, 'r') as zf:
+            if pwd:
+                zf.setpassword(pwd)
+            zf.extractall(extract_path)
+        return
     try:
         with pyzipper.AESZipFile(archive_path, 'r') as zf:
-            if password:
-                zf.setpassword(password.encode('utf-8'))
+            if pwd:
+                zf.setpassword(pwd)
             zf.extractall(extract_path)
-    except:
-        with zipfile.ZipFile(archive_path, 'r') as zf:
-            if password:
-                zf.setpassword(password.encode('utf-8'))
-            zf.extractall(extract_path)
+    except Exception as primary:
+        # pyzipper nao cobre o caso (cripto legado/estru rara): tenta o
+        # zipfile padrao; se TAMPOUCO der, propaga o ERRO ORIGINAL do
+        # pyzipper (mensagem honesta, sem mascarar a causa). O `except:`
+        # anterior engolia qualquer coisa — inclusive KeyboardInterrupt
+        # e o proprio erro de senha errada.
+        try:
+            with zipfile.ZipFile(archive_path, 'r') as zf:
+                if pwd:
+                    zf.setpassword(pwd)
+                zf.extractall(extract_path)
+        except Exception:
+            raise primary from None
 
 
 def _extract_7z(archive_path, extract_path, password):
@@ -275,4 +291,11 @@ def _extract_rar(archive_path, extract_path, password):
 def _extract_tar(archive_path, extract_path):
     import tarfile
     with tarfile.open(archive_path, 'r:*') as tar:
-        tar.extractall(path=extract_path)
+        # filter='data' bloqueia tar-slip (paths '../', absolutos e
+        # arquivos especiais) — default explicito desde o Python 3.14;
+        # runtimes antigos nao aceitam o kwarg e usam o comportamento
+        # anterior.
+        try:
+            tar.extractall(path=extract_path, filter='data')
+        except TypeError:
+            tar.extractall(path=extract_path)
