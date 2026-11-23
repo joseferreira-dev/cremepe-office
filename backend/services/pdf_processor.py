@@ -274,9 +274,10 @@ def split_custom(pdf_path: str, output_dir: str, intervals_str: str,
         # Gerar apenas o arquivo combinado
         try:
             writer = PdfWriter()
-            for start, end in intervals:
+            for iv_idx, (start, end) in enumerate(intervals, 1):
                 for page_num in range(start - 1, end):
                     writer.add_page(reader.pages[page_num])
+                report_progress(iv_idx, len(intervals))
             
             # Garantir extensão .pdf
             combine_file = output_path / f"{combine_name}.pdf"
@@ -297,6 +298,7 @@ def split_custom(pdf_path: str, output_dir: str, intervals_str: str,
     else:
         # Gerar partes individuais
         for idx, (start, end) in enumerate(intervals, 1):
+            report_progress(idx, len(intervals))
             try:
                 part_writer = PdfWriter()
                 for page_num in range(start - 1, end):
@@ -555,6 +557,7 @@ def extract_all_pages(pdf_path: str, output_dir: str, prefix: str = '') -> dict:
     prefix_str = f"{prefix}_" if prefix else ""
     
     for page_num in range(1, total_pages + 1):
+        report_progress(page_num, total_pages)
         try:
             writer = PdfWriter()
             writer.add_page(reader.pages[page_num - 1])
@@ -623,6 +626,7 @@ def extract_selected_pages(
     files_generated = []
     
     for idx, page_num in enumerate(page_numbers, 1):
+        report_progress(idx, len(page_numbers))
         try:
             writer = PdfWriter()
             writer.add_page(reader.pages[page_num - 1])
@@ -738,8 +742,9 @@ def remove_pages(
     # Gerar arquivo sem as páginas removidas
     try:
         writer = PdfWriter()
-        for page_num in pages_to_keep:
+        for keep_idx, page_num in enumerate(pages_to_keep, 1):
             writer.add_page(reader.pages[page_num - 1])
+            report_progress(keep_idx, len(pages_to_keep))
         with open(output_path, 'wb') as f:
             writer.write(f)
         stats['output_file'] = str(output_path)
@@ -848,8 +853,9 @@ def reorder_pages(
 
     try:
         writer = PdfWriter()
-        for page_num in new_order:
+        for order_idx, page_num in enumerate(new_order, 1):
             writer.add_page(reader.pages[page_num - 1])
+            report_progress(order_idx, len(new_order))
         with open(output_path, 'wb') as f:
             writer.write(f)
         stats['output_file'] = str(output_path)
@@ -1079,6 +1085,7 @@ def convert_images_to_pdf(
             page_width, page_height = base_size
 
             for idx, img_path in enumerate(image_paths):
+                report_progress(idx + 1, len(image_paths))
                 img_path = Path(img_path)
                 if not img_path.exists():
                     stats['errors'].append(f"Imagem não encontrada: {img_path}")
@@ -1127,6 +1134,7 @@ def convert_images_to_pdf(
         else:
             # Múltiplos PDFs – output_path é a pasta
             for idx, img_path in enumerate(image_paths):
+                report_progress(idx + 1, len(image_paths))
                 img_path = Path(img_path)
                 if not img_path.exists():
                     stats['errors'].append(f"Imagem não encontrada: {img_path}")
@@ -1242,6 +1250,21 @@ def convert_pdf_to_images(
                 pages.append(p - 1)
         return pages
 
+    # Total de páginas selecionadas: progresso monotônico entre PDFs
+    # (reabre rapidamente só para contar — a renderização é o lento)
+    total_units = 0
+    for p in pdf_paths:
+        try:
+            with fitz.open(str(p)) as d0:
+                t = d0.page_count
+                if pages_selection.strip().lower() == 'all':
+                    total_units += t
+                else:
+                    total_units += len(parse_pages(pages_selection, t))
+        except Exception:
+            pass
+    done_units = 0
+
     # Se 'all', usamos a seleção all para cada PDF
     for pdf_idx, pdf_path in enumerate(pdf_paths):
         pdf_path = Path(pdf_path)
@@ -1262,6 +1285,8 @@ def convert_pdf_to_images(
             ext = '.png' if image_format == 'png' else '.jpg'
 
             for idx, page_num in enumerate(page_indices, 1):
+                done_units += 1
+                report_progress(done_units, max(total_units, 1))
                 try:
                     page = doc.load_page(page_num)
                     # Aumentar resolução para 150 DPI para boa qualidade

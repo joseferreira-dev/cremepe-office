@@ -75,10 +75,16 @@ def compare_folders(
 
     # Preencher hashes se necessário
     if compare_by_hash:
+        total_hash = len(source_files) + len(target_files)
+        done_hash = 0
         for rel_path, info in source_files.items():
             info['hash'] = get_file_hash(Path(info['path']))
+            done_hash += 1
+            report_progress(done_hash, max(total_hash, 1))
         for rel_path, info in target_files.items():
             info['hash'] = get_file_hash(Path(info['path']))
+            done_hash += 1
+            report_progress(done_hash, max(total_hash, 1))
 
     only_in_source = []
     only_in_target = []

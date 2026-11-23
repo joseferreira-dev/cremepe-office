@@ -4,6 +4,8 @@ from pathlib import Path
 from datetime import datetime
 import json
 
+from utils.jobs import report_progress
+
 def generate_folder_report(directory, recursive=True, include_files=True, output_format='txt', output_path=None):
     """
     Gera um relatório da estrutura de pastas.
@@ -18,10 +20,22 @@ def generate_folder_report(directory, recursive=True, include_files=True, output
     if not src_path.exists():
         raise FileNotFoundError(f"Diretório não encontrado: {directory}")
 
+    # Progresso: contagem rápida de entradas (sem stat) para o passe de
+    # geração reportar item a item.
+    try:
+        if recursive:
+            progress_total = 1 + sum(1 for _ in src_path.rglob('*'))
+        else:
+            progress_total = 1 + sum(1 for _ in src_path.iterdir())
+    except OSError:
+        progress_total = None
+
     if output_format == 'txt':
-        content = generate_txt_report(src_path, recursive, include_files)
+        content = generate_txt_report(src_path, recursive, include_files,
+                                      progress_total)
     elif output_format == 'csv':
-        content = generate_csv_report(src_path, recursive, include_files)
+        content = generate_csv_report(src_path, recursive, include_files,
+                                      progress_total)
     else:
         raise ValueError("Formato inválido. Use 'txt' ou 'csv'.")
 
@@ -32,15 +46,17 @@ def generate_folder_report(directory, recursive=True, include_files=True, output
     else:
         return content
 
-def generate_txt_report(src_path, recursive, include_files):
+def generate_txt_report(src_path, recursive, include_files, progress_total=None):
     """Gera relatório em formato texto indentado."""
     lines = []
     lines.append(f"Relatório de estrutura: {src_path}")
     lines.append(f"Gerado em: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append("=" * 60)
+    done = 0
     
     # Função recursiva para percorrer
     def walk(path, indent=0):
+        nonlocal done
         prefix = "  " * indent
         # Exibe a pasta atual
         try:
@@ -58,6 +74,9 @@ def generate_txt_report(src_path, recursive, include_files):
             # Para pastas, tamanho total (recursivo) seria pesado; usamos 0 ou calculamos sob demanda
             # Exibe linha da pasta
             lines.append(f"{prefix}📁 {path.name}/ (arquivos: {file_count}, subpastas: {dir_count}, modificado: {mtime})")
+            done += 1
+            if progress_total:
+                report_progress(done, progress_total)
             
             # Se include_files for True, lista os arquivos na pasta atual
             if include_files:
@@ -70,6 +89,9 @@ def generate_txt_report(src_path, recursive, include_files):
                             lines.append(f"{prefix}  📄 {item.name} ({fsize} bytes, {fmtime})")
                         except PermissionError:
                             lines.append(f"{prefix}  📄 {item.name} (sem permissão)")
+                        done += 1
+                        if progress_total:
+                            report_progress(done, progress_total)
             
             # Se recursivo, desce nas subpastas
             if recursive:
@@ -82,11 +104,12 @@ def generate_txt_report(src_path, recursive, include_files):
     walk(src_path)
     return "\n".join(lines)
 
-def generate_csv_report(src_path, recursive, include_files):
+def generate_csv_report(src_path, recursive, include_files, progress_total=None):
     """Gera relatório em formato CSV."""
     import io
     output = io.StringIO()
     writer = csv.writer(output)
+    done = 0
     # Cabeçalho
     if include_files:
         writer.writerow(['Tipo', 'Nome', 'Caminho', 'Tamanho (bytes)', 'Data Modificação', 'Arquivos na Pasta'])
@@ -94,6 +117,7 @@ def generate_csv_report(src_path, recursive, include_files):
         writer.writerow(['Tipo', 'Nome', 'Caminho', 'Data Modificação', 'Arquivos na Pasta'])
 
     def walk(path, parent_path=''):
+        nonlocal done
         try:
             # Primeiro a pasta atual
             stats = os.stat(path)
@@ -106,6 +130,9 @@ def generate_csv_report(src_path, recursive, include_files):
                 file_count = 0
             if include_files:
                 writer.writerow(['PASTA', path.name, str(path), 0, mtime, file_count])
+                done += 1
+                if progress_total:
+                    report_progress(done, progress_total)
                 # Lista arquivos
                 for item in path.iterdir():
                     if item.is_file():
@@ -115,8 +142,14 @@ def generate_csv_report(src_path, recursive, include_files):
                             writer.writerow(['ARQUIVO', item.name, str(item), fstats.st_size, fmtime, ''])
                         except PermissionError:
                             writer.writerow(['ARQUIVO', item.name, str(item), 'SEM PERMISSÃO', '', ''])
+                        done += 1
+                        if progress_total:
+                            report_progress(done, progress_total)
             else:
                 writer.writerow(['PASTA', path.name, str(path), mtime, file_count])
+                done += 1
+                if progress_total:
+                    report_progress(done, progress_total)
             
             # Subpastas (se recursivo)
             if recursive:

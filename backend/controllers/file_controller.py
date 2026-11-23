@@ -10,6 +10,7 @@ from services.file_manager import collect_files, rename_files_in_batch
 from services.file_comparator import compare_folders, sync_folders
 from services.file_archive_manager import create_zip, extract_archive
 from utils.exceptions import ValidationError
+from utils.jobs import report_progress
 from datetime import datetime, timedelta
 
 class FileController:
@@ -55,7 +56,9 @@ class FileController:
             min_mtime = datetime.now() - timedelta(days=days_back)
 
         result = []
-        for src_root, file_path in all_files:
+        total = len(all_files)
+        for idx, (src_root, file_path) in enumerate(all_files, 1):
+            report_progress(idx, total)
             if extensions:
                 if not any(file_path.suffix.lower() == ext.lower() for ext in extensions):
                     continue
@@ -173,7 +176,8 @@ class FileController:
 
         groups = defaultdict(list)
         if match_by == 'hash':
-            for f in files:
+            for idx, f in enumerate(files, 1):
+                report_progress(idx, len(files))
                 with open(f, 'rb') as file:
                     file_hash = hashlib.md5(file.read()).hexdigest()
                 groups[file_hash].append(str(f))
@@ -266,7 +270,8 @@ class FileController:
         files = [f for f in files if f.is_file() and not f.name.startswith('.')]
 
         processed = 0
-        for file_path in files:
+        for idx, file_path in enumerate(files, 1):
+            report_progress(idx, len(files))
             ext = file_path.suffix.lower()
             if ext:
                 folder_name = ext[1:].upper()
@@ -387,7 +392,8 @@ class FileController:
         files = [f for f in files if f.is_file() and not f.name.startswith('.')]
 
         result = {'renamed': [], 'errors': [], 'skipped': []}
-        for file_path in files:
+        for idx, file_path in enumerate(files, 1):
+            report_progress(idx, len(files))
             ext = file_path.suffix.lower()
             metadata = None
             if ext in ['.jpg', '.jpeg', '.png', '.tiff', '.bmp', '.gif', '.webp']:

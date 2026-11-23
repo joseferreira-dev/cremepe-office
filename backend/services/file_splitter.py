@@ -25,6 +25,7 @@ def split_file(
     file_size = file_path.stat().st_size
     part_number = 1
     parts = []
+    bytes_done = 0
 
     with open(file_path, 'rb') as infile:
         while True:
@@ -42,6 +43,8 @@ def split_file(
                         break
                     outfile.write(chunk)
                     bytes_read += len(chunk)
+                    bytes_done += len(chunk)
+                    report_progress(bytes_done, max(file_size, 1))
                 if bytes_read == 0:
                     # Se a última parte está vazia, remove e sai
                     part_path.unlink()

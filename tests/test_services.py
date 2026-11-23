@@ -1379,6 +1379,53 @@ def test_batch_convert_reporta_progresso(tmp_path, progress_collector):
     assert currents == sorted(currents), f"progresso nao monotono: {currents}"
 
 
+def test_split_custom_reporta_progresso(tmp_path, pdf_factory,
+                                        progress_collector):
+    from services.pdf_processor import split_custom
+    src = pdf_factory(6, 'gde.pdf')
+    out = tmp_path / 'partes'
+
+    stats = split_custom(str(src), str(out), '1-3, 4-6')
+
+    assert stats['total_files'] == 2
+    assert progress_collector, 'split_custom nao reportou progresso'
+    pcts = [c * 100 // t for c, t in progress_collector]
+    assert pcts == sorted(pcts), pcts
+    assert max(pcts) >= 50, pcts
+
+
+def test_rename_by_content_reporta_progresso(tmp_path, progress_collector):
+    from controllers.file_controller import FileController
+    d = tmp_path / 'rbc_prog'
+    d.mkdir()
+    (d / 'a.txt').write_text('x', encoding='utf-8')
+    (d / 'b.xyz').write_bytes(b'y')
+
+    FileController().rename_by_content(dir_path=str(d), dry_run=True)
+
+    assert progress_collector, 'rename_by_content nao reportou progresso'
+    pcts = [c * 100 // t for c, t in progress_collector]
+    assert pcts == sorted(pcts), pcts
+    assert max(pcts) >= 50, pcts  # 2 arquivos -> 50/100
+
+
+def test_compare_hash_reporta_progresso(tmp_path, progress_collector):
+    from services.file_comparator import compare_folders
+    a = tmp_path / 'cmp_a'
+    b = tmp_path / 'cmp_b'
+    a.mkdir()
+    b.mkdir()
+    (a / 'f.txt').write_text('1', encoding='utf-8')
+    (b / 'f.txt').write_text('1', encoding='utf-8')
+
+    compare_folders(str(a), str(b), compare_by_hash=True)
+
+    assert progress_collector, 'compare (hash) nao reportou progresso'
+    pcts = [c * 100 // t for c, t in progress_collector]
+    assert pcts == sorted(pcts), pcts
+    assert max(pcts) >= 50, pcts  # origem+destino -> 50/100
+
+
 # ===== Word: merge (docxcompose) =====
 # Composer()/append() recebem objetos Document (nao strings) e append()
 # nao tem o parametro page_break na versao pinada 2.2.0 — page breaks

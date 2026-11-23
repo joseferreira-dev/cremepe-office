@@ -544,7 +544,8 @@ def split_by_column(
 
     # Para cada grupo, criar arquivo
     ext = '.xlsx' if output_format == 'xlsx' else '.csv'
-    for group_key, rows in groups.items():
+    for grp_idx, (group_key, rows) in enumerate(groups.items(), 1):
+        report_progress(grp_idx, len(groups))
         out_file = output_path / f"{group_key}{ext}"
 
         if output_format == 'xlsx':
