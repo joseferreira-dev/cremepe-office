@@ -50,8 +50,8 @@ export class PDFValidateFeature extends Feature {
                     </div>
                 </div>
                 <div id="validate-repair" class="mt-4 flex items-center gap-3" style="display:none;">
-                    <button class="btn btn-outline-success" id="btn-validate-repair"><i data-lucide="wrench"></i> Corrigir cores do PDF</button>
-                    <small class="text-zinc-500">Gera uma cópia corrigida — o original não é alterado.</small>
+                    <button class="btn btn-outline-success" id="btn-validate-repair"><i data-lucide="wrench"></i> Reparar PDF</button>
+                    <small class="text-zinc-500">Corrige os problemas encontrados em uma cópia — o original não é alterado.</small>
                 </div>
             </div>
 
@@ -163,12 +163,12 @@ export class PDFValidateFeature extends Feature {
             `;
         }).join('');
 
-        // Reparo de cores: so aparece quando o check 'cores' falhou
-        // (arity de DeviceN/Separation — o que repair_pdf corrige).
+        // Reparo: aparece quando existe ao menos UM check em error
+        // (paginas/fluxos/imagens/fontes/cores/abertura...).
         this.repairSource = r.pdf_path || '';
-        const cores = r.checks.find((c: any) => c.id === 'cores');
+        const temErro = r.checks.some((c: any) => c.status === 'error');
         document.getElementById('validate-repair')!.style.display =
-            cores && cores.status === 'error' ? 'block' : 'none';
+            temErro ? 'block' : 'none';
 
         document.getElementById('validate-result')!.style.display = 'block';
     }
@@ -195,7 +195,7 @@ export class PDFValidateFeature extends Feature {
         const btn = document.getElementById('btn-validate-repair')!;
         (btn as DomElement).disabled = true;
         this.clearLog();
-        this.log('Reparando espaços de cor (DeviceN/Separation)...');
+        this.log('Reparando problemas encontrados...');
         this.log('Em arquivos grandes isso pode levar minutos.');
 
         try {
@@ -203,13 +203,20 @@ export class PDFValidateFeature extends Feature {
                 input_path: inputPath,
                 output_path: outputPath
             });
-            this.log(`Reparo: ${rep.repaired_count} espaço(s) corrigido(s)`
+            const before = rep.issues_before || {};
+            const cats = Object.entries(before)
+                .filter(([, v]) => (v as number) > 0)
+                .map(([k, v]) => `${k}: ${v}`);
+            if (cats.length) {
+                this.log(`Problemas antes: ${cats.join(', ')}.`);
+            }
+            this.log(`Reparo: ${rep.repaired_count} corrigido(s)`
                 + (rep.unrepaired_count
                     ? `, ${rep.unrepaired_count} não corrigido(s)` : '') + '.');
             (rep.unrepaired || []).slice(0, 5).forEach((u: any) => {
                 const colorants = Array.isArray(u.colorants)
-                    ? u.colorants.join('+') : '?';
-                this.log(`  não corrigido [${colorants}]: ${u.reason}`);
+                    ? ` [${u.colorants.join('+')}]` : '';
+                this.log(`  não corrigido${colorants} (${u.category}): ${u.reason}`);
             });
             if (!rep.repaired_count) {
                 this.log('Nada pôde ser corrigido com segurança — original intacto.');

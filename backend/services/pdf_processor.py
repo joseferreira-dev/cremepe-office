@@ -1674,14 +1674,17 @@ def _scan_colors(pdf, collect_templates=False, progress_span=(0, 100)):
     templates = {}
     seen = set()
 
-    def _problem(kind, obj, parent, msg, arr=None, names=None):
-        problems.append({
+    def _problem(kind, obj, parent, msg, arr=None, names=None, extra=None):
+        entry = {
             'kind': kind,
             'ref': _obj_ref(obj, parent),
             'msg': msg,
             'arr': arr,
             'names': names,
-        })
+        }
+        if extra:
+            entry.update(extra)
+        problems.append(entry)
 
     def _suspect(obj, parent, msg):
         suspects.append({'ref': _obj_ref(obj, parent), 'msg': msg})
@@ -1760,7 +1763,9 @@ def _scan_colors(pdf, collect_templates=False, progress_span=(0, 100)):
                     if c is not None and c != 1:
                         _problem('shading', d, parent,
                                  f'elemento {idx} do arranjo com {c} '
-                                 f'saída(s) (esperado 1)')
+                                 f'saída(s) (esperado 1)',
+                                 extra={'shading': sh, 'fn': fn,
+                                        'colorants': n})
                         return
                 total = len(fn)
             else:
@@ -1771,7 +1776,8 @@ def _scan_colors(pdf, collect_templates=False, progress_span=(0, 100)):
             elif total != n:
                 _problem('shading', d, parent,
                          f'função do shading com {total} saída(s) para '
-                         f'{n} colorante(s) do color space')
+                         f'{n} colorante(s) do color space',
+                         extra={'shading': sh, 'fn': fn, 'colorants': n})
         except Exception as exc:
             _suspect(d, parent, f'shading não analisável: {str(exc)[:60]}')
 
@@ -1791,9 +1797,20 @@ def _scan_colors(pdf, collect_templates=False, progress_span=(0, 100)):
                     counts.append(_func_output_count(s, 1))
             known = [c for c in counts if c is not None]
             if len(set(known)) > 1:
+                # Alvo da correção: C0/C1 próprio, senão a 1ª subsfunção
+                # com contagem determinável.
+                target = None
+                c0 = d.get('/C0')
+                if c0 is None:
+                    c0 = d.get('/C1')
+                if c0 is not None:
+                    target = len(c0)
+                if target is None:
+                    target = next((c for c in counts if c is not None), None)
                 _problem('stitch', d, parent,
                          f'subsfunções com saídas divergentes: '
-                         f'{sorted(set(known))}')
+                         f'{sorted(set(known))}',
+                         extra={'fn_dict': d, 'target': target})
             elif any(c is None for c in counts):
                 _suspect(d, parent,
                          'subsfunção com nº de saídas indeterminável')
@@ -1849,6 +1866,351 @@ def _scan_colors(pdf, collect_templates=False, progress_span=(0, 100)):
 
     return {'problems': problems, 'suspects': suspects,
             'templates': templates}
+
+
+# ===== scanners compartilhados (validate + repair) =====
+
+def _scan_page_boxes(pdf):
+    """Páginas com MediaBox inválido/ilegível (números 1-based)."""
+    bad = []
+    for i, page in enumerate(pdf.pages, 1):
+        try:
+            box = page.mediabox
+            if float(box[2]) <= float(box[0]) or float(box[3]) <= float(box[1]):
+                bad.append(i)
+        except Exception:
+            bad.append(i)
+    return bad
+
+
+def _scan_content_streams(pdf, progress_span=None):
+    """(página, erro) dos fluxos de conteúdo ilegíveis (decode/parse)."""
+    fails = []
+    n_pages = len(pdf.pages)
+    for i, page in enumerate(pdf.pages, 1):
+        if progress_span:
+            _report_span(i, n_pages, progress_span, 'Analisando fluxos')
+        try:
+            list(pikepdf.parse_content_stream(page))
+        except Exception as exc:
+            fails.append((i, str(exc)[:80]))
+    return fails
+
+
+def _scan_images(pdf, progress_span=None):
+    """(total, [(página, nome, erro)]) — decodificação real das imagens."""
+    total = 0
+    fails = []
+    n_pages = len(pdf.pages)
+    for i, page in enumerate(pdf.pages, 1):
+        if progress_span:
+            _report_span(i, n_pages, progress_span, 'Decodificando imagens')
+        try:
+            imgs = page.get_images()
+            names = list(imgs.keys())
+        except Exception as exc:
+            fails.append((i, '', str(exc)[:80]))
+            continue
+        for name in names:
+            total += 1
+            try:
+                pikepdf.PdfImage(imgs[name]).as_pil_image()
+            except Exception as exc:
+                fails.append((i, str(name), str(exc)[:80]))
+    return total, fails
+
+
+def _scan_fonts(pdf):
+    """(total, falhas, avisos) das fontes referenciadas por página."""
+    total = 0
+    fails = []
+    warns = []
+    for i, page in enumerate(pdf.pages, 1):
+        try:
+            res = page.obj.get('/Resources')
+            fonts = res.get('/Font') if res is not None else None
+            if fonts is None:
+                continue
+            for key in fonts.keys():
+                total += 1
+                try:
+                    fobj = fonts[key]
+                    if '/BaseFont' not in fobj and '/DescendantFonts' not in fobj \
+                            and '/Subtype' not in fobj:
+                        warns.append(f'pág. {i} {key}')
+                except Exception as exc:
+                    fails.append(f'pág. {i} {key}: {str(exc)[:80]}')
+        except Exception as exc:
+            fails.append(f'pág. {i}: {str(exc)[:80]}')
+    return total, fails, warns
+
+
+# ===== correções (repair) =====
+
+def _fix_pages(pdf):
+    """MediaBox inválido -> A4; documento sem páginas -> página em branco."""
+    fixed = []
+    if len(pdf.pages) == 0:
+        pdf.add_blank_page(page_size=(595, 842))
+        fixed.append('documento sem páginas: página em branco adicionada')
+        return fixed
+    for i in _scan_page_boxes(pdf):
+        pdf.pages[i - 1].obj['/MediaBox'] = pikepdf.Array([0, 0, 595, 842])
+        fixed.append(f'pág. {i}: área inválida substituída por A4')
+    return fixed
+
+
+def _fix_images(pdf, progress_span=None):
+    """Imagem com stream corrompido -> placeholder sólido 8x8.
+
+    O posicionamento vem da matriz do conteúdo (cm), então a caixa de
+    desenho permanece — só os samples são substituídos. Detecta e
+    corrige no mesmo passe (decode é a fase lenta).
+    """
+    fixed = []
+    failed = []
+    seen = set()
+    n_pages = len(pdf.pages)
+    for i, page in enumerate(pdf.pages, 1):
+        if progress_span:
+            _report_span(i, n_pages, progress_span, 'Reparando imagens')
+        try:
+            imgs = page.get_images()
+            names = list(imgs.keys())
+        except Exception:
+            continue
+        for name in names:
+            img = imgs[name]
+            try:
+                og = img.objgen
+            except Exception:
+                og = None
+            if og and og != (0, 0):
+                if og in seen:
+                    continue
+                seen.add(og)
+            try:
+                pikepdf.PdfImage(img).as_pil_image()
+                continue
+            except Exception:
+                pass
+            ref = f'pág. {i} {name}'
+            try:
+                buf = BytesIO()
+                Image.new('L', (8, 8), 128).save(buf, format='JPEG')
+                img.write(buf.getvalue())
+                img['/Subtype'] = pikepdf.Name('/Image')
+                img['/Width'] = 8
+                img['/Height'] = 8
+                img['/ColorSpace'] = pikepdf.Name('/DeviceGray')
+                img['/BitsPerComponent'] = 8
+                img['/Filter'] = pikepdf.Name('/DCTDecode')
+                for k in ('/DecodeParms', '/SMask', '/Mask', '/Decode',
+                          '/Alternates'):
+                    if k in img:
+                        del img[k]
+                fixed.append({
+                    'ref': ref,
+                    'detail': 'imagem ilegível substituída por placeholder '
+                              '8x8 (posicionamento preservado)',
+                })
+            except Exception as exc:
+                failed.append({
+                    'category': 'imagens',
+                    'ref': ref,
+                    'reason': f'não foi possível substituir: {str(exc)[:80]}',
+                })
+    return fixed, failed
+
+
+def _fix_fonts(pdf):
+    """Fonte sem BaseFont/Subtype/DescendantFonts (ou ref quebrada)
+    -> Helvetica padrão (mantém válidas as referências dos fluxos)."""
+    fixed = []
+    failed = []
+    for i, page in enumerate(pdf.pages, 1):
+        try:
+            res = page.obj.get('/Resources')
+            fonts = res.get('/Font') if res is not None else None
+            if fonts is None:
+                continue
+            for key in list(fonts.keys()):
+                broken = False
+                try:
+                    fobj = fonts[key]
+                    if '/BaseFont' not in fobj and '/DescendantFonts' not in fobj \
+                            and '/Subtype' not in fobj:
+                        broken = True
+                except Exception:
+                    broken = True
+                if not broken:
+                    continue
+                try:
+                    helv = pikepdf.Dictionary()
+                    helv['/Type'] = pikepdf.Name('/Font')
+                    helv['/Subtype'] = pikepdf.Name('/Type1')
+                    helv['/BaseFont'] = pikepdf.Name('/Helvetica')
+                    fonts[key] = helv
+                    fixed.append({
+                        'ref': f'pág. {i} {key}',
+                        'detail': 'fonte inválida substituída por Helvetica',
+                    })
+                except Exception as exc:
+                    failed.append({
+                        'category': 'fontes',
+                        'ref': f'pág. {i} {key}',
+                        'reason': str(exc)[:80],
+                    })
+        except Exception as exc:
+            failed.append({
+                'category': 'fontes',
+                'ref': f'pág. {i}',
+                'reason': str(exc)[:80],
+            })
+    return fixed, failed
+
+
+# ===== ajuste de aridade de funções (shading/stitch) =====
+
+def _resize_list(vals, target, fill=0.0):
+    if len(vals) >= target:
+        return vals[:target]
+    return vals + [fill] * (target - len(vals))
+
+
+def _resize_range(rng, target):
+    """Range com 2 valores por saída: corta ou completa com [0, 1]."""
+    out = list(rng)
+    if len(out) % 2 == 1:
+        out = out[: len(out) // 2 * 2]
+    out = out[: target * 2]
+    while len(out) < target * 2:
+        out.append(1.0 if len(out) % 2 == 1 else 0.0)
+    return out
+
+
+def _resize_function(pdf, fn, target, depth=0):
+    """Cópia de `fn` com `target` saídas (None = não ajustável com
+    segurança — ex.: função amostrada Type 0, cujo passo dos dados é
+    fixo).
+
+    Type 2/3: reajusta C0/C1/Range (e subsfunções do stitch).
+    Type 4: anexa `pop` (corta saídas) ou `0` (acrescenta) ao programa
+    e reajusta o Range — a convenção de stack (y0 no fundo do grupo
+    final) torna a cirurgia segura.
+    Arranjo de funções: corta ou preenche com constantes.
+    """
+    if depth > 3 or target < 1:
+        return None
+    if isinstance(fn, pikepdf.Array):
+        items = list(fn)
+        if len(items) > target:
+            items = items[:target]
+        elif len(items) < target:
+            dom = None
+            if items and _is_dict_like(items[0]):
+                dom = items[0].get('/Domain')
+            for _ in range(target - len(items)):
+                c = pikepdf.Dictionary()
+                c['/FunctionType'] = 2
+                c['/Domain'] = (pikepdf.Array(list(dom))
+                                if dom is not None
+                                else pikepdf.Array([0, 1]))
+                c['/C0'] = pikepdf.Array([0])
+                c['/C1'] = pikepdf.Array([0])
+                c['/N'] = 1
+                items.append(c)
+        return pikepdf.Array(items)
+    if not _is_dict_like(fn):
+        return None
+    try:
+        ftype = int(fn.get('/FunctionType', -1))
+    except Exception:
+        return None
+    if ftype == 0:
+        return None
+    if ftype in (2, 3):
+        out = pikepdf.Dictionary()
+        for k, v in fn.items():
+            out[k] = v
+        for key in ('/C0', '/C1'):
+            vals = fn.get(key)
+            if vals is not None:
+                out[key] = pikepdf.Array(
+                    _resize_list([float(x) for x in vals], target))
+        rng = fn.get('/Range')
+        if rng is not None:
+            out['/Range'] = pikepdf.Array(
+                _resize_range([float(x) for x in rng], target))
+        if ftype == 2 and fn.get('/C0') is None and fn.get('/C1') is None:
+            # default do spec e 1 saida; declara C0/C1 com `target`
+            out['/C0'] = pikepdf.Array([0.0] * target)
+            out['/C1'] = pikepdf.Array([1.0] * target)
+        if ftype == 3:
+            subs = fn.get('/Functions')
+            if subs is None:
+                return None
+            new_subs = []
+            for s in subs:
+                rs = _resize_function(pdf, s, target, depth + 1)
+                if rs is None:
+                    return None
+                new_subs.append(rs)
+            out['/Functions'] = pikepdf.Array(new_subs)
+        return out
+    if ftype == 4:
+        rng = fn.get('/Range')
+        dom = fn.get('/Domain')
+        if rng is None or dom is None:
+            return None
+        m = len(rng) // 2
+        if m == target:
+            return fn
+        try:
+            prog = fn.read_bytes().decode('ascii', 'replace')
+        except Exception:
+            return None
+        stripped = prog.strip()
+        if not stripped.endswith('}'):
+            return None
+        body = stripped[:-1].rstrip()
+        if target < m:
+            body += ' pop' * (m - target)
+        else:
+            body += ' 0' * (target - m)
+        body += ' }'
+        out = pikepdf.Stream(pdf, body.encode('ascii'))
+        out['/FunctionType'] = 4
+        out['/Domain'] = pikepdf.Array([float(x) for x in dom])
+        out['/Range'] = pikepdf.Array(
+            _resize_range([float(x) for x in rng], target))
+        return out
+    return None
+
+
+def _fix_stitch_inplace(stitch, target, pdf):
+    """Ajusta as subsfunções de um Type 3 (in-place) para `target`
+    saídas; False se alguma não for ajustável."""
+    subs = stitch.get('/Functions')
+    if subs is None or target < 1:
+        return False
+    new_subs = []
+    for s in subs:
+        rs = _resize_function(pdf, s, target)
+        if rs is None:
+            return False
+        new_subs.append(rs)
+    stitch['/Functions'] = pikepdf.Array(new_subs)
+    for key in ('/C0', '/C1'):
+        vals = stitch.get(key)
+        if vals is not None:
+            stitch[key] = pikepdf.Array(
+                _resize_list([float(x) for x in vals], target))
+    rng = stitch.get('/Range')
+    if rng is not None:
+        stitch['/Range'] = pikepdf.Array(
+            _resize_range([float(x) for x in rng], target))
+    return True
 
 
 def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
@@ -1976,14 +2338,7 @@ def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
         if n_pages == 0:
             add('paginas', 'Páginas', 'error', 'o documento não tem páginas')
         else:
-            broken_boxes = []
-            for i, page in enumerate(pdf.pages, 1):
-                try:
-                    box = page.mediabox
-                    if float(box[2]) <= float(box[0]) or float(box[3]) <= float(box[1]):
-                        broken_boxes.append(str(i))
-                except Exception:
-                    broken_boxes.append(str(i))
+            broken_boxes = [str(i) for i in _scan_page_boxes(pdf)]
             if broken_boxes:
                 add('paginas', 'Páginas', 'error',
                     f'página(s) com área inválida ou ilegível: {", ".join(broken_boxes)}')
@@ -1992,12 +2347,8 @@ def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
                     f'{n_pages} página(s) com área válida')
 
         # ---- fluxos de conteúdo ----
-        stream_fail = []
-        for i, page in enumerate(pdf.pages, 1):
-            try:
-                list(pikepdf.parse_content_stream(page))
-            except Exception as exc:
-                stream_fail.append(f'pág. {i}: {str(exc)[:80]}')
+        stream_fail = [f'pág. {i}: {err}'
+                       for i, err in _scan_content_streams(pdf)]
         if stream_fail:
             add('fluxos', 'Fluxos de conteúdo', 'error',
                 ' | '.join(stream_fail[:5]))
@@ -2006,21 +2357,11 @@ def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
                 'todos os comandos de desenho foram analisados')
 
         # ---- imagens (decodificação real) ----
-        img_total = 0
-        img_fail = []
-        for i, page in enumerate(pdf.pages, 1):
-            _report_span(i, n_pages, pages_span, 'Decodificando imagens')
-            try:
-                names = list(page.get_images().keys())
-            except Exception as exc:
-                img_fail.append(f'pág. {i}: {str(exc)[:80]}')
-                continue
-            for name in names:
-                img_total += 1
-                try:
-                    pikepdf.PdfImage(page.get_images()[name]).as_pil_image()
-                except Exception as exc:
-                    img_fail.append(f'pág. {i} {name}: {str(exc)[:80]}')
+        img_total, img_fails = _scan_images(pdf, progress_span=pages_span)
+        img_fail = [
+            (f'pág. {i} {name}: {err}' if name else f'pág. {i}: {err}')
+            for i, name, err in img_fails
+        ]
         if img_fail:
             add('imagens', 'Imagens', 'error',
                 f'{len(img_fail)} de {img_total} ilegível(is) — ' +
@@ -2030,26 +2371,7 @@ def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
                 f'{img_total} imagem(ns) decodificadas sem erro')
 
         # ---- fontes referenciadas ----
-        font_total = 0
-        font_fail = []
-        font_warn = []
-        for i, page in enumerate(pdf.pages, 1):
-            try:
-                res = page.obj.get('/Resources')
-                fonts = res.get('/Font') if res is not None else None
-                if fonts is None:
-                    continue
-                for key in fonts.keys():
-                    font_total += 1
-                    try:
-                        fobj = fonts[key]
-                        if '/BaseFont' not in fobj and '/DescendantFonts' not in fobj \
-                                and '/Subtype' not in fobj:
-                            font_warn.append(f'pág. {i} {key}')
-                    except Exception as exc:
-                        font_fail.append(f'pág. {i} {key}: {str(exc)[:80]}')
-            except Exception as exc:
-                font_fail.append(f'pág. {i}: {str(exc)[:80]}')
+        font_total, font_fail, font_warn = _scan_fonts(pdf)
         if font_fail:
             add('fontes', 'Fontes', 'error',
                 ' | '.join(font_fail[:4]))
@@ -2197,19 +2519,30 @@ def _make_type4_function(pdf, names, alt):
 
 
 def repair_pdf(input_path: str, output_path: str) -> dict:
-    """Corrige a aridade de tint transforms DeviceN/Separation quebrados.
+    """Repara os problemas de integridade detectados pelo validate_pdf.
 
-    Estratégia (nunca piora as cores):
-      1. template do próprio documento — DeviceN correto (Type 4) com a
-         mesma tupla de colorantes e nº de saídas igual ao alternado:
-         reutiliza a transformação original;
-      2. fallback — se todos os colorantes são tintas de processo e o
-         alternado é /DeviceCMYK ou /DeviceRGB: gera função Type 4
-         (identidade ou fórmula CMYK->RGB);
-      3. senão NÃO altera o color space e reporta em `unrepaired`.
+    Categorias (o que não dá para corrigir com segurança NUNCA é
+    alterado — é reportado em `unrepaired`):
+      cabecalho/eof/estrutura -> normalizados pelo próprio save
+      paginas  -> MediaBox inválido -> A4; documento sem páginas ->
+                  página em branco adicionada
+      fluxos   -> conteúdo ilegível (decode falha) -> stream vazio
+                  válido (a página fica em branco)
+      imagens  -> stream corrompido -> placeholder sólido 8x8 (o
+                  posicionamento vem da matriz do conteúdo)
+      fontes   -> dict sem BaseFont/Subtype/DescendantFonts (ou ref
+                  quebrada) -> Helvetica padrão
+      cores    -> (a) tint: template do documento, senão Type 4
+                  identidade/CMYK->RGB para tintas de processo;
+                  (b) shading: reajusta a função (Type 2/3/4 ou
+                  arranjo) para o nº de colorantes;
+                  (c) stitch: reajusta as subsfunções
+      abertura -> se o pikepdf não abrir, tenta reconstruir via fitz;
+                  senão copia byte a byte e reporta
 
     Grava sempre em output_path (o original nunca é tocado) e re-rodar
-    validate_pdf no arquivo corrigido para conferência.
+    validate_pdf no arquivo corrigido — erros que persistirem aparecem
+    em `unrepaired` e em `validation`.
     """
     input_path = Path(input_path).resolve()
     if not input_path.exists():
@@ -2224,111 +2557,288 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
 
     original_size = input_path.stat().st_size
 
-    with pikepdf.open(str(input_path)) as pdf:
-        scan = _scan_colors(pdf, collect_templates=True,
-                            progress_span=(0, 30))
-        templates = scan['templates']
-        problems = scan['problems']
+    repaired = []
+    unrepaired = []
+    issues_before = {}
 
-        # O scan conta por REFERENCIA (150 ocorrencias no arquivo real),
-        # mas cada objeto so precisa ser mutado uma vez.
-        occ_by_og = {}
-        for p in problems:
-            if p['kind'] == 'tint' and p['arr'] is not None:
+    # ---------- abertura ----------
+    try:
+        pdf = pikepdf.open(str(input_path))
+    except pikepdf.PasswordError:
+        pdf = None
+        open_fail = ('criptografia',
+                     'protegido por senha — sem a senha não há o que reparar')
+    except Exception as exc:
+        pdf = None
+        open_fail = ('abertura', str(exc)[:200])
+
+    if pdf is None:
+        # Melhor esforço: o MuPDF (fitz) reconstrói o xref de alguns
+        # arquivos que o qpdf rejeita.
+        salvaged = False
+        try:
+            with fitz.open(str(input_path)) as doc:
+                doc.save(str(output_path), garbage=3, deflate=True)
+            salvaged = True
+        except Exception:
+            salvaged = False
+        if salvaged:
+            repaired.append({
+                'category': open_fail[0],
+                'ref': 'arquivo',
+                'detail': 'estrutura reconstruída pelo leitor '
+                          'alternativo (fitz)',
+            })
+            issues_before[open_fail[0]] = 1
+        else:
+            # Nada abriu: cópia byte a byte (nunca piorar) + relatório.
+            shutil.copyfile(input_path, output_path)
+            unrepaired.append({
+                'category': open_fail[0],
+                'ref': 'arquivo',
+                'reason': open_fail[1],
+            })
+            issues_before[open_fail[0]] = 1
+    else:
+        with pdf:
+            _report_span(1, 1, (0, 5), 'Analisando arquivo')
+
+            # cabecalho/eof: o proprio save regrava normalizado
+            with open(input_path, 'rb') as f:
+                head = f.read(1024)
+                f.seek(max(0, original_size - 4096))
+                tail = f.read()
+            if re.search(br'%PDF-(\d+\.\d+)', head) \
+                    and not head.startswith(b'%PDF-'):
+                repaired.append({
+                    'category': 'cabecalho', 'ref': 'arquivo',
+                    'detail': 'cabeçalho %PDF- reposicionado pelo salvamento',
+                })
+                issues_before['cabecalho'] = 1
+            if b'%%EOF' not in tail:
+                repaired.append({
+                    'category': 'eof', 'ref': 'arquivo',
+                    'detail': 'marcador %%EOF reescrito pelo salvamento',
+                })
+                issues_before['eof'] = 1
+            try:
+                with fitz.open(str(input_path)) as d0:
+                    if d0.is_repaired:
+                        repaired.append({
+                            'category': 'estrutura', 'ref': 'arquivo',
+                            'detail': 'xref reconstruído pelo salvamento',
+                        })
+                        issues_before['estrutura'] = 1
+            except Exception:
+                pass
+
+            # paginas (5-10)
+            _report_span(1, 1, (5, 10), 'Reparando páginas')
+            page_msgs = _fix_pages(pdf)
+            if page_msgs:
+                issues_before['paginas'] = len(page_msgs)
+            for msg in page_msgs:
+                repaired.append({'category': 'paginas', 'ref': 'página(s)',
+                                 'detail': msg})
+
+            # fluxos (10-25): conteudo ilegivel -> stream vazio
+            stream_fails = _scan_content_streams(pdf,
+                                                  progress_span=(10, 25))
+            if stream_fails:
+                issues_before['fluxos'] = len(stream_fails)
+            for i, _err in stream_fails:
+                pdf.pages[i - 1].obj['/Contents'] = pikepdf.Stream(
+                    pdf, b'q Q\n')
+                repaired.append({
+                    'category': 'fluxos', 'ref': f'pág. {i}',
+                    'detail': 'conteúdo ilegível substituído '
+                              '(página em branco)',
+                })
+
+            # imagens (25-50): detecta e corrige no mesmo passe
+            img_fixed, img_failed = _fix_images(
+                pdf, progress_span=(25, 50))
+            if img_fixed or img_failed:
+                issues_before['imagens'] = len(img_fixed) + len(img_failed)
+            for e in img_fixed:
+                repaired.append({'category': 'imagens', **e})
+            unrepaired.extend(img_failed)
+
+            # fontes (50-55)
+            _report_span(1, 1, (50, 55), 'Reparando fontes')
+            font_fixed, font_failed = _fix_fonts(pdf)
+            if font_fixed or font_failed:
+                issues_before['fontes'] = len(font_fixed) + len(font_failed)
+            for e in font_fixed:
+                repaired.append({'category': 'fontes', **e})
+            unrepaired.extend(font_failed)
+
+            # cores (55-70)
+            scan = _scan_colors(pdf, collect_templates=True,
+                                progress_span=(55, 70))
+            templates = scan['templates']
+            problems = scan['problems']
+            if problems:
+                issues_before['cores'] = len(problems)
+
+            # O scan conta por REFERENCIA (150 ocorrencias no arquivo
+            # real), mas cada objeto so precisa ser mutado uma vez.
+            occ_by_og = {}
+            for p in problems:
+                if p['kind'] == 'tint' and p['arr'] is not None:
+                    try:
+                        og = p['arr'].objgen
+                    except Exception:
+                        og = None
+                    if og and og != (0, 0):
+                        occ_by_og[og] = occ_by_og.get(og, 0) + 1
+
+            processed = set()
+            for idx, p in enumerate(problems, 1):
+                _report_span(idx, len(problems), (55, 70),
+                             'Reparando cores')
+                base = {'category': 'cores', 'ref': p['ref'],
+                        'detail': p['msg']}
+
+                # (b) shading: reajusta a função para o nº de colorantes
+                if p['kind'] == 'shading':
+                    sh = p.get('shading')
+                    fn = p.get('fn')
+                    n = p.get('colorants')
+                    if sh is None or fn is None or not n:
+                        unrepaired.append({
+                            **base,
+                            'reason': 'shading sem referências reparáveis',
+                        })
+                        continue
+                    resized = _resize_function(pdf, fn, n)
+                    if resized is None:
+                        unrepaired.append({
+                            **base,
+                            'reason': 'função do shading não é ajustável '
+                                      'com segurança',
+                        })
+                        continue
+                    sh['/Function'] = resized
+                    repaired.append({
+                        **base,
+                        'detail': f'função do shading reajustada para '
+                                  f'{n} saída(s)',
+                    })
+                    continue
+
+                # (c) stitch: reajusta as subsfunções
+                if p['kind'] == 'stitch':
+                    d = p.get('fn_dict')
+                    target = p.get('target')
+                    if d is None or not target:
+                        unrepaired.append({
+                            **base,
+                            'reason': 'stitch sem alvo de saídas '
+                                      'determinável',
+                        })
+                        continue
+                    if _fix_stitch_inplace(d, target, pdf):
+                        repaired.append({
+                            **base,
+                            'detail': f'subsfunções reajustadas para '
+                                      f'{target} saída(s)',
+                        })
+                    else:
+                        unrepaired.append({
+                            **base,
+                            'reason': 'subsfunção não ajustável com '
+                                      'segurança',
+                        })
+                    continue
+
+                # (a) tint transform
+                arr = p['arr']
+                names = p['names']
                 try:
-                    og = p['arr'].objgen
+                    og = arr.objgen
                 except Exception:
                     og = None
                 if og and og != (0, 0):
-                    occ_by_og[og] = occ_by_og.get(og, 0) + 1
+                    if og in processed:
+                        continue  # mesmo objeto visto em outra referencia
+                    processed.add(og)
+                occurrences = occ_by_og.get(og, 1) if og else 1
+                alt = str(arr[2]) if len(arr) > 2 else ''
+                template = templates.get(names)
 
-        repaired = []
-        unrepaired = []
-        processed = set()
-        for idx, p in enumerate(problems, 1):
-            _report_span(idx, len(problems), (30, 45), 'Reparando cores')
-            base = {'ref': p['ref'], 'msg': p['msg']}
-            if p['kind'] != 'tint':
+                # 1) template do documento: só se a transformação dele
+                #    produzir o nº de componentes do alternado atual.
+                if template is not None and template is not arr:
+                    want = _colorspace_components(arr[2])
+                    got = _func_output_count(template[3])
+                    if want is not None and got == want:
+                        arr[3] = template[3]
+                        if len(template) > 4:
+                            if len(arr) > 4:
+                                arr[4] = template[4]
+                            else:
+                                arr.append(template[4])
+                        repaired.append({
+                            **base,
+                            'colorants': list(names),
+                            'strategy': 'template',
+                            'occurrences': occurrences,
+                        })
+                        continue
+
+                # 2) fallback: colorantes de processo + alternado conhecido
+                if (names and all(x in _PROCESS_TINTS for x in names)
+                        and alt in ('/DeviceCMYK', '/DeviceRGB')):
+                    fn = _make_type4_function(pdf, names, alt)
+                    if fn is not None:
+                        arr[3] = fn
+                        repaired.append({
+                            **base,
+                            'colorants': list(names),
+                            'strategy': ('identity'
+                                         if alt == '/DeviceCMYK'
+                                         else 'cmyk2rgb'),
+                            'occurrences': occurrences,
+                        })
+                        continue
+
+                # 3) sem correção segura: não altera nada
                 unrepaired.append({
                     **base,
-                    'colorants': list(p['names']) if p['names'] else None,
-                    'reason': 'correção automática indisponível para '
-                              'este tipo de problema',
+                    'colorants': list(names) if names else None,
+                    'occurrences': occurrences,
+                    'reason': f'sem template compatível; alternado '
+                              f'{alt or "desconhecido"} e colorantes fora '
+                              f'das tintas de processo',
                 })
-                continue
 
-            arr = p['arr']
-            names = p['names']
-            try:
-                og = arr.objgen
-            except Exception:
-                og = None
-            if og and og != (0, 0):
-                if og in processed:
-                    continue  # mesmo objeto visto em outra referencia
-                processed.add(og)
-            occurrences = occ_by_og.get(og, 1) if og else 1
-            alt = str(arr[2]) if len(arr) > 2 else ''
-            template = templates.get(names)
+            # gravacao (70-80): o save regrava cabecalho/eof/xref
+            _report_span(1, 1, (70, 80), 'Gravando arquivo reparado')
+            pdf.save(str(output_path))
 
-            # 1) template do documento: só se a transformação dele
-            #    produzir o nº de componentes do alternado atual.
-            if template is not None and template is not arr:
-                want = _colorspace_components(arr[2])
-                got = _func_output_count(template[3])
-                if want is not None and got == want:
-                    arr[3] = template[3]
-                    if len(template) > 4:
-                        if len(arr) > 4:
-                            arr[4] = template[4]
-                        else:
-                            arr.append(template[4])
-                    repaired.append({
-                        **base,
-                        'colorants': list(names),
-                        'strategy': 'template',
-                        'occurrences': occurrences,
-                    })
-                    continue
+    # ---------- revalidacao comum (80-100) ----------
+    validation = validate_pdf(str(output_path), progress_span=(80, 100))
 
-            # 2) fallback: colorantes de processo + alternado conhecido
-            if (names and all(x in _PROCESS_TINTS for x in names)
-                    and alt in ('/DeviceCMYK', '/DeviceRGB')):
-                fn = _make_type4_function(pdf, names, alt)
-                if fn is not None:
-                    arr[3] = fn
-                    repaired.append({
-                        **base,
-                        'colorants': list(names),
-                        'strategy': ('identity'
-                                     if alt == '/DeviceCMYK'
-                                     else 'cmyk2rgb'),
-                        'occurrences': occurrences,
-                    })
-                    continue
-
-            # 3) sem correção segura: não altera nada
+    # Residuais: o que continuou em error apos o reparo e ainda nao foi
+    # reportado vira unrepaired — o relatorio sempre reflete a realidade.
+    reported = {u['category'] for u in unrepaired}
+    for c in validation['checks']:
+        if c['status'] == 'error' and c['id'] not in reported:
             unrepaired.append({
-                **base,
-                'colorants': list(names) if names else None,
-                'occurrences': occurrences,
-                'reason': f'sem template compatível; alternado '
-                          f'{alt or "desconhecido"} e colorantes fora '
-                          f'das tintas de processo',
+                'category': c['id'],
+                'ref': 'validação',
+                'reason': 'continua com erro após o reparo: '
+                          + c['detail'][:150],
             })
+            reported.add(c['id'])
 
-        # Fase de gravacao (o save de arquivo grande demora; o pikepdf
-        # nao expoe callback de progresso) e em seguida a revalidacao
-        # completa (55..100) com spans encadeados — a barra so avanca.
-        _report_span(1, 1, (45, 55), 'Gravando arquivo corrigido')
-        pdf.save(str(output_path))
-
-    validation = validate_pdf(str(output_path), progress_span=(55, 100))
     return {
         'output_path': str(output_path),
         'original_size': original_size,
         'output_size': output_path.stat().st_size,
-        'color_issues_before': len(problems),
+        'color_issues_before': issues_before.get('cores', 0),
+        'issues_before': issues_before,
         'repaired_count': len(repaired),
         'repaired': repaired[:100],
         'unrepaired_count': len(unrepaired),

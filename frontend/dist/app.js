@@ -5815,8 +5815,8 @@ var PDFValidateFeature = class extends Feature {
                     </div>
                 </div>
                 <div id="validate-repair" class="mt-4 flex items-center gap-3" style="display:none;">
-                    <button class="btn btn-outline-success" id="btn-validate-repair"><i data-lucide="wrench"></i> Corrigir cores do PDF</button>
-                    <small class="text-zinc-500">Gera uma c\xF3pia corrigida \u2014 o original n\xE3o \xE9 alterado.</small>
+                    <button class="btn btn-outline-success" id="btn-validate-repair"><i data-lucide="wrench"></i> Reparar PDF</button>
+                    <small class="text-zinc-500">Corrige os problemas encontrados em uma c\xF3pia \u2014 o original n\xE3o \xE9 alterado.</small>
                 </div>
             </div>
 
@@ -5917,8 +5917,8 @@ var PDFValidateFeature = class extends Feature {
             `;
     }).join("");
     this.repairSource = r.pdf_path || "";
-    const cores = r.checks.find((c) => c.id === "cores");
-    document.getElementById("validate-repair").style.display = cores && cores.status === "error" ? "block" : "none";
+    const temErro = r.checks.some((c) => c.status === "error");
+    document.getElementById("validate-repair").style.display = temErro ? "block" : "none";
     document.getElementById("validate-result").style.display = "block";
   }
   async repairCores() {
@@ -5940,17 +5940,22 @@ var PDFValidateFeature = class extends Feature {
     const btn = document.getElementById("btn-validate-repair");
     btn.disabled = true;
     this.clearLog();
-    this.log("Reparando espa\xE7os de cor (DeviceN/Separation)...");
+    this.log("Reparando problemas encontrados...");
     this.log("Em arquivos grandes isso pode levar minutos.");
     try {
       const rep = await API.pdf.repair({
         input_path: inputPath,
         output_path: outputPath
       });
-      this.log(`Reparo: ${rep.repaired_count} espa\xE7o(s) corrigido(s)` + (rep.unrepaired_count ? `, ${rep.unrepaired_count} n\xE3o corrigido(s)` : "") + ".");
+      const before = rep.issues_before || {};
+      const cats = Object.entries(before).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`);
+      if (cats.length) {
+        this.log(`Problemas antes: ${cats.join(", ")}.`);
+      }
+      this.log(`Reparo: ${rep.repaired_count} corrigido(s)` + (rep.unrepaired_count ? `, ${rep.unrepaired_count} n\xE3o corrigido(s)` : "") + ".");
       (rep.unrepaired || []).slice(0, 5).forEach((u) => {
-        const colorants = Array.isArray(u.colorants) ? u.colorants.join("+") : "?";
-        this.log(`  n\xE3o corrigido [${colorants}]: ${u.reason}`);
+        const colorants = Array.isArray(u.colorants) ? ` [${u.colorants.join("+")}]` : "";
+        this.log(`  n\xE3o corrigido${colorants} (${u.category}): ${u.reason}`);
       });
       if (!rep.repaired_count) {
         this.log("Nada p\xF4de ser corrigido com seguran\xE7a \u2014 original intacto.");
