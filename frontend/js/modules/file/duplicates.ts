@@ -69,6 +69,8 @@ export class DuplicatesFeature extends Feature {
                 <button class="btn btn-danger mt-2" id="btn-remove-duplicates">Aplicar Ação</button>
             </div>
 
+            ${this.progressHTML()}
+
             ${this.logHTML()}
         `;
 
@@ -128,6 +130,7 @@ export class DuplicatesFeature extends Feature {
                 `).join('');
             }
             this.log(`Encontrados ${result.total_groups} grupos de duplicatas.`);
+            this.setProgress(100);
         } catch (err) {
             this.log(`Erro: ${(err as Error).message}`);
         }
@@ -159,6 +162,7 @@ export class DuplicatesFeature extends Feature {
                 destination
             });
             this.log(`Concluído! ${result.removed_count} arquivos ${action === 'delete' ? 'excluídos' : 'movidos'}.`);
+            this.setProgress(100);
             document.getElementById('duplicates-result')!.style.display = 'none';
             this.groups = [];
         } catch (err) {

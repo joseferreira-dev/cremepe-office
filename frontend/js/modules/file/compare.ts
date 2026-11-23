@@ -78,6 +78,8 @@ export class CompareFeature extends Feature {
                 </div>
             </div>
 
+            ${this.progressHTML()}
+
             ${this.logHTML()}
         `;
 
@@ -169,6 +171,7 @@ export class CompareFeature extends Feature {
             (document.getElementById('btn-mirror') as DomElement).disabled = false;
 
             this.log(`Comparação concluída. ${result.only_in_source.length + result.modified_in_source.length} arquivos para copiar.`);
+            this.setProgress(100);
         } catch (err) {
             this.log(`Erro: ${(err as Error).message}`);
         } finally {
@@ -210,6 +213,7 @@ export class CompareFeature extends Feature {
                 action
             });
             this.log(`Concluído! ${result.copied} arquivos copiados, ${result.removed} removidos, ${result.skipped} ignorados.`);
+            this.setProgress(100);
             // Recarregar comparação automaticamente
             await this.compareFolders();
         } catch (err) {

@@ -1915,6 +1915,8 @@ var CompareFeature = class extends Feature {
                 </div>
             </div>
 
+            ${this.progressHTML()}
+
             ${this.logHTML()}
         `;
     this.attachEvents(container);
@@ -1994,6 +1996,7 @@ var CompareFeature = class extends Feature {
       document.getElementById("btn-sync").disabled = false;
       document.getElementById("btn-mirror").disabled = false;
       this.log(`Compara\xE7\xE3o conclu\xEDda. ${result.only_in_source.length + result.modified_in_source.length} arquivos para copiar.`);
+      this.setProgress(100);
     } catch (err) {
       this.log(`Erro: ${err.message}`);
     } finally {
@@ -2029,6 +2032,7 @@ var CompareFeature = class extends Feature {
         action
       });
       this.log(`Conclu\xEDdo! ${result.copied} arquivos copiados, ${result.removed} removidos, ${result.skipped} ignorados.`);
+      this.setProgress(100);
       await this.compareFolders();
     } catch (err) {
       this.log(`Erro: ${err.message}`);
@@ -2104,6 +2108,8 @@ var DuplicatesFeature = class extends Feature {
                 <button class="btn btn-danger mt-2" id="btn-remove-duplicates">Aplicar A\xE7\xE3o</button>
             </div>
 
+            ${this.progressHTML()}
+
             ${this.logHTML()}
         `;
     this.attachEvents(container);
@@ -2159,6 +2165,7 @@ var DuplicatesFeature = class extends Feature {
                 `).join("");
       }
       this.log(`Encontrados ${result.total_groups} grupos de duplicatas.`);
+      this.setProgress(100);
     } catch (err) {
       this.log(`Erro: ${err.message}`);
     }
@@ -2188,6 +2195,7 @@ var DuplicatesFeature = class extends Feature {
         destination
       });
       this.log(`Conclu\xEDdo! ${result.removed_count} arquivos ${action === "delete" ? "exclu\xEDdos" : "movidos"}.`);
+      this.setProgress(100);
       document.getElementById("duplicates-result").style.display = "none";
       this.groups = [];
     } catch (err) {
