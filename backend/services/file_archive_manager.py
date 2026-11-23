@@ -245,20 +245,27 @@ def extract_archive(
     return str(extract_path)
 
 
+def _extract_zip_members(zf, extract_path, pwd):
+    """Extrai membro a membro reportando progresso (equivalente ao
+    extractall, que internamente percorre os mesmos membros)."""
+    if pwd:
+        zf.setpassword(pwd)
+    members = zf.infolist()
+    for i, member in enumerate(members, 1):
+        zf.extract(member, extract_path)
+        report_progress(i, len(members))
+
+
 def _extract_zip(archive_path, extract_path, password):
     pwd = password.encode('utf-8') if password else None
     if pyzipper is None:
         # pyzipper ausente: apenas o zipfile legado (ZipCrypto)
         with zipfile.ZipFile(archive_path, 'r') as zf:
-            if pwd:
-                zf.setpassword(pwd)
-            zf.extractall(extract_path)
+            _extract_zip_members(zf, extract_path, pwd)
         return
     try:
         with pyzipper.AESZipFile(archive_path, 'r') as zf:
-            if pwd:
-                zf.setpassword(pwd)
-            zf.extractall(extract_path)
+            _extract_zip_members(zf, extract_path, pwd)
     except Exception as primary:
         # pyzipper nao cobre o caso (cripto legado/estru rara): tenta o
         # zipfile padrao; se TAMPOUCO der, propaga o ERRO ORIGINAL do
@@ -267,9 +274,7 @@ def _extract_zip(archive_path, extract_path, password):
         # e o proprio erro de senha errada.
         try:
             with zipfile.ZipFile(archive_path, 'r') as zf:
-                if pwd:
-                    zf.setpassword(pwd)
-                zf.extractall(extract_path)
+                _extract_zip_members(zf, extract_path, pwd)
         except Exception:
             raise primary from None
 
@@ -291,11 +296,13 @@ def _extract_rar(archive_path, extract_path, password):
 def _extract_tar(archive_path, extract_path):
     import tarfile
     with tarfile.open(archive_path, 'r:*') as tar:
-        # filter='data' bloqueia tar-slip (paths '../', absolutos e
-        # arquivos especiais) — default explicito desde o Python 3.14;
-        # runtimes antigos nao aceitam o kwarg e usam o comportamento
-        # anterior.
-        try:
-            tar.extractall(path=extract_path, filter='data')
-        except TypeError:
-            tar.extractall(path=extract_path)
+        members = tar.getmembers()
+        for i, member in enumerate(members, 1):
+            # filter='data' bloqueia tar-slip (paths '../', absolutos e
+            # arquivos especiais) — default explicito desde o Python 3.14;
+            # runtimes antigos nao aceitam o kwarg (TypeError).
+            try:
+                tar.extract(member, path=extract_path, filter='data')
+            except TypeError:
+                tar.extract(member, path=extract_path)
+            report_progress(i, len(members))

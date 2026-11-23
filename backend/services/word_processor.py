@@ -215,6 +215,8 @@ def convert_document(input_path: str, output_path: str, output_format: str) -> s
     }
     temp_docx = None
     try:
+        # Marcos da barra de progresso: a conversão COM é a etapa lenta
+        report_progress(1, 3, 'Convertendo documento')
         if input_path.suffix.lower() == '.doc':
             try:
                 temp_docx = convert_doc_to_docx(input_path)
@@ -222,6 +224,7 @@ def convert_document(input_path: str, output_path: str, output_format: str) -> s
                 _require_word()
                 raise
             input_path = temp_docx
+            report_progress(2, 3, 'Convertendo documento')
 
         try:
             convert_with_word(input_path, output_path, format_map[output_format])

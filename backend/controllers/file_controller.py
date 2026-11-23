@@ -488,7 +488,8 @@ class FileController:
             options = {}
 
         processed = 0
-        for f in files:
+        for idx, f in enumerate(files, 1):
+            report_progress(idx, len(files))
             try:
                 apply_attributes(f, options)
                 processed += 1

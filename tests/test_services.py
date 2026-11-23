@@ -1426,6 +1426,43 @@ def test_compare_hash_reporta_progresso(tmp_path, progress_collector):
     assert max(pcts) >= 50, pcts  # origem+destino -> 50/100
 
 
+def test_extract_archive_reporta_progresso(tmp_path, progress_collector):
+    from services.file_archive_manager import create_zip, extract_archive
+    src = tmp_path / 'prog_src'
+    src.mkdir()
+    (src / 'a.txt').write_text('a', encoding='utf-8')
+    (src / 'b.txt').write_text('b', encoding='utf-8')
+    z = tmp_path / 'prog.zip'
+    create_zip([str(src / 'a.txt'), str(src / 'b.txt')], str(z))
+    progress_collector.clear()  # so o que a extracao reportar
+
+    dest = tmp_path / 'prog_out'
+    extract_archive(str(z), str(dest))
+
+    assert progress_collector, 'extract nao reportou progresso'
+    pcts = [c * 100 // t for c, t in progress_collector]
+    assert pcts == sorted(pcts), pcts
+    assert max(pcts) >= 50, pcts  # 2 membros -> 50/100
+    assert (dest / 'a.txt').exists() and (dest / 'b.txt').exists()
+
+
+def test_set_attributes_reporta_progresso(tmp_path, progress_collector):
+    from controllers.file_controller import FileController
+    d = tmp_path / 'attr_prog'
+    d.mkdir()
+    (d / 'x.txt').write_text('x', encoding='utf-8')
+    (d / 'y.txt').write_text('y', encoding='utf-8')
+
+    n = FileController().set_attributes(
+        dir_path=str(d), options={'readonly': False})
+
+    assert n == 2
+    assert progress_collector, 'set_attributes nao reportou progresso'
+    pcts = [c * 100 // t for c, t in progress_collector]
+    assert pcts == sorted(pcts), pcts
+    assert max(pcts) >= 50, pcts  # 2 arquivos -> 50/100
+
+
 # ===== Word: merge (docxcompose) =====
 # Composer()/append() recebem objetos Document (nao strings) e append()
 # nao tem o parametro page_break na versao pinada 2.2.0 — page breaks
