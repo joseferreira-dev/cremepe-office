@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import type { DomainModule } from '../domain.js';
 
 export class DocCompareFeature extends Feature {
@@ -117,11 +117,11 @@ export class DocCompareFeature extends Feature {
             let html = '';
             result.differences.forEach((diff: any, idx: number) => {
                 if (diff.type === 'removed') {
-                    html += `<div class="border-b py-1"><span class="badge bg-rose-600 me-2">Removido</span><span style="background:#ffcccc;">${diff.text}</span></div>`;
+                    html += `<div class="border-b py-1"><span class="badge bg-rose-600 me-2">Removido</span><span style="background:#ffcccc;">${escapeHtml(diff.text)}</span></div>`;
                 } else if (diff.type === 'added') {
-                    html += `<div class="border-b py-1"><span class="badge bg-brand-600 me-2">Adicionado</span><span style="background:#ccffcc;">${diff.text}</span></div>`;
+                    html += `<div class="border-b py-1"><span class="badge bg-brand-600 me-2">Adicionado</span><span style="background:#ccffcc;">${escapeHtml(diff.text)}</span></div>`;
                 } else if (diff.type === 'modified') {
-                    html += `<div class="border-b py-1"><span class="badge bg-amber-100 me-2">Modificado</span><span style="background:#ffffcc;">${diff.old_text}</span> → <span style="background:#ccffcc;">${diff.new_text}</span></div>`;
+                    html += `<div class="border-b py-1"><span class="badge bg-amber-100 me-2">Modificado</span><span style="background:#ffffcc;">${escapeHtml(diff.old_text)}</span> → <span style="background:#ccffcc;">${escapeHtml(diff.new_text)}</span></div>`;
                 }
             });
             if (!html) {

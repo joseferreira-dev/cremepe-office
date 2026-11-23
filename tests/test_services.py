@@ -1249,6 +1249,90 @@ def test_archive_tar_extrai_e_bloqueia_tar_slip(tmp_path):
     assert not (tmp_path / 'fora.txt').exists()
 
 
+# ===== Arquivos: cobertura de rotas (organize/report/compare/sync) =====
+# Antes so cobertos pelo audit funcional (sem regressao fina em pytest).
+
+def test_rota_organize_preview_e_executa(client, tmp_path):
+    from helpers import post_sync
+    src = tmp_path / 'org'
+    src.mkdir()
+    (src / 'foto.png').write_bytes(b'png')
+    (src / 'texto.txt').write_text('t', encoding='utf-8')
+
+    prev = post_sync(client, '/api/files/organize/preview',
+                     json={'dir': str(src)})
+    assert prev.status_code == 200, prev.get_json()
+    groups = prev.get_json()['preview']
+    assert groups, 'preview vazio'
+    for g in groups:
+        assert {'folder', 'files', 'count'} <= set(g), g
+
+    run = post_sync(client, '/api/files/organize', json={'dir': str(src)})
+    assert run.status_code == 200, run.get_json()
+    assert run.get_json()['processed_count'] == 2
+
+    # movidos para subpastas por extensao (nome: extensao maiuscula)
+    assert not (src / 'foto.png').exists()
+    moved = list(src.rglob('foto.png'))
+    assert moved and moved[0].parent != src, list(src.iterdir())
+    assert (src / 'TXT' / 'texto.txt').exists() or \
+        (src / 'txt' / 'texto.txt').exists(), list(src.iterdir())
+
+
+def test_rota_report_txt_e_csv(client, tmp_path):
+    from helpers import post_sync
+    src = tmp_path / 'estrutura'
+    (src / 'sub').mkdir(parents=True)
+    (src / 'arq.txt').write_text('oi', encoding='utf-8')
+
+    r = post_sync(client, '/api/files/report',
+                  json={'dir': str(src), 'format': 'txt'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert 'content' in body, body
+    assert 'Relatório de estrutura' in body['content'], body
+
+    out = tmp_path / 'rel.csv'
+    r2 = post_sync(client, '/api/files/report', json={
+        'dir': str(src), 'format': 'csv', 'output_path': str(out)})
+    assert r2.status_code == 200, r2.get_json()
+    assert r2.get_json()['saved_path'] == str(out)
+    assert out.exists()
+    assert out.read_text(encoding='utf-8').startswith('Tipo')
+
+
+def test_rota_compare_e_sync(client, tmp_path):
+    from helpers import post_sync
+    a = tmp_path / 'a'
+    b = tmp_path / 'b'
+    a.mkdir()
+    b.mkdir()
+    (a / 'igual.txt').write_text('1', encoding='utf-8')
+    (a / 'so_origem.txt').write_text('2', encoding='utf-8')
+    (b / 'igual.txt').write_text('1', encoding='utf-8')
+
+    r = post_sync(client, '/api/files/compare', json={
+        'source_dir': str(a), 'target_dir': str(b),
+        'compare_by_hash': True})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['total_source'] == 2 and body['total_target'] == 1, body
+    assert len(body['identical']) == 1, body
+    assert len(body['only_in_source']) == 1, body
+    assert len(body['only_in_target']) == 0, body
+    assert len(body['modified_in_source']) == 0, body
+
+    # sync copy_to_target copia so o que falta (comparacao por hash)
+    s = post_sync(client, '/api/files/sync', json={
+        'source_dir': str(a), 'target_dir': str(b),
+        'action': 'copy_to_target', 'compare_by_hash': True})
+    assert s.status_code == 200, s.get_json()
+    sb = s.get_json()
+    assert sb['copied'] == 1, sb
+    assert (b / 'so_origem.txt').exists()
+
+
 # ===== Progresso real em services (canal ContextVar) =====
 
 def test_collect_files_reporta_progresso(tmp_path, progress_collector):

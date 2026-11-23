@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from '../file/utils.js';
 
 export class ExcelSplitFeature extends Feature {
@@ -124,7 +124,7 @@ export class ExcelSplitFeature extends Feature {
             const listDiv = document.getElementById('split-preview-list')!;
             listDiv.innerHTML = `
                 <strong>Colunas disponíveis (${headers.length}):</strong><br>
-                ${headers.map((h, i) => `<span class="badge bg-zinc-500 me-1">${i}: ${h}</span>`).join('')}
+                ${headers.map((h, i) => `<span class="badge bg-zinc-500 me-1">${i}: ${escapeHtml(h)}</span>`).join('')}
                 <br><small class="text-zinc-500">Use o nome ou o índice para a coluna chave.</small>
             `;
             this.log('Cabeçalhos carregados.');

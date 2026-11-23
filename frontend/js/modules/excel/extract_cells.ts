@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from '../file/utils.js';
 
 export class ExcelExtractCellsFeature extends Feature {
@@ -236,17 +236,18 @@ export class ExcelExtractCellsFeature extends Feature {
             return;
         }
 
-        // Monta tabela
+        // Monta tabela (valores de celula vem da planilha: conteudo
+        // arbitrario — sempre escapeHtml)
         const headers = ['Arquivo', ...fields.map((f: any) => f.name)];
         let html = '<table class="table table-sm table-striped mb-0"><thead><tr>';
-        headers.forEach(h => html += `<th>${h}</th>`);
+        headers.forEach(h => html += `<th>${escapeHtml(h)}</th>`);
         html += '</tr></thead><tbody>';
         results.forEach((row: any) => {
             html += '<tr>';
             headers.forEach(h => {
                 let val = row[h] !== undefined ? row[h] : '';
                 if (typeof val === 'number') val = val.toFixed(2);
-                html += `<td>${val}</td>`;
+                html += `<td>${escapeHtml(val)}</td>`;
             });
             html += '</tr>';
         });

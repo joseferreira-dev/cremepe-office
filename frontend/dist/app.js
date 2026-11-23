@@ -731,14 +731,14 @@ var ExcelExtractCellsFeature = class extends Feature {
     }
     const headers = ["Arquivo", ...fields.map((f) => f.name)];
     let html = '<table class="table table-sm table-striped mb-0"><thead><tr>';
-    headers.forEach((h) => html += `<th>${h}</th>`);
+    headers.forEach((h) => html += `<th>${escapeHtml(h)}</th>`);
     html += "</tr></thead><tbody>";
     results.forEach((row) => {
       html += "<tr>";
       headers.forEach((h) => {
         let val = row[h] !== void 0 ? row[h] : "";
         if (typeof val === "number") val = val.toFixed(2);
-        html += `<td>${val}</td>`;
+        html += `<td>${escapeHtml(val)}</td>`;
       });
       html += "</tr>";
     });
@@ -996,7 +996,7 @@ var ExcelSplitFeature = class extends Feature {
       const listDiv = document.getElementById("split-preview-list");
       listDiv.innerHTML = `
                 <strong>Colunas dispon\xEDveis (${headers.length}):</strong><br>
-                ${headers.map((h, i) => `<span class="badge bg-zinc-500 me-1">${i}: ${h}</span>`).join("")}
+                ${headers.map((h, i) => `<span class="badge bg-zinc-500 me-1">${i}: ${escapeHtml(h)}</span>`).join("")}
                 <br><small class="text-zinc-500">Use o nome ou o \xEDndice para a coluna chave.</small>
             `;
       this.log("Cabe\xE7alhos carregados.");
@@ -1400,7 +1400,7 @@ var ArchiveFeature = class extends Feature {
     if (paths.length === 0) {
       listDiv.innerHTML = '<p class="text-zinc-500">Nenhum arquivo/pasta selecionado.</p>';
     } else {
-      listDiv.innerHTML = paths.map((p) => `<div><i data-lucide="file" class="me-1"></i> ${p}</div>`).join("");
+      listDiv.innerHTML = paths.map((p) => `<div><i data-lucide="file" class="me-1"></i> ${escapeHtml(p)}</div>`).join("");
     }
   }
   async compress() {
@@ -1695,7 +1695,7 @@ var CollectFeature = class extends Feature {
     const containerDiv = container.querySelector("#src-dirs-container");
     containerDiv.innerHTML = this.srcDirs.map((val, idx) => `
             <div class="input-group mb-1">
-                <input type="text" class="form-control src-dir-input" data-idx="${idx}" value="${val}" placeholder="Selecione a pasta de origem...">
+                <input type="text" class="form-control src-dir-input" data-idx="${idx}" value="${escapeHtml(val)}" placeholder="Selecione a pasta de origem...">
                 <button class="btn btn-outline-secondary btn-src-select" data-idx="${idx}">Selecionar</button>
                 ${this.srcDirs.length > 1 ? `<button class="btn btn-outline-danger btn-src-remove" data-idx="${idx}"><i data-lucide="x"></i></button>` : ""}
             </div>
@@ -1780,7 +1780,7 @@ var CollectFeature = class extends Feature {
         listDiv.innerHTML = '<p class="text-zinc-500">Nenhum arquivo corresponde aos filtros.</p>';
       } else {
         listDiv.innerHTML = result.files.map((f) => `
-                    <div><i data-lucide="file" class="me-1"></i> ${f.relative} (${(f.size / 1024).toFixed(1)} KB)</div>
+                    <div><i data-lucide="file" class="me-1"></i> ${escapeHtml(f.relative)} (${(f.size / 1024).toFixed(1)} KB)</div>
                 `).join("");
       }
       this.log(`Pr\xE9-visualiza\xE7\xE3o: ${result.count} arquivos encontrados.`);
@@ -1971,17 +1971,17 @@ var CompareFeature = class extends Feature {
       let html = "";
       if (result.only_in_source.length) {
         html += `<strong><span class="text-sky-600">Apenas na origem:</span></strong><ul>`;
-        result.only_in_source.forEach((p) => html += `<li>${p}</li>`);
+        result.only_in_source.forEach((p) => html += `<li>${escapeHtml(p)}</li>`);
         html += "</ul>";
       }
       if (result.only_in_target.length) {
         html += `<strong><span class="text-rose-600">Apenas no destino:</span></strong><ul>`;
-        result.only_in_target.forEach((p) => html += `<li>${p}</li>`);
+        result.only_in_target.forEach((p) => html += `<li>${escapeHtml(p)}</li>`);
         html += "</ul>";
       }
       if (result.modified_in_source.length) {
         html += `<strong><span class="text-amber-600">Modificados na origem:</span></strong><ul>`;
-        result.modified_in_source.forEach((p) => html += `<li>${p}</li>`);
+        result.modified_in_source.forEach((p) => html += `<li>${escapeHtml(p)}</li>`);
         html += "</ul>";
       }
       if (result.identical.length) {
@@ -2153,7 +2153,7 @@ var DuplicatesFeature = class extends Feature {
                     <div class="mb-2">
                         <strong>Grupo ${idx + 1} (${g.count} arquivos)</strong>
                         <ul class="list-none ms-4">
-                            ${g.files.map((f) => `<li><i data-lucide="file"></i> ${f}</li>`).join("")}
+                            ${g.files.map((f) => `<li><i data-lucide="file"></i> ${escapeHtml(f)}</li>`).join("")}
                         </ul>
                     </div>
                 `).join("");
@@ -2312,9 +2312,9 @@ var OrganizeFeature = class extends Feature {
           total += group.count;
           html += `
                         <div class="mb-2">
-                            <strong>${group.folder}/ (${group.count} arquivos)</strong>
+                            <strong>${escapeHtml(group.folder)}/ (${group.count} arquivos)</strong>
                             <ul class="list-none ms-4">
-                                ${group.files.map((f) => `<li><i data-lucide="file"></i> ${f}</li>`).join("")}
+                                ${group.files.map((f) => `<li><i data-lucide="file"></i> ${escapeHtml(f)}</li>`).join("")}
                             </ul>
                         </div>
                     `;
@@ -2588,8 +2588,8 @@ var RenameFeature = class extends Feature {
       } else {
         tbody.innerHTML = result.preview.map((p) => `
                     <tr>
-                        <td>${p.original}</td>
-                        <td><strong>${p.new}</strong></td>
+                        <td>${escapeHtml(p.original)}</td>
+                        <td><strong>${escapeHtml(p.new)}</strong></td>
                     </tr>
                 `).join("");
       }
@@ -2769,14 +2769,14 @@ var RenameByContentFeature = class extends Feature {
       document.getElementById("preview-errors-count").textContent = errors.length;
       let html = "";
       renamed.forEach((item) => {
-        html += `<tr><td>${item.original}</td><td><strong>${item.new}</strong></td><td class="text-brand-600">\u2713</td></tr>`;
+        html += `<tr><td>${escapeHtml(item.original)}</td><td><strong>${escapeHtml(item.new)}</strong></td><td class="text-brand-600">\u2713</td></tr>`;
       });
       skipped.forEach((item) => {
         const reason = item.reason || "Desconhecido";
-        html += `<tr><td>${item.path}</td><td>\u2014</td><td class="text-amber-600">Ignorado: ${reason}</td></tr>`;
+        html += `<tr><td>${escapeHtml(item.path)}</td><td>\u2014</td><td class="text-amber-600">Ignorado: ${escapeHtml(reason)}</td></tr>`;
       });
       errors.forEach((item) => {
-        html += `<tr><td>${item.file}</td><td>\u2014</td><td class="text-rose-600">${item.error}</td></tr>`;
+        html += `<tr><td>${escapeHtml(item.file)}</td><td>\u2014</td><td class="text-rose-600">${escapeHtml(item.error)}</td></tr>`;
       });
       if (html === "") {
         html = '<tr><td colspan="3" class="text-zinc-500">Nenhum arquivo processado.</td></tr>';
@@ -3109,7 +3109,7 @@ var SplitFeature = class extends Feature {
     if (paths.length === 0) {
       listDiv.innerHTML = '<p class="text-zinc-500">Nenhuma parte selecionada.</p>';
     } else {
-      listDiv.innerHTML = paths.map((p) => `<div><i data-lucide="file" class="me-1"></i> ${p}</div>`).join("");
+      listDiv.innerHTML = paths.map((p) => `<div><i data-lucide="file" class="me-1"></i> ${escapeHtml(p)}</div>`).join("");
     }
   }
   async splitFile() {
@@ -6108,11 +6108,11 @@ var DocCompareFeature = class extends Feature {
       let html = "";
       result.differences.forEach((diff, idx) => {
         if (diff.type === "removed") {
-          html += `<div class="border-b py-1"><span class="badge bg-rose-600 me-2">Removido</span><span style="background:#ffcccc;">${diff.text}</span></div>`;
+          html += `<div class="border-b py-1"><span class="badge bg-rose-600 me-2">Removido</span><span style="background:#ffcccc;">${escapeHtml(diff.text)}</span></div>`;
         } else if (diff.type === "added") {
-          html += `<div class="border-b py-1"><span class="badge bg-brand-600 me-2">Adicionado</span><span style="background:#ccffcc;">${diff.text}</span></div>`;
+          html += `<div class="border-b py-1"><span class="badge bg-brand-600 me-2">Adicionado</span><span style="background:#ccffcc;">${escapeHtml(diff.text)}</span></div>`;
         } else if (diff.type === "modified") {
-          html += `<div class="border-b py-1"><span class="badge bg-amber-100 me-2">Modificado</span><span style="background:#ffffcc;">${diff.old_text}</span> \u2192 <span style="background:#ccffcc;">${diff.new_text}</span></div>`;
+          html += `<div class="border-b py-1"><span class="badge bg-amber-100 me-2">Modificado</span><span style="background:#ffffcc;">${escapeHtml(diff.old_text)}</span> \u2192 <span style="background:#ccffcc;">${escapeHtml(diff.new_text)}</span></div>`;
         }
       });
       if (!html) {
@@ -6373,7 +6373,7 @@ var ExtractImagesFeature = class extends Feature {
       const resultDiv = document.getElementById("extract-result");
       resultDiv.style.display = "block";
       const listDiv = document.getElementById("extract-list");
-      listDiv.innerHTML = result.images.map((img) => `<div><i data-lucide="image" class="me-1"></i> ${img}</div>`).join("");
+      listDiv.innerHTML = result.images.map((img) => `<div><i data-lucide="image" class="me-1"></i> ${escapeHtml(img)}</div>`).join("");
     } catch (err) {
       this.log(`Erro: ${err.message}`);
     } finally {
@@ -6686,7 +6686,7 @@ var MergeFeature = class extends Feature {
     if (paths.length === 0) {
       listDiv.innerHTML = '<p class="text-zinc-500">Nenhum documento selecionado.</p>';
     } else {
-      listDiv.innerHTML = paths.map((p) => `<div><i data-lucide="file-pen" class="me-1"></i> ${p}</div>`).join("");
+      listDiv.innerHTML = paths.map((p) => `<div><i data-lucide="file-pen" class="me-1"></i> ${escapeHtml(p)}</div>`).join("");
     }
   }
   async mergeDocuments() {

@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from '../file/utils.js';
 import type { DomainModule } from '../domain.js';
 
@@ -110,7 +110,7 @@ export class ExtractImagesFeature extends Feature {
             const resultDiv = document.getElementById('extract-result')!;
             resultDiv.style.display = 'block';
             const listDiv = document.getElementById('extract-list')!;
-            listDiv.innerHTML = result.images.map((img: any) => `<div><i data-lucide="image" class="me-1"></i> ${img}</div>`).join('');
+            listDiv.innerHTML = result.images.map((img: any) => `<div><i data-lucide="image" class="me-1"></i> ${escapeHtml(img)}</div>`).join('');
         } catch (err) {
             this.log(`Erro: ${(err as Error).message}`);
         } finally {
