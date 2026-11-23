@@ -11,6 +11,7 @@ from services.pdf_processor import (
     protect_password,
     remove_pages,
     remove_password,
+    repair_pdf,
     reorder_pages,
     split_by_size,
     split_custom,
@@ -77,6 +78,9 @@ class PDFController:
 
     def info(self, pdf_path):
         return pdf_info(pdf_path)
+
+    def repair(self, input_path, output_path):
+        return repair_pdf(input_path, output_path)
 
     def protect_password(self, input_path, output_path, password):
         return protect_password(input_path, output_path, password)

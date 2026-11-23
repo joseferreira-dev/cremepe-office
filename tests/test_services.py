@@ -569,6 +569,351 @@ def test_rota_pdf_info_paginas_e_status(client, pdf_factory, tmp_path):
     assert bad.get_json()['error']
 
 
+# ===== PDF: cores DeviceN — deteccao e reparo de aridade =====
+# Defeito real (ferramenta baseada em PDFium): tint transform FunctionType
+# com Domain [0 1] (1 entrada) para 2-3 colorantes deixa os shadings
+# PatternType 2 inaveis em Adobe/Chrome (branco/preto). No arquivo real do
+# usuario o check acusa 150 ocorrencias no original e o corrigido passa
+# limpo (verificado contra C:\Users\gjose\Desktop\Work\*.pdf).
+
+def _mk(items):
+    """Dictionary via atribuicao — kwargs do pikepdf nao grava chaves '/'."""
+    import pikepdf
+    d = pikepdf.Dictionary()
+    for k, v in items.items():
+        d[k] = v
+    return d
+
+
+def _type2(fn_type2_c0, domain=(0, 1)):
+    import pikepdf
+    return _mk({
+        '/FunctionType': 2,
+        '/Domain': pikepdf.Array(list(domain)),
+        '/C0': pikepdf.Array(list(fn_type2_c0)),
+        '/C1': pikepdf.Array([1] * len(fn_type2_c0)),
+        '/N': 1,
+    })
+
+
+def _make_broken_devicen_pdf(path, colorants=('/Cyan', '/Magenta'),
+                             alt='/DeviceCMYK', with_template=False,
+                             shading_outputs=None, with_stitch=False,
+                             broken_tint=True):
+    """1 pagina com DeviceN de tint transform Type 2 Domain [0 1]
+    (1 entrada) para N colorantes, dentro de shading PatternType 2.
+
+    shading_outputs: nº de saidas da funcao do shading (default N —
+    correto); passar outro valor gera o caso (b) de deteccao.
+    with_template: inclui um DeviceN CORRETO (Type 4) com a mesma tupla
+    de colorantes p/ servir de template no reparo.
+    with_stitch: inclui funcao Type 3 com subsfuncoes de saidas
+    divergentes (caso (c)).
+    broken_tint=False: o tint transform e correto (Type 4) — usado p/ isolar
+    a deteccao de shading/stitch sem o caso (a).
+    """
+    import pikepdf
+
+    n = len(colorants)
+    shading_outputs = n if shading_outputs is None else shading_outputs
+    with pikepdf.new() as pdf:
+        root = pdf.trailer['/Root']
+        names = pikepdf.Array([pikepdf.Name(c) for c in colorants])
+
+        if with_template:
+            good_fn = pikepdf.Stream(pdf, b'{ pop 0 0 0 }')
+            good_fn['/FunctionType'] = 4
+            good_fn['/Domain'] = pikepdf.Array([0, 1] * n)
+            good_fn['/Range'] = pikepdf.Array([0, 1, 0, 1, 0, 1, 0, 1])
+            root['/GoodCS'] = pdf.make_indirect(pikepdf.Array(
+                [pikepdf.Name('/DeviceN'), names,
+                 pikepdf.Name(alt), good_fn]))
+
+        if broken_tint:
+            # tint transform QUEBRADO: Type 2 com Domain [0 1]
+            tint = _type2([0, 0, 0, 0])
+        else:
+            tint = pikepdf.Stream(pdf, b'{ pop 0 0 0 }')
+            tint['/FunctionType'] = 4
+            tint['/Domain'] = pikepdf.Array([0, 1] * n)
+            tint['/Range'] = pikepdf.Array([0, 1, 0, 1, 0, 1, 0, 1])
+        devicen = pikepdf.Array(
+            [pikepdf.Name('/DeviceN'), names, pikepdf.Name(alt),
+             tint])
+
+        shading = _mk({
+            '/ShadingType': 2,
+            '/ColorSpace': devicen,
+            '/Function': _type2([0] * shading_outputs),
+            '/Coords': pikepdf.Array([0, 0, 595, 842]),
+        })
+        pattern = pdf.make_indirect(
+            _mk({'/PatternType': 2, '/Shading': shading}))
+        page = pdf.add_blank_page(page_size=(595, 842))
+        page.obj['/Resources'] = _mk(
+            {'/Pattern': _mk({'/P1': pattern})})
+        page.obj['/Contents'] = pikepdf.Stream(
+            pdf, b'/Pattern cs /P1 scn 0 0 100 100 re f\n')
+
+        if with_stitch:
+            # Type 3 com subsfuncoes de2 e 4 saidas (inconsistente)
+            root['/StitchFn'] = pdf.make_indirect(_mk({
+                '/FunctionType': 3,
+                '/Domain': pikepdf.Array([0, 1]),
+                '/Functions': pikepdf.Array(
+                    [_type2([0, 0]), _type2([0, 0, 0, 0])]),
+                '/Bounds': pikepdf.Array([0.5]),
+                '/Encode': pikepdf.Array([0, 1, 0, 1]),
+            }))
+
+        pdf.save(str(path))
+
+
+def _eval_type4(program, inputs, n_out):
+    """Mini-avaliador do conjunto de operadores que o gerador emite
+    (const/index/roll/pop/exch/add/sub/mul) — valida a funcao Type 4
+    gerada pelo reparo sem depender de um renderizador."""
+    st = list(inputs)
+    for t in program.strip().strip('{}').split():
+        if t == 'index':
+            k = int(st.pop())
+            st.append(st[-1 - k])
+        elif t == 'roll':
+            j = int(st.pop())
+            n = int(st.pop())
+            sub = st[-n:]
+            mod = ((j % n) + n) % n
+            if mod and n > 1:
+                st[-n:] = [sub[(k - mod) % n] for k in range(n)]
+        elif t == 'pop':
+            st.pop()
+        elif t == 'exch':
+            st[-1], st[-2] = st[-2], st[-1]
+        elif t == 'add':
+            b = st.pop()
+            st[-1] += b
+        elif t == 'sub':
+            b = st.pop()
+            st[-1] -= b
+        elif t == 'mul':
+            b = st.pop()
+            st[-1] *= b
+        else:
+            st.append(float(t))
+    return st[-n_out:]
+
+
+def _tint_programs(path):
+    """Programas Type 4 dos tint transforms DeviceN do arquivo."""
+    import pikepdf
+    progs = []
+    seen = set()
+
+    def walk(o, depth=0):
+        if depth > 16:
+            return
+        if isinstance(o, pikepdf.Array) and len(o) >= 4 \
+                and str(o[0]) == '/DeviceN':
+            fn = o[3]
+            if hasattr(fn, 'read_bytes'):
+                progs.append(fn.read_bytes().decode('ascii', 'replace'))
+            return
+        if isinstance(o, pikepdf.Dictionary):
+            try:
+                og = o.objgen
+                if og and og != (0, 0):
+                    if og in seen:
+                        return
+                    seen.add(og)
+            except Exception:
+                pass
+            for _k, v in o.items():
+                walk(v, depth + 1)
+            return
+        if isinstance(o, pikepdf.Array):
+            for v in o:
+                walk(v, depth + 1)
+
+    with pikepdf.open(str(path)) as pdf:
+        for obj in pdf.objects:
+            walk(obj)
+    return progs
+
+
+def _cores_check(result):
+    return [c for c in result['checks'] if c['id'] == 'cores'][0]
+
+
+def test_validate_pdf_acusa_devicen_com_aridade_errada(tmp_path):
+    from services.pdf_processor import validate_pdf
+    src = tmp_path / 'devicen_quebrado.pdf'
+    _make_broken_devicen_pdf(src)
+
+    r = validate_pdf(str(src))
+    cores = _cores_check(r)
+    assert cores['status'] == 'error', r['checks']
+    assert 'ocorrência' in cores['detail'] and 'DeviceN' in cores['detail']
+    assert r['valid'] is False
+    assert r['stats']['color_issues'] >= 1
+
+
+def test_repair_pdf_corrige_fallback_e_revalida(tmp_path):
+    import fitz
+    from services.pdf_processor import repair_pdf
+    src = tmp_path / 'devicen_quebrado.pdf'
+    fixed = tmp_path / 'corrigido.pdf'
+    _make_broken_devicen_pdf(src)
+    before = src.read_bytes()
+
+    rep = repair_pdf(str(src), str(fixed))
+
+    # original intocavel; saida sempre gravada
+    assert src.read_bytes() == before
+    assert rep['repaired_count'] == 1
+    assert rep['unrepaired_count'] == 0
+    assert rep['repaired'][0]['strategy'] == 'identity'
+    assert rep['validation']['valid'] is True, rep['validation']
+    assert _cores_check(rep['validation'])['status'] == 'ok'
+    assert rep['validation']['stats']['color_issues'] == 0
+
+    # abre no fitz e a funcao gerada faz a identidade CMYK certa
+    with fitz.open(str(fixed)) as doc:
+        assert doc.page_count == 1
+    prog = _tint_programs(fixed)[0]
+    assert _eval_type4(prog, [0.3, 0.7], 4) == [0.3, 0.7, 0.0, 0.0]
+
+
+def test_repair_pdf_usa_template_do_documento(tmp_path):
+    from services.pdf_processor import repair_pdf
+    src = tmp_path / 'devicen_com_template.pdf'
+    fixed = tmp_path / 'corrigido.pdf'
+    _make_broken_devicen_pdf(src, with_template=True)
+
+    rep = repair_pdf(str(src), str(fixed))
+
+    assert rep['repaired_count'] == 1
+    assert rep['repaired'][0]['strategy'] == 'template'
+    assert rep['validation']['valid'] is True, rep['validation']
+
+
+def test_repair_pdf_gera_cmyk_para_rgb(tmp_path):
+    from services.pdf_processor import repair_pdf
+    src = tmp_path / 'devicen_rgb.pdf'
+    fixed = tmp_path / 'corrigido.pdf'
+    _make_broken_devicen_pdf(
+        src, colorants=('/Cyan', '/Magenta', '/Yellow', '/Black'),
+        alt='/DeviceRGB')
+
+    rep = repair_pdf(str(src), str(fixed))
+
+    assert rep['repaired_count'] == 1
+    assert rep['repaired'][0]['strategy'] == 'cmyk2rgb'
+    assert rep['validation']['valid'] is True, rep['validation']
+    # R=(1-C)(1-K), G=(1-M)(1-K), B=(1-Y)(1-K)
+    prog = _tint_programs(fixed)[0]
+    outs = _eval_type4(prog, [0.2, 0.4, 0.6, 0.8], 3)
+    esperado = [(1 - 0.2) * (1 - 0.8), (1 - 0.4) * (1 - 0.8),
+                (1 - 0.6) * (1 - 0.8)]
+    assert all(abs(a - b) < 1e-9 for a, b in zip(outs, esperado)), outs
+
+
+def test_validate_pdf_saudavel_sem_falso_positivo(tmp_path, pdf_factory):
+    from services.pdf_processor import repair_pdf, validate_pdf
+    src = pdf_factory(2, 'saudavel.pdf')
+
+    r = validate_pdf(str(src))
+    assert _cores_check(r)['status'] == 'ok', r['checks']
+    assert r['stats']['color_issues'] == 0
+
+    # reparo em PDF saudavel: nao altera nada e nao toca no original
+    before = src.read_bytes()
+    out = tmp_path / 'copia.pdf'
+    rep = repair_pdf(str(src), str(out))
+    assert rep['repaired_count'] == 0
+    assert rep['unrepaired_count'] == 0
+    assert rep['validation']['valid'] is True
+    assert src.read_bytes() == before
+    assert out.exists()
+
+
+def test_repair_pdf_sem_correcao_segura_nao_altera(tmp_path):
+    from services.pdf_processor import repair_pdf
+    src = tmp_path / 'spot_sem_template.pdf'
+    fixed = tmp_path / 'saida.pdf'
+    # colorantes de spot (fora das tintas de processo) e sem template:
+    # nao da para corrigir com seguranca -> nao altera, reporta
+    _make_broken_devicen_pdf(
+        src, colorants=('/SpotRed', '/SpotBlue'), alt='/DeviceCMYK')
+    before = src.read_bytes()
+
+    rep = repair_pdf(str(src), str(fixed))
+
+    assert rep['repaired_count'] == 0
+    assert rep['unrepaired_count'] == 1
+    assert 'sem template' in rep['unrepaired'][0]['reason']
+    # nunca piora: continua acusando (nao finge conserto)
+    assert rep['validation']['valid'] is False
+    assert src.read_bytes() == before
+
+
+def test_validate_pdf_detecta_shading_com_funcao_divergente(tmp_path):
+    from services.pdf_processor import validate_pdf
+    src = tmp_path / 'shading_divergente.pdf'
+    # DeviceN CORRETO (2 colorantes) mas funcao do shading com 4 saidas
+    _make_broken_devicen_pdf(src, shading_outputs=4, broken_tint=False)
+
+    r = validate_pdf(str(src))
+    cores = _cores_check(r)
+    assert cores['status'] == 'error', r['checks']
+    assert 'shading' in cores['detail']
+    assert 'DeviceN/Separation' not in cores['detail']
+    assert r['valid'] is False
+
+
+def test_validate_pdf_detecta_stitch_divergente(tmp_path):
+    from services.pdf_processor import validate_pdf
+    src = tmp_path / 'stitch_divergente.pdf'
+    _make_broken_devicen_pdf(src, with_stitch=True, broken_tint=False)
+
+    r = validate_pdf(str(src))
+    cores = _cores_check(r)
+    assert cores['status'] == 'error', r['checks']
+    assert 'Type 3' in cores['detail']
+    assert r['valid'] is False
+
+
+def test_rota_pdf_repair_contrato_e_erros(client, tmp_path):
+    from helpers import post_sync
+    src = tmp_path / 'q.pdf'
+    fixed = tmp_path / 'q_corrigido.pdf'
+    _make_broken_devicen_pdf(src)
+
+    # job: repara, devolve o relatorio e grava a saida
+    r = post_sync(client, '/api/pdf/repair', json={
+        'input_path': str(src), 'output_path': str(fixed)})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['repaired_count'] == 1
+    assert body['color_issues_before'] == 1
+    assert body['validation']['valid'] is True
+    assert fixed.exists()
+
+    # original intocavel
+    assert (tmp_path / 'q.pdf').exists()
+
+    # output igual ao input -> 400 (nunca alterar o original)
+    same = post_sync(client, '/api/pdf/repair', json={
+        'input_path': str(src), 'output_path': str(src)})
+    assert same.status_code == 400, same.status_code
+
+    # inexistente -> 404
+    miss = post_sync(client, '/api/pdf/repair', json={
+        'input_path': str(tmp_path / 'nao.pdf'),
+        'output_path': str(fixed)})
+    assert miss.status_code == 404, miss.status_code
+
+
 # ===== files: duplicates/remove com validacao amigavel =====
 # Cobre: acoes invalidas rejeitadas, validacao de todos os caminhos
 # antes de alterar o disco (sem exclusao parcial) e grupos malformados.

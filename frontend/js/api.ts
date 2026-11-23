@@ -119,6 +119,7 @@ export const API = {
         convertPdfToImages: (params: Params) => apiRequest('/pdf/convert-pdf-to-images', 'POST', params),
         compress: (params: Params) => apiRequest('/pdf/compress', 'POST', params),
         validate: (params: Params) => apiRequest('/pdf/validate', 'POST', params),
+        repair: (params: Params) => apiRequest('/pdf/repair', 'POST', params),
         protectPassword: (params: Params) => apiRequest('/pdf/protect-password', 'POST', params),
         removePassword: (params: Params) => apiRequest('/pdf/remove-password', 'POST', params),
     },

@@ -244,3 +244,16 @@ def validate(data):
 def info(data):
     result = controller.info(pdf_path=data['pdf_path'])
     return jsonify({"success": True, **result}), 200
+
+
+# Reparo de aridade de color spaces (DeviceN/Separation) — job porque o
+# varrimento + revalidacao de arquivos grandes pode demorar minutos.
+@pdf_bp.route('/repair', methods=['POST'])
+@require('input_path', 'output_path')
+@as_job()
+def repair(data):
+    result = controller.repair(
+        input_path=data['input_path'],
+        output_path=data['output_path'],
+    )
+    return jsonify({"success": True, **result}), 200

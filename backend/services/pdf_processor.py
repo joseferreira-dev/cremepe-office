@@ -1520,6 +1520,314 @@ def pdf_info(pdf_path: str) -> dict:
         raise ValueError(f"Não foi possível ler o PDF: {str(exc)[:200]}") from exc
 
 
+# ===== cores: color spaces DeviceN/Separation, shadings e funções =====
+# Defeito real: ferramentas baseadas em PDFium substituem tint transforms
+# de DeviceN por FunctionType 2 com Domain [0 1] (1 entrada) mesmo com
+# 2-3 colorantes — shadings PatternType 2 ficam inavaliáveis em
+# Adobe/Chrome (branco/preto com "erro ao ler conteúdo").
+#
+# Varredura ÚNICA por documento com dedupe por objgen, sem decodificar
+# streams de imagem e sem repetir varredura por página: segura para
+# arquivos de gigabytes/variações de milhares de páginas.
+
+_PROCESS_TINTS = ('/Cyan', '/Magenta', '/Yellow', '/Black')
+_MAX_COLOR_SCAN_DEPTH = 16
+
+_COLOR_PROBLEM_LABEL = {
+    'tint': 'tint transform com aridade errada (DeviceN/Separation)',
+    'shading': 'shading PatternType 2 com nº de saídas divergente',
+    'stitch': 'função Type 3 com subsfunções divergentes',
+}
+
+
+def _is_dict_like(o):
+    """Dicionário PDF ou stream — funções Type 0/4 são streams e no
+    pikepdf Stream NÃO é subclasse de Dictionary (é dict-like: get,
+    items, objgen funcionam)."""
+    return isinstance(o, (pikepdf.Dictionary, pikepdf.Stream))
+
+
+def _obj_ref(obj, parent=None):
+    """Identificação curta do objeto para as mensagens (objgen)."""
+    for o in (obj, parent):
+        if o is None:
+            continue
+        try:
+            og = o.objgen
+            if og and og != (0, 0):
+                return f'obj {og[0]} {og[1]}'
+        except Exception:
+            pass
+    return 'obj inline'
+
+
+def _func_output_count(fn, depth=0):
+    """Nº de saídas de uma função PDF; None quando indeterminável.
+
+    Type 0/4: Range (2 pares por saída — cf. pdf.js). Type 2: C0/C1
+    (1 valor por saída; default 1). Type 3: subsfunções quando
+    consistentes, senão C0/C1 próprio.
+    """
+    if depth > 3 or not _is_dict_like(fn):
+        return None
+    try:
+        ftype = int(fn.get('/FunctionType', -1))
+        if ftype in (0, 4):
+            rng = fn.get('/Range')
+            return len(rng) // 2 if rng is not None else None
+        if ftype == 2:
+            c0 = fn.get('/C0')
+            if c0 is not None:
+                return len(c0)
+            c1 = fn.get('/C1')
+            if c1 is not None:
+                return len(c1)
+            return 1  # default do spec: C0=[0], C1=[1]
+        if ftype == 3:
+            subs = fn.get('/Functions')
+            if subs is not None:
+                counts = []
+                for s in subs:
+                    if isinstance(s, pikepdf.Array):
+                        counts.append(len(s))  # arranjo = 1 saída por fn
+                    else:
+                        counts.append(_func_output_count(s, depth + 1))
+                known = [c for c in counts if c is not None]
+                if known and len(set(known)) == 1:
+                    return known[0]
+            c0 = fn.get('/C0')
+            if c0 is not None:
+                return len(c0)
+            c1 = fn.get('/C1')
+            if c1 is not None:
+                return len(c1)
+    except Exception:
+        return None
+    return None
+
+
+def _colorspace_components(cs):
+    """Nº de componentes de um color space; None quando desconhecido."""
+    try:
+        if isinstance(cs, pikepdf.Name):
+            return {'/DeviceGray': 1, '/DeviceRGB': 3,
+                    '/DeviceCMYK': 4}.get(str(cs))
+        if isinstance(cs, pikepdf.Array) and len(cs) >= 1:
+            head = str(cs[0])
+            if head == '/DeviceN':
+                if len(cs) >= 2 and isinstance(cs[1], pikepdf.Array):
+                    return len(cs[1])
+                return None
+            if head == '/Separation':
+                return 1
+            if head == '/CalGray':
+                return 1
+            if head in ('/CalRGB', '/Lab'):
+                return 3
+            if head == '/ICCBased' and len(cs) >= 2:
+                n = cs[1].get('/N')
+                return int(n) if n is not None else None
+            return {'/DeviceGray': 1, '/DeviceRGB': 3,
+                    '/DeviceCMYK': 4}.get(head)
+        if _is_dict_like(cs):
+            n = cs.get('/N')  # ICCBased raro como dicionário
+            return int(n) if n is not None else None
+    except Exception:
+        return None
+    return None
+
+
+def _scan_colors(pdf, collect_templates=False):
+    """Varredura única do documento por inconsistências de aridade.
+
+    Detecta:
+      (a) DeviceN/Separation cujo tint transform tem
+          len(Domain)//2 != nº de colorantes (ou sem Domain);
+      (b) shading PatternType 2 cuja /Function (Type 2/3/4, direta ou
+          arranjo) tem nº de saídas diferente dos componentes do
+          /ColorSpace do shading;
+      (c) função Type 3 (stitch) com nº de saídas divergente entre
+          subsfunções.
+
+    Com collect_templates=True também indexa DeviceN corretos (Type 4
+    com Domain na dimensão certa) pela tupla de colorantes — usado pelo
+    reparo para reutilizar a transformação original do documento.
+
+    Retorna {'problems', 'suspects', 'templates'}; cada problema tem
+    kind/ref/msg/arr/names.
+    """
+    problems = []
+    suspects = []
+    templates = {}
+    seen = set()
+
+    def _problem(kind, obj, parent, msg, arr=None, names=None):
+        problems.append({
+            'kind': kind,
+            'ref': _obj_ref(obj, parent),
+            'msg': msg,
+            'arr': arr,
+            'names': names,
+        })
+
+    def _suspect(obj, parent, msg):
+        suspects.append({'ref': _obj_ref(obj, parent), 'msg': msg})
+
+    def check_tint(arr, parent):
+        try:
+            if len(arr) == 0:
+                return  # arrays comuns (nao sao color spaces)
+            head = str(arr[0])
+            if head == '/DeviceN':
+                if len(arr) < 4 or not isinstance(arr[1], pikepdf.Array):
+                    _suspect(arr, parent, 'DeviceN malformado')
+                    return
+                names = tuple(str(x) for x in arr[1])
+                n = len(names)
+            elif head == '/Separation':
+                if len(arr) < 4:
+                    _suspect(arr, parent, 'Separation malformado')
+                    return
+                names = (str(arr[1]),)
+                n = 1
+            else:
+                return
+            fn = arr[3]
+            if not _is_dict_like(fn):
+                _problem('tint', arr, parent, 'tint transform ausente',
+                         arr, names)
+                return
+            ftype = int(fn.get('/FunctionType', -1))
+            dom = fn.get('/Domain')
+            if dom is None:
+                # Sem Domain: Type 4/0 é inválido; os leitores assumem
+                # 1 entrada para Type 2 (só quebra quando n != 1).
+                if ftype == 2 and n == 1:
+                    _suspect(arr, parent,
+                             'tint transform sem Domain (assumido 1 entrada)')
+                else:
+                    _problem('tint', arr, parent,
+                             'tint transform sem Domain', arr, names)
+                return
+            inputs = len(dom) // 2
+            if inputs != n:
+                _problem('tint', arr, parent,
+                         f'Domain com {inputs} entrada(s) para '
+                         f'{n} colorante(s)',
+                         arr, names)
+            elif collect_templates and ftype == 4 and names not in templates:
+                templates[names] = arr
+        except Exception as exc:
+            _suspect(arr, parent,
+                     f'color space não analisável: {str(exc)[:60]}')
+
+    def check_shading(d, parent):
+        try:
+            if int(d.get('/PatternType', -1)) != 2:
+                return
+            sh = d.get('/Shading')
+            if not _is_dict_like(sh):
+                return
+            stype = int(sh.get('/ShadingType', -1))
+            n = _colorspace_components(sh.get('/ColorSpace'))
+            fn = sh.get('/Function')
+            if fn is None:
+                # /Function e obrigatorio so em ShadingType 2/3; nos
+                # mesh (4-7) ele e opcional (cada patch carrega o seu).
+                if stype in (2, 3):
+                    _suspect(d, parent, 'shading PatternType 2 sem /Function')
+                return
+            if n is None:
+                return  # color space sem componentes conhecidos
+            if isinstance(fn, pikepdf.Array):
+                # Arranjo de funções: cada elemento tem 1 saída e o
+                # total é o nº de elementos (semântica do pdf.js).
+                for idx, sub in enumerate(fn):
+                    c = _func_output_count(sub, 1)
+                    if c is not None and c != 1:
+                        _problem('shading', d, parent,
+                                 f'elemento {idx} do arranjo com {c} '
+                                 f'saída(s) (esperado 1)')
+                        return
+                total = len(fn)
+            else:
+                total = _func_output_count(fn)
+            if total is None:
+                _suspect(d, parent,
+                         'função do shading sem nº de saídas determinável')
+            elif total != n:
+                _problem('shading', d, parent,
+                         f'função do shading com {total} saída(s) para '
+                         f'{n} colorante(s) do color space')
+        except Exception as exc:
+            _suspect(d, parent, f'shading não analisável: {str(exc)[:60]}')
+
+    def check_stitch(d, parent):
+        try:
+            if int(d.get('/FunctionType', -1)) != 3:
+                return
+            subs = d.get('/Functions')
+            if subs is None:
+                _suspect(d, parent, 'função Type 3 sem /Functions')
+                return
+            counts = []
+            for s in subs:
+                if isinstance(s, pikepdf.Array):
+                    counts.append(len(s))
+                else:
+                    counts.append(_func_output_count(s, 1))
+            known = [c for c in counts if c is not None]
+            if len(set(known)) > 1:
+                _problem('stitch', d, parent,
+                         f'subsfunções com saídas divergentes: '
+                         f'{sorted(set(known))}')
+            elif any(c is None for c in counts):
+                _suspect(d, parent,
+                         'subsfunção com nº de saídas indeterminável')
+        except Exception as exc:
+            _suspect(d, parent, f'função Type 3 não analisável: '
+                                f'{str(exc)[:60]}')
+
+    def walk(o, parent, depth=0):
+        if depth > _MAX_COLOR_SCAN_DEPTH:
+            return
+        if isinstance(o, pikepdf.Array):
+            # Arrays NAO sao deduped: cada referencia conta como
+            # ocorrencia (mesma semantica do reparo de referencia — no
+            # arquivo real isso da as 150 ocorrencias esperadas).
+            check_tint(o, parent)
+            for v in o:
+                walk(v, parent, depth + 1)
+            return
+        if isinstance(o, pikepdf.Dictionary):
+            # Apenas Dictionary (nao Stream): espelha o reparo de
+            # referencia — streams nao sao descendidos. Dedupe por
+            # objgen mantem a varredura unica em segundos.
+            try:
+                og = o.objgen
+            except Exception:
+                og = None
+            if og and og != (0, 0):
+                if og in seen:
+                    return
+                seen.add(og)
+            check_shading(o, parent)
+            check_stitch(o, parent)
+            for _k, v in o.items():
+                walk(v, o, depth + 1)
+            return
+        # Stream/Name/Number/String: nada a verificar
+
+    for obj in pdf.objects:
+        try:
+            walk(obj, None)
+        except Exception:
+            pass
+
+    return {'problems': problems, 'suspects': suspects,
+            'templates': templates}
+
+
 def validate_pdf(pdf_path: str) -> dict:
     """Analisa a integridade de um PDF (corrupção, truncamento, refs).
 
@@ -1557,6 +1865,7 @@ def validate_pdf(pdf_path: str) -> dict:
         'encrypted': False,
         'repaired': False,
         'producer': None,
+        'color_issues': 0,
     }
 
     # ---- arquivo ----
@@ -1719,7 +2028,279 @@ def validate_pdf(pdf_path: str) -> dict:
             add('fontes', 'Fontes', 'ok',
                 f'{font_total} referência(s) de fonte resolvem')
 
+        # ---- cores: aridade de DeviceN/Separation, shadings, stitch ----
+        # Varredura única (dedupe por objgen), sem decodificar imagens.
+        color_scan = _scan_colors(pdf)
+        color_problems = color_scan['problems']
+        color_suspects = color_scan['suspects']
+        stats['color_issues'] = len(color_problems)
+        if color_problems:
+            by_kind = {}
+            for p in color_problems:
+                by_kind[p['kind']] = by_kind.get(p['kind'], 0) + 1
+            parts = [f'{cnt} {_COLOR_PROBLEM_LABEL[kind]}'
+                     for kind, cnt in by_kind.items()]
+            refs = ', '.join(list(dict.fromkeys(
+                p['ref'] for p in color_problems))[:5])
+            detail = (f'{len(color_problems)} ocorrência(s): '
+                      + '; '.join(parts) + f'. Ex.: {refs}')
+            add('cores', 'Espaços de cor e funções', 'error', detail[:400])
+        elif color_suspects:
+            msgs = '; '.join(
+                f"{s['ref']}: {s['msg']}" for s in color_suspects[:3])
+            detail = (f'{len(color_suspects)} suspeita(s) não '
+                      f'conclusiva(s): {msgs}')
+            add('cores', 'Espaços de cor e funções', 'warn', detail[:400])
+        else:
+            add('cores', 'Espaços de cor e funções', 'ok',
+                'DeviceN/Separation, shadings e funções com aridade '
+                'consistente')
+
     return finish(stats)
+
+
+def _type4_program(outputs, n_inputs):
+    """Gera o corpo de uma função Type 4 (PostScript calculator).
+
+    `outputs` é a lista, na ordem das saídas, de:
+      ('in', p)   -> cópia do input p
+      ('const', v)-> constante
+      ('prod', ps)-> produto de (1 - x_p) para p em ps (vazio => 1)
+
+    Convenção (ISO 32000-1 e pdf.js "outputs: first at bottom, last at
+    top"): os inputs são empilhados na ordem e o grupo final de saídas
+    fica no topo com y0 no fundo. Para isso o programa:
+      1. empilha y0..y(m-1) acima dos n_inputs originais;
+      2. `total m roll` rotaciona os (n+m) elementos para [Y, X];
+      3. `pop` x n descarta os inputs originais.
+    """
+    tokens = []
+    sp = n_inputs  # altura simulada da stack
+
+    def emit_op(name, pop, push):
+        nonlocal sp
+        tokens.append(name)
+        sp += push - pop
+
+    def emit_const(v):
+        nonlocal sp
+        if isinstance(v, float) and not v.is_integer():
+            tokens.append(repr(v))
+        else:
+            tokens.append(str(int(v)))
+        sp += 1
+
+    def emit_input(p):
+        # `i index` copia a posição p: i = altura_antes - 1 - p
+        emit_const(sp - 1 - p)
+        emit_op('index', 1, 1)
+
+    def emit_one_minus_input(p):
+        emit_input(p)
+        emit_const(1)
+        emit_op('exch', 2, 2)
+        emit_op('sub', 2, 1)  # 1 x sub -> 1 - x
+
+    def emit_product(factors):
+        if not factors:
+            emit_const(1)
+            return
+        emit_one_minus_input(factors[0])
+        for p in factors[1:]:
+            emit_one_minus_input(p)
+            emit_op('mul', 2, 1)
+
+    for out in outputs:
+        kind = out[0]
+        if kind == 'in':
+            emit_input(out[1])
+        elif kind == 'const':
+            emit_const(out[1])
+        elif kind == 'prod':
+            emit_product(out[1])
+
+    total = n_inputs + len(outputs)
+    emit_const(total)
+    emit_const(len(outputs))
+    emit_op('roll', 2, 0)  # consome (n, j) e rotaciona: [X, Y] -> [Y, X]
+    for _ in range(n_inputs):
+        emit_op('pop', 1, 0)
+    if sp != len(outputs):
+        raise AssertionError(f'gerador Type 4 inconsistente: {sp} != '
+                             f'{len(outputs)}')
+    return '{ ' + ' '.join(tokens) + ' }'
+
+
+def _make_type4_function(pdf, names, alt):
+    """Cria um tint transform Type 4 para colorantes de processo.
+
+    /DeviceCMYK -> identidade (cada saída = input correspondente, 0
+    quando o colorante não existe). /DeviceRGB -> fórmula
+    CMYK->RGB: R=(1-C)(1-K), G=(1-M)(1-K), B=(1-Y)(1-K).
+    Retorna None para alternados fora desses casos.
+    """
+    n = len(names)
+    if alt == '/DeviceCMYK':
+        outs = [('in', names.index(p)) if p in names else ('const', 0)
+                for p in ('/Cyan', '/Magenta', '/Yellow', '/Black')]
+        n_out = 4
+    elif alt == '/DeviceRGB':
+        groups = (('/Cyan', '/Black'), ('/Magenta', '/Black'),
+                  ('/Yellow', '/Black'))
+        outs = [('prod', [names.index(p) for p in grp if p in names])
+                for grp in groups]
+        n_out = 3
+    else:
+        return None
+
+    program = _type4_program(outs, n)
+    domain = pikepdf.Array([0, 1] * n)
+    rng = pikepdf.Array([0, 1] * n_out)
+
+    stream = pikepdf.Stream(pdf, program.encode('ascii'))
+    stream['/FunctionType'] = 4
+    stream['/Domain'] = domain
+    stream['/Range'] = rng
+    return stream
+
+
+def repair_pdf(input_path: str, output_path: str) -> dict:
+    """Corrige a aridade de tint transforms DeviceN/Separation quebrados.
+
+    Estratégia (nunca piora as cores):
+      1. template do próprio documento — DeviceN correto (Type 4) com a
+         mesma tupla de colorantes e nº de saídas igual ao alternado:
+         reutiliza a transformação original;
+      2. fallback — se todos os colorantes são tintas de processo e o
+         alternado é /DeviceCMYK ou /DeviceRGB: gera função Type 4
+         (identidade ou fórmula CMYK->RGB);
+      3. senão NÃO altera o color space e reporta em `unrepaired`.
+
+    Grava sempre em output_path (o original nunca é tocado) e re-rodar
+    validate_pdf no arquivo corrigido para conferência.
+    """
+    input_path = Path(input_path).resolve()
+    if not input_path.exists():
+        raise FileNotFoundError(f"Arquivo não encontrado: {input_path}")
+
+    output_path = Path(output_path).resolve()
+    if output_path == input_path:
+        raise ValueError(
+            "output_path deve ser diferente de input_path "
+            "(o original nunca é alterado)")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    original_size = input_path.stat().st_size
+
+    with pikepdf.open(str(input_path)) as pdf:
+        scan = _scan_colors(pdf, collect_templates=True)
+        templates = scan['templates']
+        problems = scan['problems']
+
+        # O scan conta por REFERENCIA (150 ocorrencias no arquivo real),
+        # mas cada objeto so precisa ser mutado uma vez.
+        occ_by_og = {}
+        for p in problems:
+            if p['kind'] == 'tint' and p['arr'] is not None:
+                try:
+                    og = p['arr'].objgen
+                except Exception:
+                    og = None
+                if og and og != (0, 0):
+                    occ_by_og[og] = occ_by_og.get(og, 0) + 1
+
+        repaired = []
+        unrepaired = []
+        processed = set()
+        for p in problems:
+            base = {'ref': p['ref'], 'msg': p['msg']}
+            if p['kind'] != 'tint':
+                unrepaired.append({
+                    **base,
+                    'colorants': list(p['names']) if p['names'] else None,
+                    'reason': 'correção automática indisponível para '
+                              'este tipo de problema',
+                })
+                continue
+
+            arr = p['arr']
+            names = p['names']
+            try:
+                og = arr.objgen
+            except Exception:
+                og = None
+            if og and og != (0, 0):
+                if og in processed:
+                    continue  # mesmo objeto visto em outra referencia
+                processed.add(og)
+            occurrences = occ_by_og.get(og, 1) if og else 1
+            alt = str(arr[2]) if len(arr) > 2 else ''
+            template = templates.get(names)
+
+            # 1) template do documento: só se a transformação dele
+            #    produzir o nº de componentes do alternado atual.
+            if template is not None and template is not arr:
+                want = _colorspace_components(arr[2])
+                got = _func_output_count(template[3])
+                if want is not None and got == want:
+                    arr[3] = template[3]
+                    if len(template) > 4:
+                        if len(arr) > 4:
+                            arr[4] = template[4]
+                        else:
+                            arr.append(template[4])
+                    repaired.append({
+                        **base,
+                        'colorants': list(names),
+                        'strategy': 'template',
+                        'occurrences': occurrences,
+                    })
+                    continue
+
+            # 2) fallback: colorantes de processo + alternado conhecido
+            if (names and all(x in _PROCESS_TINTS for x in names)
+                    and alt in ('/DeviceCMYK', '/DeviceRGB')):
+                fn = _make_type4_function(pdf, names, alt)
+                if fn is not None:
+                    arr[3] = fn
+                    repaired.append({
+                        **base,
+                        'colorants': list(names),
+                        'strategy': ('identity'
+                                     if alt == '/DeviceCMYK'
+                                     else 'cmyk2rgb'),
+                        'occurrences': occurrences,
+                    })
+                    continue
+
+            # 3) sem correção segura: não altera nada
+            unrepaired.append({
+                **base,
+                'colorants': list(names) if names else None,
+                'occurrences': occurrences,
+                'reason': f'sem template compatível; alternado '
+                          f'{alt or "desconhecido"} e colorantes fora '
+                          f'das tintas de processo',
+            })
+
+        total = len(repaired) + len(unrepaired)
+        for i in range(1, total + 1):
+            report_progress(i, total)
+
+        pdf.save(str(output_path))
+
+    validation = validate_pdf(str(output_path))
+    return {
+        'output_path': str(output_path),
+        'original_size': original_size,
+        'output_size': output_path.stat().st_size,
+        'color_issues_before': len(problems),
+        'repaired_count': len(repaired),
+        'repaired': repaired[:100],
+        'unrepaired_count': len(unrepaired),
+        'unrepaired': unrepaired[:100],
+        'validation': validation,
+    }
 
 
 def protect_password(

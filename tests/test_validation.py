@@ -1,4 +1,4 @@
-"""Validacao @require das 50 rotas POST da API."""
+"""Validacao @require das 51 rotas POST da API."""
 from pathlib import Path
 
 from helpers import post_sync
@@ -10,8 +10,8 @@ def _post_rules(app):
     )
 
 
-def test_sao_50_rotas_post(app):
-    assert len(_post_rules(app)) == 50
+def test_sao_51_rotas_post(app):
+    assert len(_post_rules(app)) == 51
 
 
 # ===== Envelope de sucesso padrao (opcao 5 da auditoria) =====
