@@ -1561,6 +1561,19 @@ def _obj_ref(obj, parent=None):
     return 'obj inline'
 
 
+def _report_span(current, total, span, message=None):
+    """Reporta progresso mapeando current/total para o intervalo de
+    percentual `span` (inicio, fim) — fases encadeadas de uma mesma
+    operação avançam sem que a barra volte (no-op fora de um job)."""
+    if not total or total <= 0:
+        return
+    frac = current / total
+    frac = 0.0 if frac < 0 else (1.0 if frac > 1 else frac)
+    start, end = span
+    pct = start + (end - start) * frac
+    report_progress(int(pct), 100, message)
+
+
 def _func_output_count(fn, depth=0):
     """Nº de saídas de uma função PDF; None quando indeterminável.
 
@@ -1637,7 +1650,7 @@ def _colorspace_components(cs):
     return None
 
 
-def _scan_colors(pdf, collect_templates=False):
+def _scan_colors(pdf, collect_templates=False, progress_span=(0, 100)):
     """Varredura única do documento por inconsistências de aridade.
 
     Detecta:
@@ -1818,23 +1831,41 @@ def _scan_colors(pdf, collect_templates=False):
             return
         # Stream/Name/Number/String: nada a verificar
 
-    for obj in pdf.objects:
+    try:
+        total_objs = len(pdf.objects)
+    except Exception:
+        total_objs = None
+    for idx, obj in enumerate(pdf.objects, 1):
         try:
             walk(obj, None)
         except Exception:
             pass
+        if total_objs and idx % 500 == 0:
+            _report_span(idx, total_objs, progress_span,
+                         'Analisando cores')
+    if total_objs:
+        _report_span(total_objs, total_objs, progress_span,
+                     'Analisando cores')
 
     return {'problems': problems, 'suspects': suspects,
             'templates': templates}
 
 
-def validate_pdf(pdf_path: str) -> dict:
+def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
     """Analisa a integridade de um PDF (corrupção, truncamento, refs).
 
     Devolve uma lista de checks com status ok/warn/error e estatísticas.
     `valid` é False quando existe ao menos um check em error — avisos
     (warn) não invalidam o documento.
+
+    `progress_span` (inicio, fim) mapeia as fases lentas (decodificação
+    de imagens e varredura de cores) para um intervalo de percentual —
+    usado quando a validação é a última fase de uma operação maior
+    (reparo) para a barra não voltar.
     """
+    s0, s1 = progress_span
+    pages_span = (s0, s0 + (s1 - s0) * 0.75)
+    color_span = (s0 + (s1 - s0) * 0.75, s1)
     path = Path(pdf_path).resolve()
     if not path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {path}")
@@ -1978,6 +2009,7 @@ def validate_pdf(pdf_path: str) -> dict:
         img_total = 0
         img_fail = []
         for i, page in enumerate(pdf.pages, 1):
+            _report_span(i, n_pages, pages_span, 'Decodificando imagens')
             try:
                 names = list(page.get_images().keys())
             except Exception as exc:
@@ -2030,7 +2062,7 @@ def validate_pdf(pdf_path: str) -> dict:
 
         # ---- cores: aridade de DeviceN/Separation, shadings, stitch ----
         # Varredura única (dedupe por objgen), sem decodificar imagens.
-        color_scan = _scan_colors(pdf)
+        color_scan = _scan_colors(pdf, progress_span=color_span)
         color_problems = color_scan['problems']
         color_suspects = color_scan['suspects']
         stats['color_issues'] = len(color_problems)
@@ -2193,7 +2225,8 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
     original_size = input_path.stat().st_size
 
     with pikepdf.open(str(input_path)) as pdf:
-        scan = _scan_colors(pdf, collect_templates=True)
+        scan = _scan_colors(pdf, collect_templates=True,
+                            progress_span=(0, 30))
         templates = scan['templates']
         problems = scan['problems']
 
@@ -2212,7 +2245,8 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
         repaired = []
         unrepaired = []
         processed = set()
-        for p in problems:
+        for idx, p in enumerate(problems, 1):
+            _report_span(idx, len(problems), (30, 45), 'Reparando cores')
             base = {'ref': p['ref'], 'msg': p['msg']}
             if p['kind'] != 'tint':
                 unrepaired.append({
@@ -2283,13 +2317,13 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
                           f'das tintas de processo',
             })
 
-        total = len(repaired) + len(unrepaired)
-        for i in range(1, total + 1):
-            report_progress(i, total)
-
+        # Fase de gravacao (o save de arquivo grande demora; o pikepdf
+        # nao expoe callback de progresso) e em seguida a revalidacao
+        # completa (55..100) com spans encadeados — a barra so avanca.
+        _report_span(1, 1, (45, 55), 'Gravando arquivo corrigido')
         pdf.save(str(output_path))
 
-    validation = validate_pdf(str(output_path))
+    validation = validate_pdf(str(output_path), progress_span=(55, 100))
     return {
         'output_path': str(output_path),
         'original_size': original_size,

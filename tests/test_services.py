@@ -914,6 +914,24 @@ def test_rota_pdf_repair_contrato_e_erros(client, tmp_path):
     assert miss.status_code == 404, miss.status_code
 
 
+def test_repair_pdf_reporta_progresso_por_fases(tmp_path,
+                                                 progress_collector):
+    from services.pdf_processor import repair_pdf
+    src = tmp_path / 'q.pdf'
+    _make_broken_devicen_pdf(src)
+
+    rep = repair_pdf(str(src), str(tmp_path / 'out.pdf'))
+
+    # collector: [(current, total)] — o span vira percentual
+    # current*100/total. Fases encadeadas: varredura 0-30, mutacao
+    # 30-45, gravacao 45-55, revalidacao 55-100 (a barra so avanca).
+    assert progress_collector, 'reparo nao reportou progresso'
+    pcts = [cur * 100 // tot for cur, tot in progress_collector]
+    assert pcts == sorted(pcts), pcts
+    assert max(pcts) >= 55, pcts
+    assert rep['validation']['valid'] is True
+
+
 # ===== files: duplicates/remove com validacao amigavel =====
 # Cobre: acoes invalidas rejeitadas, validacao de todos os caminhos
 # antes de alterar o disco (sem exclusao parcial) e grupos malformados.

@@ -13,6 +13,8 @@ function formatSize(bytes: number) {
 }
 
 export class PDFValidateFeature extends Feature {
+    repairSource = '';
+
     constructor() {
         super('validate');
     }
@@ -47,6 +49,10 @@ export class PDFValidateFeature extends Feature {
                         <ul id="validate-checks" class="divide-y divide-zinc-100"></ul>
                     </div>
                 </div>
+                <div id="validate-repair" class="mt-4 flex items-center gap-3" style="display:none;">
+                    <button class="btn btn-outline-success" id="btn-validate-repair"><i data-lucide="wrench"></i> Corrigir cores do PDF</button>
+                    <small class="text-zinc-500">Gera uma cópia corrigida — o original não é alterado.</small>
+                </div>
             </div>
 
             ${this.logHTML()}
@@ -66,9 +72,10 @@ export class PDFValidateFeature extends Feature {
         });
 
         document.getElementById('btn-validate')!.addEventListener('click', () => this.validatePDF());
+        document.getElementById('btn-validate-repair')!.addEventListener('click', () => this.repairCores());
     }
 
-    async validatePDF() {
+    async validatePDF(keepLog = false) {
         const inputPath = (document.getElementById('validate-input') as DomElement).value.trim();
         if (!inputPath) {
             this.log('Selecione o PDF que deseja validar.');
@@ -77,7 +84,9 @@ export class PDFValidateFeature extends Feature {
 
         const btn = document.getElementById('btn-validate')!;
         (btn as DomElement).disabled = true;
-        this.clearLog();
+        if (!keepLog) {
+            this.clearLog();
+        }
         this.log('Analisando integridade do PDF...');
 
         try {
@@ -154,6 +163,69 @@ export class PDFValidateFeature extends Feature {
             `;
         }).join('');
 
+        // Reparo de cores: so aparece quando o check 'cores' falhou
+        // (arity de DeviceN/Separation — o que repair_pdf corrige).
+        this.repairSource = r.pdf_path || '';
+        const cores = r.checks.find((c: any) => c.id === 'cores');
+        document.getElementById('validate-repair')!.style.display =
+            cores && cores.status === 'error' ? 'block' : 'none';
+
         document.getElementById('validate-result')!.style.display = 'block';
+    }
+
+    async repairCores() {
+        const inputPath = this.repairSource;
+        if (!inputPath) {
+            return;
+        }
+
+        // Copia nova: o original nunca e alterado.
+        let outputPath = inputPath.replace(/\.pdf$/i, '') + '_corrigido.pdf';
+        if (window.electronAPI && window.electronAPI.showSaveDialog) {
+            const res = await window.electronAPI.showSaveDialog({
+                defaultPath: outputPath,
+                filters: [{ name: 'PDF', extensions: ['pdf'] }]
+            });
+            if (res.canceled || !res.filePath) {
+                return;
+            }
+            outputPath = res.filePath;
+        }
+
+        const btn = document.getElementById('btn-validate-repair')!;
+        (btn as DomElement).disabled = true;
+        this.clearLog();
+        this.log('Reparando espaços de cor (DeviceN/Separation)...');
+        this.log('Em arquivos grandes isso pode levar minutos.');
+
+        try {
+            const rep = await API.pdf.repair({
+                input_path: inputPath,
+                output_path: outputPath
+            });
+            this.log(`Reparo: ${rep.repaired_count} espaço(s) corrigido(s)`
+                + (rep.unrepaired_count
+                    ? `, ${rep.unrepaired_count} não corrigido(s)` : '') + '.');
+            (rep.unrepaired || []).slice(0, 5).forEach((u: any) => {
+                const colorants = Array.isArray(u.colorants)
+                    ? u.colorants.join('+') : '?';
+                this.log(`  não corrigido [${colorants}]: ${u.reason}`);
+            });
+            if (!rep.repaired_count) {
+                this.log('Nada pôde ser corrigido com segurança — original intacto.');
+                this.setProgress(100);
+                return;
+            }
+            this.log(`Arquivo corrigido salvo em: ${outputPath}`);
+
+            // Revalida a copia corrigida mantendo o log do reparo.
+            (document.getElementById('validate-input') as DomElement).value = outputPath;
+            this.repairSource = outputPath;
+            await this.validatePDF(true);
+        } catch (err) {
+            this.log(`Erro: ${(err as Error).message}`);
+        } finally {
+            (btn as DomElement).disabled = false;
+        }
     }
 }

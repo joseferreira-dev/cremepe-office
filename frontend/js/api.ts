@@ -37,8 +37,8 @@ async function pollJob(jobId: string): Promise<any> {
 
     for (;;) {
         if (delay) await sleep(delay);
-        if (Date.now() - startedAt > 10 * 60 * 1000) {
-            throw new Error('Tempo esgotado aguardando a operação (10 min)');
+        if (Date.now() - startedAt > 30 * 60 * 1000) {
+            throw new Error('Tempo esgotado aguardando a operação (30 min)');
         }
 
         const response = await fetch(`${API_BASE}/jobs/${jobId}`);

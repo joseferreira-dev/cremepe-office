@@ -13,8 +13,8 @@ async function pollJob(jobId) {
   let delay = 0;
   for (; ; ) {
     if (delay) await sleep(delay);
-    if (Date.now() - startedAt > 10 * 60 * 1e3) {
-      throw new Error("Tempo esgotado aguardando a opera\xE7\xE3o (10 min)");
+    if (Date.now() - startedAt > 30 * 60 * 1e3) {
+      throw new Error("Tempo esgotado aguardando a opera\xE7\xE3o (30 min)");
     }
     const response = await fetch(`${API_BASE}/jobs/${jobId}`);
     const job = await response.json();
@@ -5780,6 +5780,7 @@ function formatSize(bytes) {
   return (bytes / 1024).toFixed(1) + " KB";
 }
 var PDFValidateFeature = class extends Feature {
+  repairSource = "";
   constructor() {
     super("validate");
   }
@@ -5813,6 +5814,10 @@ var PDFValidateFeature = class extends Feature {
                         <ul id="validate-checks" class="divide-y divide-zinc-100"></ul>
                     </div>
                 </div>
+                <div id="validate-repair" class="mt-4 flex items-center gap-3" style="display:none;">
+                    <button class="btn btn-outline-success" id="btn-validate-repair"><i data-lucide="wrench"></i> Corrigir cores do PDF</button>
+                    <small class="text-zinc-500">Gera uma c\xF3pia corrigida \u2014 o original n\xE3o \xE9 alterado.</small>
+                </div>
             </div>
 
             ${this.logHTML()}
@@ -5830,8 +5835,9 @@ var PDFValidateFeature = class extends Feature {
       }
     });
     document.getElementById("btn-validate").addEventListener("click", () => this.validatePDF());
+    document.getElementById("btn-validate-repair").addEventListener("click", () => this.repairCores());
   }
-  async validatePDF() {
+  async validatePDF(keepLog = false) {
     const inputPath = document.getElementById("validate-input").value.trim();
     if (!inputPath) {
       this.log("Selecione o PDF que deseja validar.");
@@ -5839,7 +5845,9 @@ var PDFValidateFeature = class extends Feature {
     }
     const btn = document.getElementById("btn-validate");
     btn.disabled = true;
-    this.clearLog();
+    if (!keepLog) {
+      this.clearLog();
+    }
     this.log("Analisando integridade do PDF...");
     try {
       const r = await API.pdf.validate({ pdf_path: inputPath });
@@ -5908,7 +5916,56 @@ var PDFValidateFeature = class extends Feature {
                 </li>
             `;
     }).join("");
+    this.repairSource = r.pdf_path || "";
+    const cores = r.checks.find((c) => c.id === "cores");
+    document.getElementById("validate-repair").style.display = cores && cores.status === "error" ? "block" : "none";
     document.getElementById("validate-result").style.display = "block";
+  }
+  async repairCores() {
+    const inputPath = this.repairSource;
+    if (!inputPath) {
+      return;
+    }
+    let outputPath = inputPath.replace(/\.pdf$/i, "") + "_corrigido.pdf";
+    if (window.electronAPI && window.electronAPI.showSaveDialog) {
+      const res = await window.electronAPI.showSaveDialog({
+        defaultPath: outputPath,
+        filters: [{ name: "PDF", extensions: ["pdf"] }]
+      });
+      if (res.canceled || !res.filePath) {
+        return;
+      }
+      outputPath = res.filePath;
+    }
+    const btn = document.getElementById("btn-validate-repair");
+    btn.disabled = true;
+    this.clearLog();
+    this.log("Reparando espa\xE7os de cor (DeviceN/Separation)...");
+    this.log("Em arquivos grandes isso pode levar minutos.");
+    try {
+      const rep = await API.pdf.repair({
+        input_path: inputPath,
+        output_path: outputPath
+      });
+      this.log(`Reparo: ${rep.repaired_count} espa\xE7o(s) corrigido(s)` + (rep.unrepaired_count ? `, ${rep.unrepaired_count} n\xE3o corrigido(s)` : "") + ".");
+      (rep.unrepaired || []).slice(0, 5).forEach((u) => {
+        const colorants = Array.isArray(u.colorants) ? u.colorants.join("+") : "?";
+        this.log(`  n\xE3o corrigido [${colorants}]: ${u.reason}`);
+      });
+      if (!rep.repaired_count) {
+        this.log("Nada p\xF4de ser corrigido com seguran\xE7a \u2014 original intacto.");
+        this.setProgress(100);
+        return;
+      }
+      this.log(`Arquivo corrigido salvo em: ${outputPath}`);
+      document.getElementById("validate-input").value = outputPath;
+      this.repairSource = outputPath;
+      await this.validatePDF(true);
+    } catch (err) {
+      this.log(`Erro: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+    }
   }
 };
 

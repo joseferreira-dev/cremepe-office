@@ -276,6 +276,9 @@ function cleanup() {
             { id: 'removido', icon: 'bi-x', title: 'Fantasma', desc: '', section: 'PDF', page: 'pdf', feature: 'nao-existe' },
         ])`);
         await evaluate("window.navigateTo('home')");
+        // captureScreenshot FORCA um frame — flush do rAF pendente do
+        // renderIcons() (janela oculta nao produz frames sozinha).
+        await shot('home-legacy.png');
         // Espera o rAF do renderIcons() converter todos os <i> antes de
         // inspecionar — sleep fixo perdia a corrida intermitentemente.
         await waitFor("document.querySelectorAll('i[data-lucide]').length === 0");
@@ -292,6 +295,7 @@ function cleanup() {
 
         // 1º clique em botão com ÍCONE (alvo = svg do Lucide, não o botão)
         await evaluate("window.navigateTo('home')");
+        await shot('home-toggle.png');  // frame forcado -> rAF do Lucide
         const toggleIcon = await waitFor("!!document.querySelector('#toggle-edit-mode svg')");
         if (!toggleIcon) {
             exceptions.push('toggle-edit-mode: svg do Lucide nao apareceu em 5s');
@@ -315,6 +319,7 @@ function cleanup() {
         await sleep(500);
         await evaluate("document.getElementById('add-src-dir').click()");
         await waitFor("document.querySelectorAll('#src-dirs-container .input-group').length === 2");
+        await shot('collect-src.png');  // frame forcado -> rAF do Lucide
         const rowsBefore = await evaluate(
             "document.querySelectorAll('#src-dirs-container .input-group').length"
         );
