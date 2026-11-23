@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import type { DomainModule } from '../domain.js';
 
 export class ArchiveFeature extends Feature {
@@ -236,7 +236,7 @@ export class ArchiveFeature extends Feature {
         if (paths.length === 0) {
             listDiv.innerHTML = '<p class="text-zinc-500">Nenhum arquivo/pasta selecionado.</p>';
         } else {
-            listDiv.innerHTML = paths.map(p => `<div><i data-lucide="file" class="me-1"></i> ${p}</div>`).join('');
+            listDiv.innerHTML = paths.map(p => `<div><i data-lucide="file" class="me-1"></i> ${escapeHtml(p)}</div>`).join('');
         }
     }
 

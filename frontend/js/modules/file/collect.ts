@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from './utils.js';
 import type { DomainModule } from '../domain.js';
 
@@ -97,7 +97,7 @@ export class CollectFeature extends Feature {
         const containerDiv = container.querySelector('#src-dirs-container')!;
         containerDiv.innerHTML = this.srcDirs.map((val: any, idx: number) => `
             <div class="input-group mb-1">
-                <input type="text" class="form-control src-dir-input" data-idx="${idx}" value="${val}" placeholder="Selecione a pasta de origem...">
+                <input type="text" class="form-control src-dir-input" data-idx="${idx}" value="${escapeHtml(val)}" placeholder="Selecione a pasta de origem...">
                 <button class="btn btn-outline-secondary btn-src-select" data-idx="${idx}">Selecionar</button>
                 ${this.srcDirs.length > 1 ? `<button class="btn btn-outline-danger btn-src-remove" data-idx="${idx}"><i data-lucide="x"></i></button>` : ''}
             </div>
@@ -204,7 +204,7 @@ export class CollectFeature extends Feature {
                 listDiv.innerHTML = '<p class="text-zinc-500">Nenhum arquivo corresponde aos filtros.</p>';
             } else {
                 listDiv.innerHTML = result.files.map((f: any) => `
-                    <div><i data-lucide="file" class="me-1"></i> ${f.relative} (${(f.size / 1024).toFixed(1)} KB)</div>
+                    <div><i data-lucide="file" class="me-1"></i> ${escapeHtml(f.relative)} (${(f.size / 1024).toFixed(1)} KB)</div>
                 `).join('');
             }
             this.log(`Pré-visualização: ${result.count} arquivos encontrados.`);

@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from './utils.js';
 import type { DomainModule } from '../domain.js';
 
@@ -123,14 +123,14 @@ export class RenameByContentFeature extends Feature {
 
             let html = '';
             renamed.forEach((item: any) => {
-                html += `<tr><td>${item.original}</td><td><strong>${item.new}</strong></td><td class="text-brand-600">✓</td></tr>`;
+                html += `<tr><td>${escapeHtml(item.original)}</td><td><strong>${escapeHtml(item.new)}</strong></td><td class="text-brand-600">✓</td></tr>`;
             });
             skipped.forEach((item: any) => {
                 const reason = item.reason || 'Desconhecido';
-                html += `<tr><td>${item.path}</td><td>—</td><td class="text-amber-600">Ignorado: ${reason}</td></tr>`;
+                html += `<tr><td>${escapeHtml(item.path)}</td><td>—</td><td class="text-amber-600">Ignorado: ${escapeHtml(reason)}</td></tr>`;
             });
             errors.forEach((item: any) => {
-                html += `<tr><td>${item.file}</td><td>—</td><td class="text-rose-600">${item.error}</td></tr>`;
+                html += `<tr><td>${escapeHtml(item.file)}</td><td>—</td><td class="text-rose-600">${escapeHtml(item.error)}</td></tr>`;
             });
             if (html === '') {
                 html = '<tr><td colspan="3" class="text-zinc-500">Nenhum arquivo processado.</td></tr>';

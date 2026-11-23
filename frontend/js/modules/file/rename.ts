@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from './utils.js';
 import type { DomainModule } from '../domain.js';
 
@@ -251,8 +251,8 @@ export class RenameFeature extends Feature {
             } else {
                 tbody.innerHTML = result.preview.map((p: any) => `
                     <tr>
-                        <td>${p.original}</td>
-                        <td><strong>${p.new}</strong></td>
+                        <td>${escapeHtml(p.original)}</td>
+                        <td><strong>${escapeHtml(p.new)}</strong></td>
                     </tr>
                 `).join('');
             }

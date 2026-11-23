@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from './utils.js';
 import type { DomainModule } from '../domain.js';
 
@@ -144,17 +144,17 @@ export class CompareFeature extends Feature {
             let html = '';
             if (result.only_in_source.length) {
                 html += `<strong><span class="text-sky-600">Apenas na origem:</span></strong><ul>`;
-                result.only_in_source.forEach((p: any) => html += `<li>${p}</li>`);
+                result.only_in_source.forEach((p: any) => html += `<li>${escapeHtml(p)}</li>`);
                 html += '</ul>';
             }
             if (result.only_in_target.length) {
                 html += `<strong><span class="text-rose-600">Apenas no destino:</span></strong><ul>`;
-                result.only_in_target.forEach((p: any) => html += `<li>${p}</li>`);
+                result.only_in_target.forEach((p: any) => html += `<li>${escapeHtml(p)}</li>`);
                 html += '</ul>';
             }
             if (result.modified_in_source.length) {
                 html += `<strong><span class="text-amber-600">Modificados na origem:</span></strong><ul>`;
-                result.modified_in_source.forEach((p: any) => html += `<li>${p}</li>`);
+                result.modified_in_source.forEach((p: any) => html += `<li>${escapeHtml(p)}</li>`);
                 html += '</ul>';
             }
             if (result.identical.length) {

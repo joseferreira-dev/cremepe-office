@@ -1,5 +1,5 @@
 import { API } from '../../api.js';
-import { Feature } from '../feature.js';
+import { Feature, escapeHtml } from '../feature.js';
 import { FileUtils } from './utils.js';
 import type { DomainModule } from '../domain.js';
 
@@ -122,7 +122,7 @@ export class DuplicatesFeature extends Feature {
                     <div class="mb-2">
                         <strong>Grupo ${idx + 1} (${g.count} arquivos)</strong>
                         <ul class="list-none ms-4">
-                            ${g.files.map((f: any) => `<li><i data-lucide="file"></i> ${f}</li>`).join('')}
+                            ${g.files.map((f: any) => `<li><i data-lucide="file"></i> ${escapeHtml(f)}</li>`).join('')}
                         </ul>
                     </div>
                 `).join('');
