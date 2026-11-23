@@ -1626,6 +1626,111 @@ def test_word_insert_filepath(tmp_path):
     assert found, "caminho do arquivo nao encontrado em nenhum XML do documento"
 
 
+# ===== WORD: contratos das rotas =====
+# As 6 funcionalidades tinham testes de servico mas NENHUM teste de
+# rota (require + job + shape da resposta).
+
+def test_rota_word_merge(client, tmp_path):
+    from helpers import post_sync
+    p1 = _make_docx(tmp_path / 'um.docx', 'conteudo um')
+    p2 = _make_docx(tmp_path / 'dois.docx', 'conteudo dois')
+    out = tmp_path / 'juntado.docx'
+
+    r = post_sync(client, '/api/word/merge', json={
+        'docx_paths': [str(p1), str(p2)], 'output_path': str(out)})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['output_path'] == str(out)
+    assert out.exists()
+
+
+def test_rota_word_convert_txt(client, tmp_path):
+    from helpers import post_sync
+    doc = _make_docx(tmp_path / 'origem.docx', 'texto para converter')
+    out = tmp_path / 'origem.txt'
+
+    r = post_sync(client, '/api/word/convert', json={
+        'input_path': str(doc), 'output_path': str(out),
+        'output_format': 'txt'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['output_path'] == str(out)
+    assert out.exists()
+    assert 'texto para converter' in out.read_text(encoding='utf-8')
+
+
+def test_rota_word_compare(client, tmp_path):
+    from helpers import post_sync
+    d1 = _make_docx(tmp_path / 'a.docx', 'linha comum')
+    d2 = _make_docx(tmp_path / 'b.docx', 'outra linha')
+
+    r = post_sync(client, '/api/word/compare', json={
+        'doc1_path': str(d1), 'doc2_path': str(d2)})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    summary = body['summary']
+    assert {'added', 'removed', 'modified'} <= set(summary), summary
+    assert isinstance(body['differences'], list), body
+    assert summary['added'] + summary['removed'] + summary['modified'] >= 1, \
+        summary
+
+
+def test_rota_word_extract_images(client, tmp_path):
+    from helpers import post_sync
+    doc = _make_docx(tmp_path / 'sem_img.docx', 'texto sem imagens')
+    out_dir = tmp_path / 'imgs'
+
+    # documento sem imagens -> 400 com mensagem (ValueError do servico
+    # vira error_status do job); o caminho feliz esta coberto no teste
+    # de servico test_word_extract_images
+    r = post_sync(client, '/api/word/extract-images', json={
+        'input_path': str(doc), 'output_dir': str(out_dir)})
+    assert r.status_code == 400, r.status_code
+    assert 'imagem' in r.get_json()['error'].lower(), r.get_json()
+
+
+def test_rota_word_watermark(client, tmp_path):
+    from helpers import post_sync
+    doc = _make_docx(tmp_path / 'marca.docx', 'documento a marcar')
+    out = tmp_path / 'marcado.docx'
+
+    r = post_sync(client, '/api/word/watermark', json={
+        'input_path': str(doc), 'output_path': str(out),
+        'text': 'CONFIDENCIAL'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['output_path'] == str(out)
+    assert out.exists()
+
+
+def test_rota_word_watermark_preview(client):
+    from helpers import post_sync
+    # rota aceita corpo vazio (posicoes default de A4)
+    r = post_sync(client, '/api/word/watermark/preview', json={})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert 'left' in body and 'top' in body, body
+
+
+def test_rota_word_filepath(client, tmp_path):
+    from helpers import post_sync
+    doc = _make_docx(tmp_path / 'doc.docx', 'conteudo do doc')
+    out = tmp_path / 'doc_com_caminho.docx'
+
+    r = post_sync(client, '/api/word/filepath', json={
+        'input_path': str(doc), 'output_path': str(out)})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['output_path'] == str(out)
+    assert out.exists()
+
+
 # ===== EXCEL: rota de leitura (preview de colunas) =====
 # Contrato da rota /api/excel/read usada pelo botao "Visualizar colunas"
 # da feature dividir-por-coluna (bug original: a rota nao existia e o
@@ -1677,3 +1782,147 @@ def test_rota_excel_read_preview_colunas(client, tmp_path):
     txt.write_text("texto qualquer", encoding="utf-8")
     bad = post_sync(client, "/api/excel/read", json={"file_path": str(txt)})
     assert bad.status_code == 400, bad.status_code
+
+
+# ===== EXCEL: contratos das demais rotas =====
+# convert-batch/merge-all/extract-cells/split-by-column/split-sheets:
+# 4 funcionalidades sem NENHUM teste de pytest antes (so audit).
+
+def test_rota_excel_convert_batch(client, tmp_path):
+    from openpyxl import Workbook
+
+    from helpers import post_sync
+
+    src = tmp_path / 'para_csv'
+    src.mkdir()
+    wb = Workbook()
+    ws = wb.active
+    ws.append(['Nome'])
+    ws.append(['Ana'])
+    wb.save(src / 'lista.xlsx')
+
+    dest = tmp_path / 'csv'
+    r = post_sync(client, '/api/excel/convert-batch', json={
+        'source_dir': str(src), 'dest_dir': str(dest),
+        'input_format': 'xlsx', 'output_format': 'csv'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['processed'] == 1, body
+    assert body['errors'] == [], body
+    csvs = list(dest.glob('*.csv'))
+    assert len(csvs) == 1, list(dest.iterdir())
+    texto = csvs[0].read_text(encoding='utf-8-sig', errors='replace')
+    assert 'Ana' in texto, texto
+
+
+def test_rota_excel_merge_all_combina_abas(client, tmp_path):
+    from openpyxl import Workbook, load_workbook
+
+    from helpers import post_sync
+
+    src = tmp_path / 'planilhas'
+    src.mkdir()
+    for nome, estado in (('a.xlsx', 'SP'), ('b.xlsx', 'RJ')):
+        wb = Workbook()
+        ws = wb.active
+        ws.append(['Estado'])
+        ws.append([estado])
+        wb.save(src / nome)
+
+    out = tmp_path / 'mescladas.xlsx'
+    r = post_sync(client, '/api/excel/merge-all', json={
+        'source_dir': str(src), 'dest_file': str(out), 'mode': 'sheets'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['processed'] == 2, body
+    assert body['errors'] == [], body
+    assert out.exists()
+    wb2 = load_workbook(str(out))
+    assert len(wb2.sheetnames) >= 2, wb2.sheetnames
+    valores = [c.value for ws in wb2.worksheets
+               for row in ws.iter_rows() for c in row]
+    assert 'SP' in valores and 'RJ' in valores, valores
+
+
+def test_rota_excel_extract_cells(client, tmp_path):
+    from openpyxl import Workbook
+
+    from helpers import post_sync
+
+    src = tmp_path / 'celulas'
+    src.mkdir()
+    wb = Workbook()
+    ws = wb.active
+    ws['A1'] = 'Titulo'
+    ws['B2'] = 42
+    wb.save(src / 'dados.xlsx')
+
+    csv_out = tmp_path / 'celulas.csv'
+    r = post_sync(client, '/api/excel/extract-cells', json={
+        'source_dir': str(src),
+        'fields': [{'name': 'titulo', 'source': 'A1'},
+                   {'name': 'valor', 'source': 'B2'}],
+        'output_file': str(csv_out)})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['results'], body
+    assert body['errors'] == [], body
+    assert csv_out.exists()
+    texto = csv_out.read_text(encoding='utf-8-sig', errors='replace')
+    assert 'Titulo' in texto and '42' in texto, texto
+
+
+def test_rota_excel_split_by_column(client, tmp_path):
+    from openpyxl import Workbook
+
+    from helpers import post_sync
+
+    src = tmp_path / 'vendas.xlsx'
+    wb = Workbook()
+    ws = wb.active
+    ws.append(['Estado', 'Valor'])
+    ws.append(['SP', 10])
+    ws.append(['RJ', 20])
+    ws.append(['SP', 30])
+    wb.save(src)
+
+    out = tmp_path / 'grupos'
+    r = post_sync(client, '/api/excel/split-by-column', json={
+        'input_file': str(src), 'output_dir': str(out),
+        'column': 'Estado'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['total_rows'] == 3, body
+    assert body['total_groups'] == 2, body
+    assert len(body['output_files']) == 2, body
+    assert body['errors'] == [], body
+    assert len(list(out.glob('*.xlsx'))) == 2, list(out.iterdir())
+
+
+def test_rota_excel_split_sheets(client, tmp_path):
+    from openpyxl import Workbook
+
+    from helpers import post_sync
+
+    src = tmp_path / 'duas_abas.xlsx'
+    wb = Workbook()
+    wb.active.title = 'Primeira'
+    wb.active.append(['a'])
+    ws2 = wb.create_sheet('Segunda')
+    ws2.append(['b'])
+    wb.save(src)
+
+    out = tmp_path / 'abas'
+    r = post_sync(client, '/api/excel/split-sheets', json={
+        'input_file': str(src), 'output_dir': str(out)})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['processed'] == 2, body
+    assert len(body['files']) == 2, body
+    assert body['errors'] == [], body
+    assert len(list(out.glob('*.xlsx'))) == 2, list(out.iterdir())
