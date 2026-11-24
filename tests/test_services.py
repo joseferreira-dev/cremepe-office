@@ -1463,6 +1463,164 @@ def test_set_attributes_reporta_progresso(tmp_path, progress_collector):
     assert max(pcts) >= 50, pcts  # 2 arquivos -> 50/100
 
 
+# ===== PDF: split-by-size (sem O(n²)) e codec JBIG2 =====
+
+def _make_jbig2_pdf(path):
+    """PDF sintetico com imagem JBIG2 (bytes invalidos): este ambiente
+    nao tem jbig2dec — mesma condicao dos PDFs de scanner reais
+    (357 imagens JBIG2 no arquivo real do usuario)."""
+    import pikepdf
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas as _canvas
+    base = path.parent / '_base_jb2.pdf'
+    c = _canvas.Canvas(str(base), pagesize=A4)
+    c.drawString(72, 700, 'pagina com imagem')
+    c.showPage()
+    c.save()
+    with pikepdf.open(str(base)) as pdf:
+        img = pikepdf.Stream(pdf, b'\x00' * 128)
+        img['/Subtype'] = pikepdf.Name('/Image')
+        img['/Width'] = 64
+        img['/Height'] = 64
+        img['/ColorSpace'] = pikepdf.Name('/DeviceGray')
+        img['/BitsPerComponent'] = 1
+        img['/Filter'] = pikepdf.Name('/JBIG2Decode')
+        img = pdf.make_indirect(img)
+        page = pdf.pages[0]
+        res = page.obj.get('/Resources') or pikepdf.Dictionary()
+        xo = res.get('/XObject') or pikepdf.Dictionary()
+        xo['/ImJB'] = img
+        res['/XObject'] = xo
+        page.obj['/Resources'] = res
+        page.obj['/Contents'] = pikepdf.Stream(
+            pdf, b'q 100 0 0 100 50 50 cm /ImJB Do Q\n')
+        pdf.save(str(path))
+    base.unlink(missing_ok=True)
+
+
+def test_split_by_size_partes_conservam_paginas(tmp_path, pdf_factory):
+    from PyPDF2 import PdfReader
+    from services.pdf_processor import split_by_size
+    src = pdf_factory(8, 'gde.pdf')
+
+    # limite minusculo: cada pagina sozinha excede ->8 partes de1 pagina
+    out1 = tmp_path / 'p1'
+    stats = split_by_size(str(src), str(out1), max_size_mb=0.00001)
+    assert stats['total_files'] == 8, stats
+    files1 = list(out1.glob('*.pdf'))
+    assert sum(len(PdfReader(str(f)).pages) for f in files1) == 8
+
+    # limite agrupador (3 paginas por parte): NADA de pagina se perde
+    single_max = max(f.stat().st_size for f in files1)
+    out2 = tmp_path / 'p2'
+    stats2 = split_by_size(str(src), str(out2),
+                           max_size_mb=(single_max * 3) / (1024 * 1024))
+    assert 1 <= stats2['total_files'] <= 4, stats2
+    files2 = list(out2.glob('*.pdf'))
+    assert sum(len(PdfReader(str(f)).pages) for f in files2) == 8
+    assert stats2['errors'] == []
+
+
+def test_compress_tolera_imagem_jbig2(tmp_path):
+    import pikepdf
+    from services.pdf_processor import compress
+    src = tmp_path / 'com_jbig2.pdf'
+    _make_jbig2_pdf(src)
+    out = tmp_path / 'comprimido.pdf'
+
+    r = compress(str(src), str(out), compression_level='medium',
+                 jpeg_quality=85, downscale_images=True)
+
+    # antes: DependencyError jbig2dec derrubava o job inteiro
+    assert out.exists()
+    assert r['skipped_images'] >= 1, r
+    # a imagem JBIG2 foi PRESERVADA (filtro original) na saida
+    with pikepdf.open(str(out)) as p2:
+        img = list(p2.pages[0].get_images().values())[0]
+        assert 'JBIG2' in str(img.get('/Filter')), img.get('/Filter')
+
+
+def test_repair_preserva_imagem_de_codec_ausente(tmp_path):
+    import pikepdf
+    from services.pdf_processor import repair_pdf
+    src = tmp_path / 'jb2.pdf'
+    fixed = tmp_path / 'jb2_fix.pdf'
+    _make_jbig2_pdf(src)
+
+    rep = repair_pdf(str(src), str(fixed))
+
+    # NAO substitui por placeholder: codec ausente NAO e corrupcao
+    assert rep['repaired_count'] == 0, rep
+    assert rep['unrepaired_count'] == 1, rep
+    assert 'codec' in rep['unrepaired'][0]['reason'], rep['unrepaired']
+    with pikepdf.open(str(fixed)) as p2:
+        img = list(p2.pages[0].get_images().values())[0]
+        assert 'JBIG2' in str(img.get('/Filter'))
+        # read_raw_bytes: read_bytes tentaria DECODIFICAR (JBIG2)
+        assert len(img.read_raw_bytes()) == 128  # bytes intactos
+    # validacao final: imagens vira WARN (codec) -> nao invalida
+    assert rep['validation']['valid'] is True, rep['validation']
+    img_check = [c for c in rep['validation']['checks']
+                 if c['id'] == 'imagens'][0]
+    assert img_check['status'] == 'warn', img_check
+
+
+def test_validate_imagem_de_codec_ausente_vira_warn(tmp_path):
+    from services.pdf_processor import validate_pdf
+    src = tmp_path / 'jb2.pdf'
+    _make_jbig2_pdf(src)
+
+    r = validate_pdf(str(src))
+
+    img_check = [c for c in r['checks'] if c['id'] == 'imagens'][0]
+    assert img_check['status'] == 'warn', r['checks']  # era error
+    assert 'codec' in img_check['detail'], img_check
+    assert r['valid'] is True, r['checks']  # warn nao invalida
+
+
+def test_validate_imagem_com_cor_de_spot_nao_vira_erro(tmp_path):
+    """pikepdf recusa transcender imagem com ColorSpace DeviceN
+    (HifiPrintImageNotTranscodableError): JPEG VALIDO com cores de
+    spot, nao corrupcao — caso real das7 imagens do arquivo do usuario."""
+    import io
+
+    import pikepdf
+    from PIL import Image
+    from services.pdf_processor import validate_pdf
+
+    buf = io.BytesIO()
+    Image.new('RGB', (8, 8), (10, 20, 30)).save(buf, format='JPEG')
+    src = tmp_path / 'spot_img.pdf'
+    with pikepdf.new() as pdf:
+        img = pikepdf.Stream(pdf, buf.getvalue())
+        img['/Subtype'] = pikepdf.Name('/Image')
+        img['/Width'] = 8
+        img['/Height'] = 8
+        img['/BitsPerComponent'] = 8
+        img['/Filter'] = pikepdf.Name('/DCTDecode')
+        img['/ColorSpace'] = pikepdf.Array([
+            pikepdf.Name('/DeviceN'),
+            pikepdf.Array([pikepdf.Name('/SpotRed')]),
+            pikepdf.Name('/DeviceCMYK'),
+            _mk({'/FunctionType': 2, '/Domain': pikepdf.Array([0, 1]),
+                 '/C0': pikepdf.Array([0, 0, 0, 0]),
+                 '/C1': pikepdf.Array([1, 1, 1, 1]), '/N': 1}),
+        ])
+        img = pdf.make_indirect(img)
+        page = pdf.add_blank_page(page_size=(200, 200))
+        page.obj['/Resources'] = _mk({'/XObject': _mk({'/Im1': img})})
+        page.obj['/Contents'] = pikepdf.Stream(
+            pdf, b'q 50 0 0 50 10 10 cm /Im1 Do Q\n')
+        pdf.save(str(src))
+
+    r = validate_pdf(str(src))
+
+    img_check = [c for c in r['checks'] if c['id'] == 'imagens'][0]
+    assert img_check['status'] == 'warn', r['checks']
+    assert 'codec' in img_check['detail'], img_check
+    assert r['valid'] is True, r['checks']
+
+
 # ===== Word: merge (docxcompose) =====
 # Composer()/append() recebem objetos Document (nao strings) e append()
 # nao tem o parametro page_break na versao pinada 2.2.0 — page breaks

@@ -1383,6 +1383,8 @@ def compress(
             if '/Metadata' in pdf.Root:
                 del pdf.Root.Metadata
 
+        skipped_images = 0
+
         if downscale_images and dpi_target:
             # mapa xref -> tamanho exibido (DPI efetivo por imagem)
             display_inches = _display_size_inches(input_path)
@@ -1394,6 +1396,7 @@ def compress(
                     targets.append((page, name))
             for i, (page, name) in enumerate(targets, 1):
                 report_progress(i, len(targets), 'Reamostrando imagens')
+                img_obj = None
                 try:
                     img_obj = page.get_images()[name]
                     pil_image = pikepdf.PdfImage(img_obj).as_pil_image()
@@ -1471,15 +1474,40 @@ def compress(
                         del img_obj[pikepdf.Name('/SMask')]
                 except Exception as exc:
                     # nao engole o erro (foi assim que uma falha de API viveu
-                    # anos mascarando compressao nula): registra e segue
-                    logger.warning('compress: falha ao reamostrar imagem %s: %s', name, exc)
+                    # anos mascarando compressao nula): registra e segue.
+                    # Codec indisponivel (JBIG2) NAO e corrupcao: a imagem
+                    # original fica intacta no arquivo de saida.
+                    skipped_images += 1
+                    if _imagem_codec_ausente(img_obj, exc):
+                        logger.warning(
+                            'compress: imagem %s preservada (codec '
+                            'indisponivel neste ambiente): %s', name, exc)
+                    else:
+                        logger.warning(
+                            'compress: falha ao reamostrar imagem %s: %s',
+                            name, exc)
 
-        pdf.save(
-            output_path,
-            compress_streams=config['compress_streams'],
-            stream_decode_level=pikepdf.StreamDecodeLevel.specialized,
-            object_stream_mode=config['object_stream_mode'],
-        )
+        try:
+            pdf.save(
+                output_path,
+                compress_streams=config['compress_streams'],
+                stream_decode_level=pikepdf.StreamDecodeLevel.specialized,
+                object_stream_mode=config['object_stream_mode'],
+            )
+        except pikepdf.DependencyError as exc:
+            # Codec de stream indisponivel (ex.: jbig2dec em PDFs de
+            # scanner com JBIG2): grava com decode generalizado — mantem
+            # a maioria do ganho de compressao e PRESERVA o filtro
+            # original das imagens nao reamostradas.
+            logger.warning(
+                'compress: redecodificacao especializada indisponivel '
+                '(%s); gravando com nivel generalizado', exc)
+            pdf.save(
+                output_path,
+                compress_streams=config['compress_streams'],
+                stream_decode_level=pikepdf.StreamDecodeLevel.generalized,
+                object_stream_mode=config['object_stream_mode'],
+            )
         pdf.close()
 
         final_size = output_path.stat().st_size
@@ -1489,6 +1517,7 @@ def compress(
             'original_size': original_size,
             'compressed_size': final_size,
             'ratio': ratio,
+            'skipped_images': skipped_images,
             'output_path': str(output_path)
         }
 
@@ -1911,8 +1940,43 @@ def _scan_content_streams(pdf, progress_span=None):
     return fails
 
 
+def _imagem_codec_ausente(img, exc=None):
+    """Falha de decode por codec/recuso INDISPONIVEL neste ambiente — a
+    imagem NÃO está corrompida; outros leitores a exibem:
+      - JBIG2 sem jbig2dec (DependencyError / filtro JBIG2Decode);
+      - pikepdf recusa transcender imagem com ColorSpace DeviceN/
+        Separation (HifiPrintImageNotTranscodableError — JPEGs válidos
+        com cores de spot; caso real:7 imagens do arquivo do usuario).
+    Usa a classe da exceção (determinístico) + mensagem + filtro."""
+    try:
+        if exc is not None:
+            if isinstance(exc, pikepdf.HifiPrintImageNotTranscodableError):
+                return True
+            if isinstance(exc, pikepdf.DependencyError):
+                return True
+    except AttributeError:
+        pass
+    msg = str(exc or '').lower()
+    if 'jbig2dec' in msg or 'not installed' in msg or 'dependencyerror' in msg:
+        return True
+    try:
+        if img is None:
+            return False
+        filt = img.get('/Filter')
+        if isinstance(filt, pikepdf.Array):
+            fl = [str(x) for x in filt]
+        elif filt is not None:
+            fl = [str(filt)]
+        else:
+            fl = []
+        return any('jbig2' in f.lower() for f in fl)
+    except Exception:
+        return False
+
+
 def _scan_images(pdf, progress_span=None):
-    """(total, [(página, nome, erro)]) — decodificação real das imagens."""
+    """(total, [(página, nome, erro, codec_ausente)]) — decodificação
+    real das imagens; codec_ausente marca falhas de AMBIENTE (JBIG2)."""
     total = 0
     fails = []
     n_pages = len(pdf.pages)
@@ -1923,14 +1987,15 @@ def _scan_images(pdf, progress_span=None):
             imgs = page.get_images()
             names = list(imgs.keys())
         except Exception as exc:
-            fails.append((i, '', str(exc)[:80]))
+            fails.append((i, '', str(exc)[:80], False))
             continue
         for name in names:
             total += 1
             try:
                 pikepdf.PdfImage(imgs[name]).as_pil_image()
             except Exception as exc:
-                fails.append((i, str(name), str(exc)[:80]))
+                fails.append((i, str(name), str(exc)[:80],
+                              _imagem_codec_ausente(imgs[name], exc)))
     return total, fails
 
 
@@ -2006,8 +2071,18 @@ def _fix_images(pdf, progress_span=None):
             try:
                 pikepdf.PdfImage(img).as_pil_image()
                 continue
-            except Exception:
-                pass
+            except Exception as exc:
+                if _imagem_codec_ausente(img, exc):
+                    # NAO e corrupcao: codec ausente NESTE ambiente —
+                    # outros leitores exibem; substituir por placeholder
+                    # degradaria conteudo real (nunca piorar).
+                    failed.append({
+                        'category': 'imagens',
+                        'ref': f'pág. {i} {name}',
+                        'reason': 'imagem preservada: codec indisponível '
+                                  'neste ambiente (ex.: JBIG2)',
+                    })
+                    continue
             ref = f'pág. {i} {name}'
             try:
                 buf = BytesIO()
@@ -2371,15 +2446,26 @@ def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
                 'todos os comandos de desenho foram analisados')
 
         # ---- imagens (decodificação real) ----
+        # Codec indisponível no ambiente (ex.: JBIG2 sem jbig2dec) vira
+        # WARN: outros leitores exibem a imagem — não é corrupção.
         img_total, img_fails = _scan_images(pdf, progress_span=pages_span)
+        reais = [f for f in img_fails if not f[3]]
+        codec = [f for f in img_fails if f[3]]
         img_fail = [
             (f'pág. {i} {name}: {err}' if name else f'pág. {i}: {err}')
-            for i, name, err in img_fails
+            for i, name, err, _u in reais
         ]
         if img_fail:
+            extra = (f' (+{len(codec)} com codec indisponível)'
+                     if codec else '')
             add('imagens', 'Imagens', 'error',
                 f'{len(img_fail)} de {img_total} ilegível(is) — ' +
-                ' | '.join(img_fail[:3]))
+                ' | '.join(img_fail[:3]) + extra)
+        elif codec:
+            add('imagens', 'Imagens', 'warn',
+                f'{len(codec)} de {img_total} imagem(ns) não decodificadas '
+                'aqui: codec indisponível no ambiente (ex.: JBIG2) — em '
+                'leitores com suporte elas renderizam')
         else:
             add('imagens', 'Imagens', 'ok',
                 f'{img_total} imagem(ns) decodificadas sem erro')
