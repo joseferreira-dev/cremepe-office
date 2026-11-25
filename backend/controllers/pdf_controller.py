@@ -55,8 +55,8 @@ class PDFController:
                                 color, background_color, position, font_size, show_background,
                                 margin_cm)
 
-    def convert_to_word(self, pdf_path, output_path):
-        return convert_pdf_to_word(pdf_path, output_path)
+    def convert_to_word(self, pdf_path, output_path, pages_selection='all'):
+        return convert_pdf_to_word(pdf_path, output_path, pages_selection)
 
     def convert_images_to_pdf(self, image_paths, output_path, combine=True, margin_cm=0.5,
                             orientation='portrait', resize_mode='cover', naming='prefix',

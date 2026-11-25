@@ -1001,28 +1001,78 @@ def _scanned_pdf_warning(pdf_path: Path) -> Optional[str]:
     return None
 
 
-def convert_pdf_to_word(pdf_path: str, output_path: str) -> dict:
+def _parse_selection_0based(selection: str, total: int):
+    """Converte selecao '1-3,5' em indices 0-based (pdf2docx).
+    'all'/vazio -> None (arquivo completo)."""
+    if not selection or selection.strip().lower() == 'all':
+        return None
+    parts = [p.strip() for p in selection.split(',') if p.strip()]
+    if not parts:
+        return None
+    pages = []
+    for part in parts:
+        try:
+            if '-' in part:
+                a, b = part.split('-', 1)
+                start, end = int(a.strip()), int(b.strip())
+            else:
+                start = end = int(part)
+        except ValueError:
+            raise ValueError(f"Intervalo de páginas inválido: {part}")
+        if start < 1 or end > total or start > end:
+            raise ValueError(
+                f"Intervalo {start}-{end} inválido (total: {total} páginas)")
+        pages.extend(range(start - 1, end))
+    return pages
+
+
+def convert_pdf_to_word(pdf_path: str, output_path: str,
+                        pages_selection: str = 'all') -> dict:
     """
     Converte um arquivo PDF para Word (.docx) usando pdf2docx.
 
-    Retorna {"output_path": ...} e, quando apropriado,
-    {"warning": ...} (PDF sem texto — ver _scanned_pdf_warning).
+    pages_selection: 'all' (padrao) ou ex. '1-3,5' — converte somente
+    essas paginas (indices 0-based internos do pdf2docx). PDFs muito
+    grandes devem ser convertidos por intervalo (o arquivo real de
+    9315 paginas levou >53 min sem limite).
+
+    Retorna {"output_path": ...}, {"pages_converted": ...} quando ha
+    selecao, e, quando apropriado, {"warning": ...} (PDF sem texto —
+    ver _scanned_pdf_warning).
     """
     pdf_path = Path(pdf_path).resolve()
     if not pdf_path.exists():
         raise FileNotFoundError(f"Arquivo não encontrado: {pdf_path}")
 
+    # Selecao ANTES do try: ValueError do parse vira 400 (nao 500)
+    pages = None
+    if pages_selection and pages_selection.strip().lower() != 'all':
+        with fitz.open(str(pdf_path)) as d:
+            total = d.page_count
+        pages = _parse_selection_0based(pages_selection, total)
+
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    cv = None
     try:
         cv = Converter(str(pdf_path))
-        cv.convert(str(output_path), start=0, end=None)
-        cv.close()
+        if pages is not None:
+            cv.convert(str(output_path), pages=pages)
+        else:
+            cv.convert(str(output_path), start=0, end=None)
     except Exception as e:
         raise RuntimeError(f"Erro ao converter PDF para Word: {str(e)}")
+    finally:
+        if cv is not None:
+            try:
+                cv.close()
+            except Exception:
+                pass
 
     result = {"output_path": str(output_path)}
+    if pages is not None:
+        result["pages_converted"] = len(pages)
     warning = _scanned_pdf_warning(pdf_path)
     if warning:
         result["warning"] = warning

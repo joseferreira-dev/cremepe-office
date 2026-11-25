@@ -145,7 +145,8 @@ def add_page_numbers(data):
 def convert_to_word(data):
     result = controller.convert_to_word(
         pdf_path=data['pdf_path'],
-        output_path=data['output_path']
+        output_path=data['output_path'],
+        pages_selection=data.get('pages_selection', 'all')
     )
     # result pode conter {"warning": ...} (PDF escaneado sem texto)
     return jsonify({"success": True, **result}), 200

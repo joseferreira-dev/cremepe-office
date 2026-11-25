@@ -56,6 +56,14 @@ export class PDFConvertToWordFeature extends Feature {
                 </div>
             </div>
 
+            <div class="card mb-4" id="convert-pages-card">
+                <div class="card-body">
+                    <h5 class="card-title section-title">Páginas (PDF → Word)</h5>
+                    <input type="text" id="convert-pages" class="form-control" placeholder="Todas as páginas (ou ex.: 1-100, 200-250)">
+                    <small class="text-zinc-500">Deixe vazio para converter o arquivo inteiro — em PDFs enormes use um intervalo para agilizar.</small>
+                </div>
+            </div>
+
             <button class="btn btn-success" id="btn-convert-execute"><i data-lucide="play" class="me-1"></i>Converter</button>
 
             ${this.progressHTML()}
@@ -67,11 +75,20 @@ export class PDFConvertToWordFeature extends Feature {
         document.querySelectorAll('input[name="convert-direction"]').forEach(radio => {
             radio.addEventListener('change', (e) => {
                 this.direction = (e.target as DomElement).value;
+                this.togglePagesCard();
                 this.updateSuggestions();
             });
         });
 
+        this.togglePagesCard();
         this.attachEvents();
+    }
+
+    togglePagesCard() {
+        const card = document.getElementById('convert-pages-card');
+        if (card) {
+            card.style.display = this.direction === 'pdf_to_word' ? 'block' : 'none';
+        }
     }
 
     attachEvents() {
@@ -110,7 +127,10 @@ export class PDFConvertToWordFeature extends Feature {
         // Atualizar sugestões quando entrada mudar
         document.getElementById('convert-input-file')!.addEventListener('change', () => this.suggestOutput());
         document.querySelectorAll('input[name="convert-direction"]').forEach(radio => {
-            radio.addEventListener('change', () => this.suggestOutput());
+            radio.addEventListener('change', () => {
+                this.suggestOutput();
+                this.togglePagesCard();
+            });
         });
     }
 
@@ -141,12 +161,34 @@ export class PDFConvertToWordFeature extends Feature {
 
         try {
             if (this.direction === 'pdf_to_word') {
-                this.log('Convertendo PDF → Word...');
+                const pagesSel = (document.getElementById('convert-pages') as DomElement).value.trim() || 'all';
+                if (pagesSel === 'all') {
+                    // Limiar: PDFs enormes demoram muito (arquivo real de
+                    // 9315 paginas: >53 min). Pergunta antes de começar.
+                    const info = await API.pdf.info({ pdf_path: inputFile });
+                    if (info.pages > 200) {
+                        const ok = confirm(
+                            `PDF com ${info.pages} páginas.\n\n` +
+                            'Converter o arquivo INTEIRO pode levar bastante tempo ' +
+                            '(em teste real com 9315 páginas: mais de 53 minutos).\n\n' +
+                            'OK = converter todas as páginas.\n' +
+                            'Cancelar = informe um intervalo no campo "Páginas" (ex.: 1-100) para agilizar.');
+                        if (!ok) {
+                            this.log('Conversão cancelada. Informe um intervalo de páginas (ex.: 1-100) para converter só uma parte.');
+                            return;
+                        }
+                    }
+                }
+                this.log(pagesSel === 'all'
+                    ? 'Convertendo PDF → Word (todas as páginas)...'
+                    : `Convertendo PDF → Word (páginas ${pagesSel})...`);
                 const result = await API.pdf.convertToWord({
                     pdf_path: inputFile,
-                    output_path: outputFile
+                    output_path: outputFile,
+                    pages_selection: pagesSel
                 });
                 if (result.warning) this.log(`Aviso: ${result.warning}`);
+                if (result.pages_converted) this.log(`(${result.pages_converted} página(s) convertida(s))`);
                 this.log(`Concluído! Arquivo salvo em: ${result.output_path}`);
             } else {
                 this.log('Convertendo Word → PDF...');

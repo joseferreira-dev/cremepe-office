@@ -186,6 +186,74 @@ def test_rota_pdf_to_word_expoe_warning(client, pdf_factory, tmp_path):
     assert "warning" in body and "escaneado" in body["warning"], body
 
 
+# ===== PDF: conversao por intervalo de paginas (escala) =====
+# O arquivo real de 9315 paginas levou >53 min sem limite; agora o
+# usuario escolhe as paginas (e a UI pergunta antes do arquivo inteiro).
+
+def test_convert_to_word_com_selecao_de_paginas(tmp_path):
+    import zipfile
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas as _canvas
+    from services.pdf_processor import convert_pdf_to_word
+
+    src = tmp_path / 'paginado.pdf'
+    c = _canvas.Canvas(str(src), pagesize=A4)
+    for palavra in ('UNO', 'DOS', 'TRES', 'QUATRO'):
+        c.drawString(72, 700, palavra)
+        c.showPage()
+    c.save()
+    out = tmp_path / 'sel.docx'
+
+    result = convert_pdf_to_word(str(src), str(out),
+                                 pages_selection='2-3')
+
+    assert out.exists()
+    assert result['pages_converted'] == 2, result
+    with zipfile.ZipFile(out) as z:
+        xml = z.read('word/document.xml')
+    assert b'DOS' in xml and b'TRES' in xml, xml[:400]
+    assert b'UNO' not in xml, xml[:400]
+
+
+def test_rota_convert_to_word_selecao_e_validacoes(client, tmp_path):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas as _canvas
+    from helpers import post_sync
+
+    src = tmp_path / 'dois.pdf'
+    c = _canvas.Canvas(str(src), pagesize=A4)
+    c.drawString(72, 700, 'primeira')
+    c.showPage()
+    c.drawString(72, 700, 'segunda')
+    c.showPage()
+    c.save()
+    out = tmp_path / 'dois.docx'
+
+    # selecao valida -> converte so a pagina2
+    r = post_sync(client, '/api/pdf/convert-to-word', json={
+        'pdf_path': str(src), 'output_path': str(out),
+        'pages_selection': '2-2'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['success'] is True
+    assert body['pages_converted'] == 1, body
+    assert out.exists()
+
+    # intervalo fora do total -> 400 (ValueError do parser)
+    bad = post_sync(client, '/api/pdf/convert-to-word', json={
+        'pdf_path': str(src), 'output_path': str(out),
+        'pages_selection': '99-100'})
+    assert bad.status_code == 400, bad.status_code
+    assert 'inválido' in bad.get_json()['error'], bad.get_json()
+
+    # sintaxe invalida -> 400
+    bad2 = post_sync(client, '/api/pdf/convert-to-word', json={
+        'pdf_path': str(src), 'output_path': str(out),
+        'pages_selection': 'abc'})
+    assert bad2.status_code == 400, bad2.status_code
+
+
 # ===== PDF: compressão de imagens (compress) =====
 # A reamostragem precisa mutar o próprio objeto de imagem (ele pode viver
 # dentro de Form XObjects) — a entrada no resources da página não basta.
