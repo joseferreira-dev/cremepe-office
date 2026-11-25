@@ -7,6 +7,7 @@ from typing import List, Optional
 import zipfile
 import fnmatch
 from utils.jobs import report_progress
+from utils.exceptions import ValidationError
 
 try:
     import pyzipper
@@ -252,7 +253,16 @@ def _extract_zip_members(zf, extract_path, pwd):
         zf.setpassword(pwd)
     members = zf.infolist()
     for i, member in enumerate(members, 1):
-        zf.extract(member, extract_path)
+        try:
+            zf.extract(member, extract_path)
+        except RuntimeError as exc:
+            # pyzipper/zipfile levantam RuntimeError "requires a password"
+            # quando falta a senha: e ENTRADA do usuario (400), nao bug.
+            if 'password' in str(exc).lower():
+                raise ValidationError(
+                    "Arquivo ZIP protegido: informe a senha correta"
+                ) from exc
+            raise
         report_progress(i, len(members))
 
 
