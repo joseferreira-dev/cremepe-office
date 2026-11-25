@@ -18,6 +18,36 @@ from utils.jobs import report_progress
 
 logger = logging.getLogger(__name__)
 
+
+def _fmt_bytes(n: float) -> str:
+    """1536 -> '1.5 KB' (para mensagens de erro legíveis)."""
+    for unidade in ('B', 'KB', 'MB', 'GB', 'TB'):
+        if n < 1024 or unidade == 'TB':
+            return f"{n:.0f} {unidade}" if unidade == 'B' else f"{n:.1f} {unidade}"
+        n /= 1024
+    return f"{n:.1f} TB"  # pragma: no cover
+
+
+def _ensure_disk_space(target_dir, required_bytes: int, operacao: str) -> None:
+    """Preflight de disco: falha ANTES de começar se não cabe o resultado.
+
+    `required_bytes` é uma estimativa do chamador (pior caso plausível);
+    aqui só comparamos com shutil.disk_usage. Um OSError na medição não
+    bloqueia a operação — deixa tentar. ValueError -> 400: ação do
+    usuário (liberar espaço ou escolher outro destino), não bug.
+    """
+    try:
+        livre = shutil.disk_usage(str(target_dir)).free
+    except OSError:
+        return
+    if livre < required_bytes:
+        raise ValueError(
+            f"Espaço insuficiente em disco para {operacao}: "
+            f"necessário ≈ {_fmt_bytes(required_bytes)}, "
+            f"disponível {_fmt_bytes(livre)}. "
+            f"Libere espaço ou escolha outro destino."
+        )
+
 def merge(pdf_paths, output_path):
     """
     Mescla uma lista de PDFs em um único arquivo.
@@ -28,11 +58,19 @@ def merge(pdf_paths, output_path):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Preflight: a saida da mesclagem regrava todos os streams, entao
+    # estima-se ≈ soma dos inputs — falha ANTES de carregar tudo.
+    total_in = 0
+    for path in pdf_paths:
+        p = Path(path)
+        if not p.exists():
+            raise FileNotFoundError(f"Arquivo não encontrado: {p}")
+        total_in += p.stat().st_size
+    _ensure_disk_space(output_path.parent, total_in, "a mesclagem dos PDFs")
+
     writer = PdfWriter()
     for path in pdf_paths:
         path = Path(path)
-        if not path.exists():
-            raise FileNotFoundError(f"Arquivo não encontrado: {path}")
         reader = PdfReader(str(path))
         for page in reader.pages:
             writer.add_page(page)
@@ -535,6 +573,12 @@ def extract_all_pages(pdf_path: str, output_dir: str, prefix: str = '') -> dict:
     
     if total_pages == 0:
         raise ValueError("O PDF não contém páginas.")
+
+    # Preflight: a extracao regrava cada pagina em arquivo proprio —
+    # no caso tipico (recursos por pagina) a soma ≈ tamanho do fonte.
+    # Estimativa piso: falha ANTES de criar o primeiro arquivo.
+    _ensure_disk_space(output_path, pdf_path.stat().st_size,
+                       "a extração de todas as páginas")
     
     stats = {
         'total_pages': total_pages,

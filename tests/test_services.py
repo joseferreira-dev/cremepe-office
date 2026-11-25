@@ -34,6 +34,59 @@ def test_merge_arquivo_inexistente_levanta_file_not_found(tmp_path):
         merge([str(tmp_path / "nao.pdf")], str(tmp_path / "out.pdf"))
 
 
+# ===== PDF: preflight de disco (item 6) =====
+# Estimativa do resultado comparada com shutil.disk_usage ANTES de
+# começar: sem isso, um merge/extract de arquivo grande morre no meio
+# (disco cheio) deixando saida truncada.
+
+def _disco_com(free_bytes):
+    """Substitui shutil.disk_usage devolvendo `free_bytes` livres."""
+    from types import SimpleNamespace
+    import shutil as _shutil
+
+    def fake(_path):
+        return SimpleNamespace(total=free_bytes, used=0, free=free_bytes)
+    return _shutil, fake
+
+
+def test_merge_preflight_recusa_sem_espaco(pdf_factory, tmp_path, monkeypatch):
+    p1 = pdf_factory(2, "a.pdf")
+    _shutil, fake = _disco_com(free_bytes=10)  # 10 B livres < soma dos inputs
+    monkeypatch.setattr(_shutil, "disk_usage", fake)
+
+    with pytest.raises(ValueError, match="Espaço insuficiente"):
+        merge([str(p1)], str(tmp_path / "out.pdf"))
+
+    # falhou ANTES de escrever: nao deixou saida truncada
+    assert not (tmp_path / "out.pdf").exists()
+
+
+def test_extract_preflight_recusa_sem_espaco(pdf_factory, tmp_path, monkeypatch):
+    from services.pdf_processor import extract_all_pages
+    src = pdf_factory(3, "doc.pdf")
+    _shutil, fake = _disco_com(free_bytes=1)
+    monkeypatch.setattr(_shutil, "disk_usage", fake)
+
+    with pytest.raises(ValueError, match="Espaço insuficiente"):
+        extract_all_pages(str(src), str(tmp_path / "paginas"))
+
+    assert list(tmp_path.glob("paginas/*.pdf")) == []
+
+
+def test_preflight_ignora_oserror_na_mediacao(pdf_factory, tmp_path,
+                                               monkeypatch):
+    """Sem permissao p/ medir o disco: tenta a operacao em vez de bloquear."""
+    import shutil as _shutil
+
+    def quebrado(_path):
+        raise OSError("acesso negado ao disco")
+    monkeypatch.setattr(_shutil, "disk_usage", quebrado)
+
+    out = tmp_path / "merged.pdf"
+    result = merge([str(pdf_factory(1, "a.pdf"))], str(out))
+    assert Path(result).exists()
+
+
 # ===== PDF: merge por tamanho — guarda de destino dentro da origem =====
 # Sem o guarda, os PDFs gerados voltam como entrada na proxima execucao
 # (laco de realimentacao) e o conteudo duplica a cada rodada.
