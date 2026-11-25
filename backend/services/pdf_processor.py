@@ -2475,6 +2475,59 @@ def _fix_stitch_inplace(stitch, target, pdf):
     return True
 
 
+def _scan_concatenacao(path, janela=1024, ctx=64):
+    """Localiza todos os cabeçalhos %PDF- de um arquivo.
+
+    Retorna (offsets, concat): `offsets` são os offsets de cada
+    cabeçalho e `concat` é True quando algum cabeçalho além do primeiro
+    vem logo após um `%%EOF` — a assinatura exata de arquivos colados
+    byte a byte (copy /b, cat).
+
+    Atualizações incrementais legítimas reescrevem %%EOF/startxref MAS
+    NUNCA o cabeçalho %PDF-, então múltiplos %%EOF sozinhos não
+    significam concatenação: só múltiplos cabeçalhos. Um PDF embutido
+    (anexo) também tem dois cabeçalhos, mas vem de stream — os bytes
+    antes dele não terminam em %%EOF, por isso o `rstrip().endswith`.
+
+    A leitura é em blocos com uma janela de sobreposição, para não
+    carregar o arquivo inteiro em memória (os reais têm >1 GB).
+    """
+    alvo = b'%PDF-'
+    offsets = []
+    concat = False
+    sobra = b''
+    base = 0  # offset absoluto de dados[0]
+    with open(path, 'rb') as f:
+        while True:
+            bloco = f.read(1024 * 1024)
+            if not bloco:
+                break
+            dados = sobra + bloco
+            # começa depois do que já foi visto: evita recontar o
+            # cabeçalho que atravessou a fronteira do bloco anterior
+            pos = dados.find(alvo, max(0, len(sobra) - len(alvo) + 1))
+            while pos != -1:
+                abs_pos = base + pos
+                offsets.append(abs_pos)
+                if abs_pos > 0:
+                    if pos >= ctx:
+                        antes = dados[pos - ctx:pos]
+                    else:
+                        # fronteira de bloco: relê o contexto do arquivo
+                        with open(path, 'rb') as g:
+                            g.seek(max(0, abs_pos - ctx))
+                            antes = g.read(ctx)
+                    if antes.rstrip().endswith(b'%%EOF'):
+                        concat = True
+                pos = dados.find(alvo, pos + 1)
+            if len(dados) > janela:
+                base += len(dados) - janela
+                sobra = dados[-janela:]
+            else:
+                sobra = dados
+    return sorted(set(offsets)), concat
+
+
 def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
     """Analisa a integridade de um PDF (corrupção, truncamento, refs).
 
@@ -2552,6 +2605,29 @@ def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
             'marcador %%EOF ausente — possível truncamento')
     else:
         add('eof', 'Fim do arquivo (%%EOF)', 'ok', 'marcador presente')
+
+    # ---- junção bruta (concatenação byte a byte) ----
+    # Um PDF legítimo tem UM cabeçalho. Vários, cada um logo após um
+    # %%EOF = arquivos colados (copy /b, cat): os números de objeto
+    # colidem e o leitor só enxerga o último segmento — as páginas dos
+    # anteriores somem em silêncio. A checagem cobre o arquivo INTEIRO
+    # (os checks de cabeçalho/EOF só olham as pontas).
+    offsets, concat = _scan_concatenacao(path)
+    n_seg = len(offsets)
+    if n_seg <= 1:
+        add('concatenacao', 'Junção de arquivos', 'ok',
+            'um único cabeçalho %PDF-')
+    elif concat:
+        add('concatenacao', 'Junção de arquivos', 'error',
+            f'{n_seg} PDFs colados byte a byte (cada cabeçalho vem '
+            f'após %%EOF) — só o último é lido; refaça a junção com o '
+            f'Merge, que renumera os objetos')
+    else:
+        # dois cabeçalhos mas sem %%EOF antes do 2º: PDF embutido/anexo
+        # (o conteúdo tem %PDF- literal) — não é corrupção.
+        add('concatenacao', 'Junção de arquivos', 'warn',
+            f'{n_seg} ocorrências de %PDF- sem forma de junção '
+            f'(provável PDF embutido no conteúdo)')
 
     # ---- abertura (qpdf via pikepdf) ----
     try:
@@ -2792,6 +2868,68 @@ def _make_type4_function(pdf, names, alt):
     return stream
 
 
+def _funde_concatenacao(path, offsets):
+    """Funde os segmentos de uma junção bruta com renumeração de objetos.
+
+    Cada segmento vai de um `%PDF-` ao próximo (o último vai até o fim
+    do arquivo) — é exatamente o que a colagem byte a byte NÃO fez, e
+    por isso os números de objeto colidiam.
+
+    Retorna (caminho_temp, falhas): o temp é um PDF legítimo que o
+    resto do reparo usa como entrada (o chamador apaga); `falhas` lista
+    os segmentos que não abriram, para irem a `unrepaired` — nunca se
+    descarta conteúdo em silêncio. (None, falhas) se nenhum abriu.
+    """
+    tamanho = path.stat().st_size
+    writer = PdfWriter()
+    falhas = []
+    readers = []  # mantém os segmentos vivos até o write()
+    with open(path, 'rb') as f:
+        for i, ini in enumerate(offsets):
+            fim = offsets[i + 1] if i + 1 < len(offsets) else tamanho
+            f.seek(ini)
+            buf = BytesIO(f.read(fim - ini))
+            try:
+                reader = PdfReader(buf)
+                n_pag = len(reader.pages)
+            except Exception as exc:
+                falhas.append({
+                    'category': 'concatenacao',
+                    'ref': f'segmento {i + 1}',
+                    'reason': f'não abriu: {str(exc)[:120]}',
+                })
+                continue
+            if n_pag == 0:
+                falhas.append({
+                    'category': 'concatenacao',
+                    'ref': f'segmento {i + 1}',
+                    'reason': 'segmento sem páginas',
+                })
+                continue
+            readers.append(reader)
+            for page in reader.pages:
+                writer.add_page(page)
+    if not readers:
+        return None, falhas
+
+    nt = tempfile.NamedTemporaryFile(suffix='.pdf',
+                                     prefix='cremepe-fundido-', delete=False)
+    destino = Path(nt.name)
+    nt.close()
+    try:
+        with open(destino, 'wb') as out:
+            writer.write(out)
+    except Exception as exc:
+        destino.unlink(missing_ok=True)
+        falhas.append({
+            'category': 'concatenacao',
+            'ref': 'arquivo',
+            'reason': f'gravação do fundido falhou: {str(exc)[:120]}',
+        })
+        return None, falhas
+    return destino, falhas
+
+
 def repair_pdf(input_path: str, output_path: str) -> dict:
     """Repara os problemas de integridade detectados pelo validate_pdf.
 
@@ -2835,6 +2973,41 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
     unrepaired = []
     issues_before = {}
 
+    # ---------- junção bruta (concatenação) ----------
+    # Colar PDFs byte a byte faz TODOS numerarem objetos a partir de1:
+    # ao colar, /Root e a árvore de páginas de cada arquivo apontam
+    # para os objetos do seguinte. O pikepdf enxerga só o ÚLTIMO
+    # segmento — reparar em cima disso regravaria um PDF "limpo" com
+    # uma fração do conteúdo (falso sucesso). Separa os segmentos e
+    # funde com renumeração antes de qualquer coisa; o resto do reparo
+    # roda sobre o arquivo fundido.
+    temp_fundido = None
+    offsets, concat = _scan_concatenacao(input_path)
+    if concat and len(offsets) > 1:
+        fundido, falhas = _funde_concatenacao(input_path, offsets)
+        unrepaired.extend(falhas)
+        issues_before['concatenacao'] = len(offsets)
+        if fundido is not None:
+            temp_fundido = fundido
+            input_path = fundido
+            repaired.append({
+                'category': 'concatenacao',
+                'ref': 'arquivo',
+                'detail': f'{len(offsets)} segmentos separados e fundidos '
+                          f'com renumeração de objetos'
+                          + (f' ({len(falhas)} descartado(s))'
+                             if falhas else ''),
+            })
+        else:
+            # Nenhum segmento abriu: segue com o original (o fluxo
+            # normal reporta em `unrepaired` o que não recuperou).
+            unrepaired.append({
+                'category': 'concatenacao',
+                'ref': 'arquivo',
+                'reason': 'nenhum dos segmentos da junção bruta abriu — '
+                          'conteúdo não recuperável por este reparo',
+            })
+
     # ---------- abertura ----------
     try:
         pdf = pikepdf.open(str(input_path))
@@ -2877,10 +3050,14 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
         with pdf:
             _report_span(1, 1, (0, 5), 'Analisando arquivo')
 
-            # cabecalho/eof: o proprio save regrava normalizado
+            # cabecalho/eof: o proprio save regrava normalizado.
+            # O tamanho e o de input_path (que na juncao bruta ja e o
+            # arquivo FUNDIDO, com tamanho diferente do original) — usar
+            # original_size aqui faria o seek errado e o %%EOF sumir do
+            # tail, gerando um "reescrito" falso.
             with open(input_path, 'rb') as f:
                 head = f.read(1024)
-                f.seek(max(0, original_size - 4096))
+                f.seek(max(0, input_path.stat().st_size - 4096))
                 tail = f.read()
             if re.search(br'%PDF-(\d+\.\d+)', head) \
                     and not head.startswith(b'%PDF-'):
@@ -3093,6 +3270,13 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
 
     # ---------- revalidacao comum (80-100) ----------
     validation = validate_pdf(str(output_path), progress_span=(80, 100))
+
+    # o fundido da juncao bruta so existiu como entrada do reparo
+    if temp_fundido is not None:
+        try:
+            Path(temp_fundido).unlink(missing_ok=True)
+        except OSError:
+            pass
 
     # Residuais: o que continuou em error apos o reparo e ainda nao foi
     # reportado vira unrepaired — o relatorio sempre reflete a realidade.

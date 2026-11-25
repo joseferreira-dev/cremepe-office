@@ -589,6 +589,131 @@ def test_validate_pdf_truncado(tmp_path):
     assert erros, r['checks']
 
 
+# ===== Junção bruta (concatenação byte a byte) =====
+# Causa real: PDFs numerados a partir de1 colados com copy /b -> os
+# objetos colidem, o leitor só enxerga o último segmento e as páginas
+# dos anteriores somem em silêncio. validate_pdf olhava só as pontas
+# (1024 bytes) e devolvia valid=True com conteúdo perdido.
+
+def _mk_pdf_bytes(tmp_path, nome, n_paginas, marca):
+    """PDF pequeno com objetos numerados a partir de1 (padrão pikepdf)."""
+    import pikepdf
+    p = tmp_path / nome
+    with pikepdf.new() as pdf:
+        for i in range(n_paginas):
+            page = pdf.add_blank_page(page_size=(595, 842))
+            stream = f"BT /F1 14 Tf 72 720 Td ({marca} p{i+1}) Tj ET"
+            page.obj['/Contents'] = pdf.make_indirect(
+                pikepdf.Stream(pdf, stream.encode()))
+        pdf.save(str(p))
+    return p
+
+
+def _concatena(tmp_path, nome, fontes):
+    """Cola PDFs byte a byte (o que o usuario fez com copy /b)."""
+    destino = tmp_path / nome
+    destino.write_bytes(b''.join(f.read_bytes() for f in fontes))
+    return destino
+
+
+def test_validate_detecta_juncao_bruta(tmp_path):
+    """Colagem byte a byte: valid=False com check de error (antes
+    devolvia valid=True tendo perdido3 das4 paginas)."""
+    from services.pdf_processor import validate_pdf
+    fontes = [_mk_pdf_bytes(tmp_path, 'a.pdf', 2, 'ALPHA'),
+              _mk_pdf_bytes(tmp_path, 'b.pdf', 1, 'BETA'),
+              _mk_pdf_bytes(tmp_path, 'c.pdf', 1, 'GAMMA')]
+    colado = _concatena(tmp_path, 'colado.pdf', fontes)
+
+    r = validate_pdf(str(colado))
+
+    assert r['valid'] is False, r
+    chk = [c for c in r['checks'] if c['id'] == 'concatenacao']
+    assert chk, [c['id'] for c in r['checks']]
+    assert chk[0]['status'] == 'error', chk
+    assert '3 PDFs colados' in chk[0]['detail'], chk
+
+
+def test_validate_pdf_integro_marcado_como_juncao_ok(tmp_path, pdf_factory):
+    """PDF normal: um unico cabecalho -> check de juncao em ok
+    (nao pode ser falso positivo de erro)."""
+    from services.pdf_processor import validate_pdf
+    src = pdf_factory(2, 'legal.pdf')
+    r = validate_pdf(str(src))
+    chk = [c for c in r['checks'] if c['id'] == 'concatenacao']
+    assert chk and chk[0]['status'] == 'ok', r['checks']
+    assert r['valid'] is True, r
+
+
+def test_validate_pdf_embutido_nao_vira_erro(tmp_path):
+    """Conteudo com %PDF- literal (PDF embutido em stream): dois
+    cabecalhos mas o segundo NAO vem apos %%EOF -> warn, nao error.
+
+    Guarda contra falso positivo que marcaria arquivo integro como
+    corrompido.
+    """
+    from services.pdf_processor import validate_pdf
+    import pikepdf
+    src = tmp_path / 'embutido.pdf'
+    with pikepdf.new() as pdf:
+        page = pdf.add_blank_page(page_size=(595, 842))
+        # stream cru (sem filtro) contendo o marcador literal
+        page.obj['/Contents'] = pdf.make_indirect(pikepdf.Stream(
+            pdf, b'BT (anexo: %PDF-1.4 interno) Tj ET'))
+        pdf.save(str(src), compress_streams=False)
+
+    dados = src.read_bytes()
+    assert dados.count(b'%PDF-') >= 2, 'fixture deveria ter2 cabecalhos'
+
+    r = validate_pdf(str(src))
+    chk = [c for c in r['checks'] if c['id'] == 'concatenacao']
+    assert chk, [c['id'] for c in r['checks']]
+    assert chk[0]['status'] == 'warn', chk
+    assert r['valid'] is True, r  # warn nao invalida
+
+
+def test_repair_recupera_juncao_bruta(tmp_path):
+    """O reparo separa os segmentos e funde com renumeracao — recupera
+    TODAS as paginas (antes: falso sucesso com1 pagina)."""
+    from services.pdf_processor import repair_pdf, validate_pdf
+    import fitz
+    fontes = [_mk_pdf_bytes(tmp_path, 'a.pdf', 2, 'ALPHA'),
+              _mk_pdf_bytes(tmp_path, 'b.pdf', 1, 'BETA'),
+              _mk_pdf_bytes(tmp_path, 'c.pdf', 1, 'GAMMA')]
+    colado = _concatena(tmp_path, 'colado.pdf', fontes)
+    originais = colado.read_bytes()
+
+    # confirmacao do problema: so1 pagina antes do reparo
+    with fitz.open(str(colado)) as d:
+        assert d.page_count == 1, d.page_count
+
+    saida = tmp_path / 'recuperado.pdf'
+    rep = repair_pdf(str(colado), str(saida))
+
+    # as4 paginas de volta, na ordem original
+    with fitz.open(str(saida)) as d:
+        assert d.page_count == 4, d.page_count
+        textos = [d[i].get_text().strip() for i in range(d.page_count)]
+    assert textos == ['ALPHA p1', 'ALPHA p2', 'BETA p1', 'GAMMA p1'], textos
+
+    # relatorio honesto + arquivo final integro
+    assert any(x.get('category') == 'concatenacao' for x in rep['repaired']), \
+        rep['repaired']
+    assert rep['validation']['valid'] is True, rep['validation']
+    chk = [c for c in rep['validation']['checks']
+           if c['id'] == 'concatenacao']
+    assert chk and chk[0]['status'] == 'ok', chk
+
+    # o original nunca e tocado
+    assert colado.read_bytes() == originais
+
+    # nenhum temporario do fundido vazando
+    import tempfile as _tf
+    from pathlib import Path as _P
+    sobrando = list(_P(_tf.gettempdir()).glob('cremepe-fundido-*'))
+    assert not sobrando, sobrando
+
+
 def test_validate_pdf_imagem_corrompida(tmp_path):
     from services.pdf_processor import validate_pdf
     import pikepdf
