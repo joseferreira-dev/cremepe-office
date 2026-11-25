@@ -139,8 +139,8 @@ export class PDFReorderFeature extends Feature {
                 new_order_str: orderStr
             });
 
-            const { total_pages, output_file, errors } = result;
-            this.log(`Concluído! PDF reordenado salvo em: ${output_file}`);
+            const { total_pages, output_path, errors } = result;
+            this.log(`Concluído! PDF reordenado salvo em: ${output_path}`);
             this.log(`Total de páginas: ${total_pages}`);
             if (errors.length) {
                 this.log(`Erros: ${errors.length}`);

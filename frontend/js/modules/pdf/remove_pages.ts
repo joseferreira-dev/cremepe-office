@@ -168,9 +168,9 @@ export class PDFRemovePagesFeature extends Feature {
                 removed_output_path: removedOutput
             });
 
-            const { total_pages, remaining_pages, removed_pages, output_file, removed_file, errors } = result;
+            const { total_pages, remaining_pages, removed_pages, output_path, removed_file, errors } = result;
             this.log(`Concluído! Total: ${total_pages} páginas, Removidas: ${removed_pages}, Restantes: ${remaining_pages}`);
-            this.log(`Arquivo sem páginas: ${output_file}`);
+            this.log(`Arquivo sem páginas: ${output_path}`);
             if (removed_file) {
                 this.log(`Páginas removidas salvas em: ${removed_file}`);
             }

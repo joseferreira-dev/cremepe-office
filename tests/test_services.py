@@ -1531,6 +1531,33 @@ def test_set_attributes_reporta_progresso(tmp_path, progress_collector):
     assert max(pcts) >= 50, pcts  # 2 arquivos -> 50/100
 
 
+# ===== PDF: remove/reorder devolvem output_path (padrao) =====
+# Antes devolviam output_file (chave heterogenea vs todas as demais
+# features, que usam output_path).
+
+def test_remove_e_reorder_devolvem_output_path(client, tmp_path, pdf_factory):
+    from helpers import post_sync
+    src = pdf_factory(4, 'doc.pdf')
+
+    out1 = tmp_path / 'menos.pdf'
+    r = post_sync(client, '/api/pdf/remove-pages', json={
+        'pdf_path': str(src), 'output_path': str(out1),
+        'pages_to_remove_str': '4'})
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body['output_path'] == str(out1), body
+    assert 'output_file' not in body, body
+
+    out2 = tmp_path / 'reord.pdf'
+    r2 = post_sync(client, '/api/pdf/reorder-pages', json={
+        'pdf_path': str(src), 'output_path': str(out2),
+        'new_order_str': '4,3,2,1'})
+    assert r2.status_code == 200, r2.get_json()
+    body2 = r2.get_json()
+    assert body2['output_path'] == str(out2), body2
+    assert 'output_file' not in body2, body2
+
+
 # ===== PDF: split-by-size (sem O(n²)) e codec JBIG2 =====
 
 def _make_jbig2_pdf(path):

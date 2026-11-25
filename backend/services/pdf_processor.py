@@ -693,7 +693,7 @@ def remove_pages(
         removed_output_path: Caminho para salvar as páginas removidas (se None e save_removed=True, usa "removed_pages.pdf" no mesmo diretório)
 
     Returns:
-        dict com estatísticas: total_pages, remaining_pages, removed_pages, output_file, removed_file, errors
+        dict com estatísticas: total_pages, remaining_pages, removed_pages, output_path, removed_file, errors
     """
     pdf_path = Path(pdf_path).resolve()
     if not pdf_path.exists():
@@ -723,7 +723,7 @@ def remove_pages(
         'total_pages': total_pages,
         'remaining_pages': len(pages_to_keep),
         'removed_pages': len(pages_to_remove),
-        'output_file': None,
+        'output_path': None,
         'removed_file': None,
         'errors': []
     }
@@ -736,7 +736,7 @@ def remove_pages(
             report_progress(keep_idx, len(pages_to_keep))
         with open(output_path, 'wb') as f:
             writer.write(f)
-        stats['output_file'] = str(output_path)
+        stats['output_path'] = str(output_path)
     except Exception as e:
         stats['errors'].append(f"Erro ao salvar arquivo final: {str(e)}")
 
@@ -803,7 +803,7 @@ def reorder_pages(
         new_order_str: String com a nova ordem (ex: "5,1,3,2,4" ou "1-3,5,4")
 
     Returns:
-        dict com estatísticas: total_pages, output_file, errors
+        dict com estatísticas: total_pages, output_path, errors
     """
     pdf_path = Path(pdf_path).resolve()
     if not pdf_path.exists():
@@ -836,7 +836,7 @@ def reorder_pages(
 
     stats = {
         'total_pages': total_pages,
-        'output_file': None,
+        'output_path': None,
         'errors': []
     }
 
@@ -847,7 +847,7 @@ def reorder_pages(
             report_progress(order_idx, len(new_order))
         with open(output_path, 'wb') as f:
             writer.write(f)
-        stats['output_file'] = str(output_path)
+        stats['output_path'] = str(output_path)
     except Exception as e:
         stats['errors'].append(f"Erro ao salvar arquivo reordenado: {str(e)}")
 
