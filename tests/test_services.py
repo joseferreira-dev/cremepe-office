@@ -1646,10 +1646,113 @@ def test_validate_imagem_de_codec_ausente_vira_warn(tmp_path):
     assert r['valid'] is True, r['checks']  # warn nao invalida
 
 
+def _make_raw_image_pdf(path, size=8):
+    """PDF com imagem RAW (sem filtro) — pikepdf e fitz decodificam;
+    usado com monkeypatch para simular pikepdf inoperante."""
+    import pikepdf
+    from PIL import Image
+    raw = Image.new('RGB', (size, size), (10, 20, 30)).tobytes()
+    with pikepdf.new() as pdf:
+        img = pikepdf.Stream(pdf, raw)
+        img['/Subtype'] = pikepdf.Name('/Image')
+        img['/Width'] = size
+        img['/Height'] = size
+        img['/BitsPerComponent'] = 8
+        img['/ColorSpace'] = pikepdf.Name('/DeviceRGB')
+        img = pdf.make_indirect(img)
+        page = pdf.add_blank_page(page_size=(200, 200))
+        page.obj['/Resources'] = _mk({'/XObject': _mk({'/Im1': img})})
+        page.obj['/Contents'] = pikepdf.Stream(
+            pdf, b'q 50 0 0 50 10 10 cm /Im1 Do Q')
+        pdf.save(str(path))
+    return path
+
+
+class _PikepdfInoperante:
+    """Simula pikepdf sem decode (as_pil_image sempre falha)."""
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def as_pil_image(self):
+        raise RuntimeError('pikepdf simulado como inoperante')
+
+
+def test_scan_images_fallback_fitz_decodifica(tmp_path, monkeypatch):
+    """pikepdf nao decodifica mas o MuPDF (fitz) consegue -> a imagem
+    conta como decodificada (sem falso positivo no validate)."""
+    import pikepdf as _pk
+    from services import pdf_processor as pp
+    src = _make_raw_image_pdf(tmp_path / 'raw.pdf')
+
+    monkeypatch.setattr(_pk, 'PdfImage', _PikepdfInoperante)
+    with _pk.open(str(src)) as pdf:
+        total, fails = pp._scan_images(pdf, pdf_path=str(src))
+    assert total == 1
+    assert fails == [], fails  # fitz decodificou no fallback
+
+    # se o fitz TAMBEM falha -> vira falha real (nao codec)
+    def pixmap_quebrado(*args, **kwargs):
+        raise RuntimeError('fitz simulado como inoperante')
+    monkeypatch.setattr(pp.fitz, 'Pixmap', pixmap_quebrado)
+    with _pk.open(str(src)) as pdf:
+        total2, fails2 = pp._scan_images(pdf, pdf_path=str(src))
+    assert len(fails2) == 1, fails2
+    assert fails2[0][3] is False  # codec_ausente=False -> error
+
+
+def test_compress_fallback_fitz_reamostra(tmp_path, monkeypatch):
+    """Com o decode do pikepdf inoperante, o compress usa o MuPDF e
+    reencodra a imagem (skipped_images == 0)."""
+    import pikepdf as _pk
+    from services import pdf_processor as pp
+    src = _make_raw_image_pdf(tmp_path / 'raw_grande.jpg', size=1000)
+
+    monkeypatch.setattr(_pk, 'PdfImage', _PikepdfInoperante)
+    out = tmp_path / 'out.pdf'
+    r = pp.compress(str(src), str(out), compression_level='medium',
+                    jpeg_quality=85, downscale_images=True)
+
+    assert out.exists()
+    assert r['skipped_images'] == 0, r  # fitz fallback decodificou
+    with _pk.open(str(out)) as p2:
+        img2 = list(p2.pages[0].get_images().values())[0]
+        # reencodada como JPEG (o original era raw sem filtro)
+        assert 'DCTDecode' in str(img2.get('/Filter')), img2.get('/Filter')
+
+
+def test_repair_nao_mexe_em_imagem_que_o_fitz_decodifica(tmp_path,
+                                                          monkeypatch):
+    """pikepdf inoperante + fitz decodifica -> imagem INTEIRA: repair
+    nao coloca placeholder nem reporta problema."""
+    import pikepdf as _pk
+    from services import pdf_processor as pp
+    src = _make_raw_image_pdf(tmp_path / 'raw.pdf')
+    monkeypatch.setattr(_pk, 'PdfImage', _PikepdfInoperante)
+
+    out = tmp_path / 'out.pdf'
+    rep = pp.repair_pdf(str(src), str(out))
+
+    assert rep['repaired_count'] == 0, rep
+    assert rep['unrepaired_count'] == 0, rep
+    assert rep['validation']['valid'] is True, rep['validation']
+    # pixels intactos (o save pode recomprimir o raw em Flate — o
+    # placeholder JPEG nao inflaria para os192 bytes originais)
+    import zlib
+    with _pk.open(str(out)) as p2:
+        img = list(p2.pages[0].get_images().values())[0]
+        assert int(img['/Width']) == 8 and int(img['/Height']) == 8
+        dados = img.read_raw_bytes()
+        if 'Flate' in str(img.get('/Filter') or ''):
+            dados = zlib.decompress(dados)
+        assert len(dados) == 192  # 8x8x3 raw originais
+
+
 def test_validate_imagem_com_cor_de_spot_nao_vira_erro(tmp_path):
     """pikepdf recusa transcender imagem com ColorSpace DeviceN
     (HifiPrintImageNotTranscodableError): JPEG VALIDO com cores de
-    spot, nao corrupcao — caso real das7 imagens do arquivo do usuario."""
+    spot, nao corrupcao — caso real das7 imagens do arquivo do usuario.
+    O fitz TAMBEM nao decodifica o sintetico -> warn (classificacao)."""
     import io
 
     import pikepdf

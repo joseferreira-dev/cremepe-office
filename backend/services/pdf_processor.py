@@ -1438,6 +1438,10 @@ def compress(
         if downscale_images and dpi_target:
             # mapa xref -> tamanho exibido (DPI efetivo por imagem)
             display_inches = _display_size_inches(input_path)
+            # Fallback MuPDF: o pikepdf nao decodifica JBIG2/DeviceN e o
+            # MuPDF embute o jbig2dec — doc aberto uma vez, fechado apos
+            # o loop (antes do save).
+            fitz_cache = {'doc': None, 'tried': False}
             # Lista primeiro: as trocas de imagem nao podem acontecer
             # durante a iteracao das paginas/imagens.
             targets = []
@@ -1449,7 +1453,13 @@ def compress(
                 img_obj = None
                 try:
                     img_obj = page.get_images()[name]
-                    pil_image = pikepdf.PdfImage(img_obj).as_pil_image()
+                    try:
+                        pil_image = pikepdf.PdfImage(img_obj).as_pil_image()
+                    except Exception:
+                        pil_image = _fitz_decode(
+                            fitz_cache, str(input_path), img_obj)
+                        if pil_image is None:
+                            raise
 
                     # DPI efetivo = pixels reais vs polegadas exibidas na
                     # pagina; a escala satisfaz AMBOS os eixos (min) e nunca
@@ -1536,6 +1546,15 @@ def compress(
                         logger.warning(
                             'compress: falha ao reamostrar imagem %s: %s',
                             name, exc)
+
+        # fecha o doc fitz do fallback de decode ANTES do save
+        # (evita trava de arquivo no Windows durante a gravacao)
+        if downscale_images and dpi_target:
+            try:
+                if fitz_cache['doc'] is not None:
+                    fitz_cache['doc'].close()
+            except Exception:
+                pass
 
         try:
             pdf.save(
@@ -2024,28 +2043,75 @@ def _imagem_codec_ausente(img, exc=None):
         return False
 
 
-def _scan_images(pdf, progress_span=None):
+def _fitz_decode(cache, pdf_path, img):
+    """Decodifica imagem via MuPDF (fitz) — o MuPDF embute o jbig2dec
+    e trata ColorSpace DeviceN que o pikepdf recusa/nao suporta.
+
+    Devolve PIL.Image ou None (fitz indisponivel ou nao decodifica).
+    `cache` = dict para abrir o documento fitz uma unica vez
+    ({'doc': None, 'tried': False})."""
+    if not pdf_path:
+        return None
+    try:
+        if cache.get('doc') is None and not cache.get('tried'):
+            try:
+                cache['doc'] = fitz.open(str(pdf_path))
+            except Exception:
+                cache['tried'] = True
+        doc = cache.get('doc')
+        if doc is None:
+            return None
+        og = img.objgen
+        if not og or og == (0, 0):
+            return None  # inline: fitz resolve por xref
+        # O MuPDF e TOLERANTE: imprime o erro mas devolve um pixmap em
+        # branco. Captura os avisos: houve erro de decode -> falha.
+        fitz.TOOLS.mupdf_warnings(reset=True)
+        pix = fitz.Pixmap(doc, og[0])
+        if fitz.TOOLS.mupdf_warnings():
+            return None
+        if pix.width <= 0 or pix.height <= 0:
+            return None
+        return Image.open(io.BytesIO(pix.tobytes('png')))
+    except Exception:
+        return None
+
+
+def _scan_images(pdf, progress_span=None, pdf_path=None):
     """(total, [(página, nome, erro, codec_ausente)]) — decodificação
-    real das imagens; codec_ausente marca falhas de AMBIENTE (JBIG2)."""
+    real das imagens; codec_ausente marca falhas de AMBIENTE (JBIG2).
+    Fallback: se o pikepdf nao decodifica mas o MuPDF (fitz) consegue,
+    a imagem conta como decodificada (ex.: JBIG2/DeviceN)."""
     total = 0
     fails = []
+    fitz_cache = {'doc': None, 'tried': False}
     n_pages = len(pdf.pages)
-    for i, page in enumerate(pdf.pages, 1):
-        if progress_span:
-            _report_span(i, n_pages, progress_span, 'Decodificando imagens')
-        try:
-            imgs = page.get_images()
-            names = list(imgs.keys())
-        except Exception as exc:
-            fails.append((i, '', str(exc)[:80], False))
-            continue
-        for name in names:
-            total += 1
+    try:
+        for i, page in enumerate(pdf.pages, 1):
+            if progress_span:
+                _report_span(i, n_pages, progress_span,
+                             'Decodificando imagens')
             try:
-                pikepdf.PdfImage(imgs[name]).as_pil_image()
+                imgs = page.get_images()
+                names = list(imgs.keys())
             except Exception as exc:
-                fails.append((i, str(name), str(exc)[:80],
-                              _imagem_codec_ausente(imgs[name], exc)))
+                fails.append((i, '', str(exc)[:80], False))
+                continue
+            for name in names:
+                total += 1
+                try:
+                    pikepdf.PdfImage(imgs[name]).as_pil_image()
+                except Exception as exc:
+                    if _fitz_decode(fitz_cache, pdf_path, imgs[name]):
+                        continue  # MuPDF decodifica (jbig2/DeviceN...)
+                    fails.append((i, str(name), str(exc)[:80],
+                                  _imagem_codec_ausente(imgs[name], exc)))
+    finally:
+        if fitz_cache['doc'] is not None:
+            try:
+                fitz_cache['doc'].close()
+            except Exception:
+                pass
     return total, fails
 
 
@@ -2089,76 +2155,89 @@ def _fix_pages(pdf):
     return fixed
 
 
-def _fix_images(pdf, progress_span=None):
+def _fix_images(pdf, progress_span=None, pdf_path=None):
     """Imagem com stream corrompido -> placeholder sólido 8x8.
 
     O posicionamento vem da matriz do conteúdo (cm), então a caixa de
     desenho permanece — só os samples são substituídos. Detecta e
-    corrige no mesmo passe (decode é a fase lenta).
+    corrige no mesmo passe (decode é a fase lenta). Se o pikepdf nao
+    decodifica mas o MuPDF (fitz) consegue, a imagem esta INTEIRA —
+    nao mexe (ex.: JBIG2/DeviceN).
     """
     fixed = []
     failed = []
     seen = set()
+    fitz_cache = {'doc': None, 'tried': False}
     n_pages = len(pdf.pages)
-    for i, page in enumerate(pdf.pages, 1):
-        if progress_span:
-            _report_span(i, n_pages, progress_span, 'Reparando imagens')
-        try:
-            imgs = page.get_images()
-            names = list(imgs.keys())
-        except Exception:
-            continue
-        for name in names:
-            img = imgs[name]
+    try:
+        for i, page in enumerate(pdf.pages, 1):
+            if progress_span:
+                _report_span(i, n_pages, progress_span, 'Reparando imagens')
             try:
-                og = img.objgen
+                imgs = page.get_images()
+                names = list(imgs.keys())
             except Exception:
-                og = None
-            if og and og != (0, 0):
-                if og in seen:
-                    continue
-                seen.add(og)
-            try:
-                pikepdf.PdfImage(img).as_pil_image()
                 continue
-            except Exception as exc:
-                if _imagem_codec_ausente(img, exc):
-                    # NAO e corrupcao: codec ausente NESTE ambiente —
-                    # outros leitores exibem; substituir por placeholder
-                    # degradaria conteudo real (nunca piorar).
-                    failed.append({
-                        'category': 'imagens',
-                        'ref': f'pág. {i} {name}',
-                        'reason': 'imagem preservada: codec indisponível '
-                                  'neste ambiente (ex.: JBIG2)',
-                    })
+            for name in names:
+                img = imgs[name]
+                try:
+                    og = img.objgen
+                except Exception:
+                    og = None
+                if og and og != (0, 0):
+                    if og in seen:
+                        continue
+                    seen.add(og)
+                try:
+                    pikepdf.PdfImage(img).as_pil_image()
                     continue
-            ref = f'pág. {i} {name}'
+                except Exception as exc:
+                    if _fitz_decode(fitz_cache, pdf_path, img):
+                        continue  # MuPDF decodifica: imagem esta inteira
+                    if _imagem_codec_ausente(img, exc):
+                        # NAO e corrupcao: codec ausente NESTE ambiente —
+                        # outros leitores exibem; substituir por placeholder
+                        # degradaria conteudo real (nunca piorar).
+                        failed.append({
+                            'category': 'imagens',
+                            'ref': f'pág. {i} {name}',
+                            'reason': 'imagem preservada: codec indisponível '
+                                      'neste ambiente (ex.: JBIG2)',
+                        })
+                        continue
+                    # corrupcao real: substitui por placeholder
+                    ref = f'pág. {i} {name}'
+                    try:
+                        buf = BytesIO()
+                        Image.new('L', (8, 8), 128).save(buf, format='JPEG')
+                        img.write(buf.getvalue())
+                        img['/Subtype'] = pikepdf.Name('/Image')
+                        img['/Width'] = 8
+                        img['/Height'] = 8
+                        img['/ColorSpace'] = pikepdf.Name('/DeviceGray')
+                        img['/BitsPerComponent'] = 8
+                        img['/Filter'] = pikepdf.Name('/DCTDecode')
+                        for k in ('/DecodeParms', '/SMask', '/Mask', '/Decode',
+                                  '/Alternates'):
+                            if k in img:
+                                del img[k]
+                        fixed.append({
+                            'ref': ref,
+                            'detail': 'imagem ilegível substituída por placeholder '
+                                      '8x8 (posicionamento preservado)',
+                        })
+                    except Exception as exc2:
+                        failed.append({
+                            'category': 'imagens',
+                            'ref': ref,
+                            'reason': f'não foi possível substituir: {str(exc2)[:80]}',
+                        })
+    finally:
+        if fitz_cache['doc'] is not None:
             try:
-                buf = BytesIO()
-                Image.new('L', (8, 8), 128).save(buf, format='JPEG')
-                img.write(buf.getvalue())
-                img['/Subtype'] = pikepdf.Name('/Image')
-                img['/Width'] = 8
-                img['/Height'] = 8
-                img['/ColorSpace'] = pikepdf.Name('/DeviceGray')
-                img['/BitsPerComponent'] = 8
-                img['/Filter'] = pikepdf.Name('/DCTDecode')
-                for k in ('/DecodeParms', '/SMask', '/Mask', '/Decode',
-                          '/Alternates'):
-                    if k in img:
-                        del img[k]
-                fixed.append({
-                    'ref': ref,
-                    'detail': 'imagem ilegível substituída por placeholder '
-                              '8x8 (posicionamento preservado)',
-                })
-            except Exception as exc:
-                failed.append({
-                    'category': 'imagens',
-                    'ref': ref,
-                    'reason': f'não foi possível substituir: {str(exc)[:80]}',
-                })
+                fitz_cache['doc'].close()
+            except Exception:
+                pass
     return fixed, failed
 
 
@@ -2498,7 +2577,8 @@ def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
         # ---- imagens (decodificação real) ----
         # Codec indisponível no ambiente (ex.: JBIG2 sem jbig2dec) vira
         # WARN: outros leitores exibem a imagem — não é corrupção.
-        img_total, img_fails = _scan_images(pdf, progress_span=pages_span)
+        img_total, img_fails = _scan_images(pdf, progress_span=pages_span,
+                                            pdf_path=str(path))
         reais = [f for f in img_fails if not f[3]]
         codec = [f for f in img_fails if f[3]]
         img_fail = [
@@ -2807,7 +2887,7 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
 
             # imagens (25-50): detecta e corrige no mesmo passe
             img_fixed, img_failed = _fix_images(
-                pdf, progress_span=(25, 50))
+                pdf, progress_span=(25, 50), pdf_path=str(input_path))
             if img_fixed or img_failed:
                 issues_before['imagens'] = len(img_fixed) + len(img_failed)
             for e in img_fixed:
