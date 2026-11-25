@@ -1567,6 +1567,70 @@ def test_extract_archive_reporta_progresso(tmp_path, progress_collector):
     assert (dest / 'a.txt').exists() and (dest / 'b.txt').exists()
 
 
+def test_extract_7z_reporta_progresso_por_arquivo(tmp_path,
+                                                   progress_collector):
+    """7z: o py7zr chama o callback numa thread SEPARADA — sem capturar o
+    reporter da thread do job, o progresso seria no-op silencioso."""
+    import py7zr
+    from services.file_archive_manager import extract_archive
+
+    d = tmp_path / 'fonte7z'
+    d.mkdir()
+    for i in range(8):
+        (d / f'f{i}.txt').write_text(f'conteudo {i}' * 100, encoding='utf-8')
+    z = tmp_path / 'arq.7z'
+    with py7zr.SevenZipFile(str(z), 'w') as arc:
+        arc.writeall(str(d), 'fonte7z')
+
+    dest = tmp_path / 'saida7z'
+    extract_archive(str(z), str(dest))
+
+    assert progress_collector, 'extract (7z) nao reportou progresso'
+    pcts = [c * 100 // t for c, t in progress_collector]
+    assert pcts == sorted(pcts), f'progresso nao monotono: {pcts}'
+    # 8 arquivos: total vem do list(), cada report_end avanca um
+    assert progress_collector[-1] == (8, 8), progress_collector
+    assert len(list(dest.rglob('*.txt'))) == 8
+
+
+def test_extract_rar_reporta_progresso_membro_a_membro(tmp_path,
+                                                        progress_collector,
+                                                        monkeypatch):
+    """rar: sem ferramenta .rar no ambiente, valida o LOOP com mock —
+    infolist + extract por membro reportando como zip/tar."""
+    import rarfile
+    from services.file_archive_manager import _extract_rar
+
+    class Membro:
+        def __init__(self, nome):
+            self.filename = nome
+
+    extratidos = []
+
+    class FakeRar:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def infolist(self):
+            return [Membro(f'f{i}.rar') for i in range(5)]
+
+        def extract(self, member, path=None, pwd=None):
+            extratidos.append(member.filename)
+
+    monkeypatch.setattr(rarfile, 'RarFile', FakeRar)
+    _extract_rar('qualq.rar', str(tmp_path), None)
+
+    assert extratidos == [f'f{i}.rar' for i in range(5)]
+    assert progress_collector, 'extract (rar) nao reportou progresso'
+    assert progress_collector[-1] == (5, 5), progress_collector
+
+
 def test_set_attributes_reporta_progresso(tmp_path, progress_collector):
     from controllers.file_controller import FileController
     d = tmp_path / 'attr_prog'

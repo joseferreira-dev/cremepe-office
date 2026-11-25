@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 import zipfile
 import fnmatch
-from utils.jobs import report_progress
+from utils.jobs import report_progress, _progress, JobCancelled
 from utils.exceptions import ValidationError
 
 try:
@@ -292,15 +292,81 @@ def _extract_zip(archive_path, extract_path, password):
 def _extract_7z(archive_path, extract_path, password):
     if py7zr is None:
         raise ImportError("py7zr não instalado. Instale com: pip install py7zr")
+
+    # O py7zr chama o callback numa THREAD SEPARADA (reporter), onde o
+    # ContextVar do progresso NAO esta visivel — report_progress direto
+    # seria no-op silencioso. Captura o reporter na thread do job e o
+    # repassa ao callback, que o invoca adireto.
+    reporter = _progress.get()
+
     with py7zr.SevenZipFile(archive_path, mode='r', password=password) as archive:
-        archive.extractall(path=extract_path)
+        try:
+            total = sum(1 for f in archive.list() if not f.is_directory)
+        except Exception:
+            total = 0  # header ilegivel: extrai sem progresso intermediario
+
+        progresso = _Py7zrProgresso(reporter, total)
+        archive.extractall(path=extract_path, callback=progresso)
+
+    # JobCancelled pedido durante a extracao: relanca na thread PRINCIPAL
+    # (o py7zr nao suporta abortar — o cancelamento tem efeito ao fim do
+    # arquivo corrente, nao no meio de um).
+    if progresso.cancelled:
+        raise JobCancelled()
+
+
+class _Py7zrProgresso(py7zr.callbacks.ExtractCallback if py7zr else object):
+    """Progresso por arquivo extraido no7z (chamado na thread reporter).
+
+    `reporter` ja vem capturado da thread do job; `cancelled` guarda um
+    JobCancelled vindo dele para ser relancado na thread principal.
+    """
+
+    def __init__(self, reporter, total):
+        self._reporter = reporter
+        self._total = total
+        self._done = 0
+        self.cancelled = False
+
+    def report_start_preparation(self):
+        pass
+
+    def report_start(self, processing_file_path, processing_bytes):
+        pass
+
+    def report_update(self, decompressed_bytes):
+        pass
+
+    def report_end(self, processing_file_path, wrote_bytes):
+        self._done += 1
+        if self._reporter is None or not self._total:
+            return
+        # report_end tambem dispara para diretorios (9 chamadas em um
+        # archive com 8 arquivos): limita ao total do list() para nao
+        # reportar (9, 8).
+        try:
+            self._reporter(min(self._done, self._total), self._total,
+                           "Extraindo")
+        except JobCancelled:
+            self.cancelled = True
+
+    def report_warning(self, message):
+        pass
+
+    def report_postprocess(self):
+        pass
 
 
 def _extract_rar(archive_path, extract_path, password):
     if rarfile is None:
         raise ImportError("rarfile não instalado. Instale com: pip install rarfile")
     with rarfile.RarFile(archive_path) as rf:
-        rf.extractall(extract_path, pwd=password)
+        # Membro a membro (mesmo padrao do zip/tar): o extractall do
+        # rarfile nao reporta progresso e roda na thread principal.
+        members = rf.infolist()
+        for i, member in enumerate(members, 1):
+            rf.extract(member, extract_path, pwd=password)
+            report_progress(i, len(members))
 
 
 def _extract_tar(archive_path, extract_path):
