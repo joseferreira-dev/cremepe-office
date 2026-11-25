@@ -7,29 +7,43 @@ function assertSuccessEnvelope(data) {
     throw new Error("Resposta da API sem envelope de sucesso (success: true)");
   }
 }
+var activeJobId = null;
 async function pollJob(jobId) {
   const bar = document.querySelector(".progress-bar");
+  const cancelBtns = document.querySelectorAll(".progress-cancel");
+  cancelBtns.forEach((b) => {
+    b.style.display = "inline-block";
+  });
   const startedAt = Date.now();
   let delay = 0;
-  for (; ; ) {
-    if (delay) await sleep(delay);
-    if (Date.now() - startedAt > 30 * 60 * 1e3) {
-      throw new Error("Tempo esgotado aguardando a opera\xE7\xE3o (30 min)");
+  try {
+    for (; ; ) {
+      if (delay) await sleep(delay);
+      if (Date.now() - startedAt > 30 * 60 * 1e3) {
+        throw new Error("Tempo esgotado aguardando a opera\xE7\xE3o (30 min)");
+      }
+      const response = await fetch(`${API_BASE}/jobs/${jobId}`);
+      const job = await response.json();
+      if (!response.ok) {
+        throw new Error(job.error || "Job n\xE3o encontrado ou expirado");
+      }
+      if (job.status === "cancelled") {
+        throw new Error("Opera\xE7\xE3o cancelada");
+      }
+      if (job.status === "done") {
+        assertSuccessEnvelope(job.result);
+        return job.result;
+      }
+      if (job.status === "error") throw new Error(job.error || "Erro na opera\xE7\xE3o");
+      if (bar && typeof job.progress === "number") {
+        bar.style.width = `${job.progress}%`;
+      }
+      delay = delay === 0 ? 100 : Math.min(delay + 50, 500);
     }
-    const response = await fetch(`${API_BASE}/jobs/${jobId}`);
-    const job = await response.json();
-    if (!response.ok) {
-      throw new Error(job.error || "Job n\xE3o encontrado ou expirado");
-    }
-    if (job.status === "done") {
-      assertSuccessEnvelope(job.result);
-      return job.result;
-    }
-    if (job.status === "error") throw new Error(job.error || "Erro na opera\xE7\xE3o");
-    if (bar && typeof job.progress === "number") {
-      bar.style.width = `${job.progress}%`;
-    }
-    delay = delay === 0 ? 100 : Math.min(delay + 50, 500);
+  } finally {
+    cancelBtns.forEach((b) => {
+      b.style.display = "none";
+    });
   }
 }
 async function apiRequest(endpoint, method = "GET", body = null) {
@@ -41,7 +55,12 @@ async function apiRequest(endpoint, method = "GET", body = null) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Erro na requisi\xE7\xE3o");
     if (data && data.job_id && data.status) {
-      return await pollJob(data.job_id);
+      activeJobId = data.job_id;
+      try {
+        return await pollJob(data.job_id);
+      } finally {
+        activeJobId = null;
+      }
     }
     assertSuccessEnvelope(data);
     return data;
@@ -93,6 +112,11 @@ var API = {
     repair: (params) => apiRequest("/pdf/repair", "POST", params),
     protectPassword: (params) => apiRequest("/pdf/protect-password", "POST", params),
     removePassword: (params) => apiRequest("/pdf/remove-password", "POST", params)
+  },
+  jobs: {
+    // Cancela o job ativo (pollJob): cooperativo — encerra no
+    // proximo report_progress. No-op se nao ha job em andamento.
+    cancel: () => activeJobId ? apiRequest(`/jobs/${activeJobId}/cancel`, "POST") : Promise.resolve(null)
   },
   word: {
     merge: (params) => apiRequest("/word/merge", "POST", params),
@@ -375,7 +399,8 @@ var Feature = class {
   }
   /** HTML da barra de progresso (estado inicial 0%). */
   progressHTML() {
-    return `<div class="progress mt-2"><div class="progress-bar" id="${this.progressId}" style="width:0%"></div></div>`;
+    return `<div class="progress mt-2"><div class="progress-bar" id="${this.progressId}" style="width:0%"></div></div>
+            <button class="btn btn-outline-danger btn-sm progress-cancel mt-2" style="display:none;">Cancelar</button>`;
   }
   /** HTML da area de log com rotulo (padrao: LOG DE OPERACOES). */
   logHTML(label = "LOG DE OPERA\xC7\xD5ES") {
@@ -3602,6 +3627,13 @@ var PDFCompressFeature = class extends Feature {
                     <div class="col-span-6"><span class="badge bg-brand-600">Comprimido: <span id="comp-size">0</span> KB</span></div>
                 </div>
                 <div class="mt-2"><span class="badge bg-sky-100">Redu\xE7\xE3o: <span id="comp-ratio">0</span>%</span></div>
+                <div class="mt-2" id="skipped-images-row" style="display:none;">
+                    <span class="badge bg-amber-100 text-amber-800">
+                        <span id="skipped-images">0</span> imagem(ns) mantida(s) intacta(s)
+                    </span>
+                    <div class="mt-1"><small class="text-zinc-500">N\xE3o reamostradas (codec indispon\xEDvel no
+                        ambiente ou j\xE1 abaixo do DPI alvo) \u2014 preservadas para n\xE3o degradar a qualidade.</small></div>
+                </div>
             </div>
 
             ${this.logHTML()}
@@ -3679,6 +3711,15 @@ var PDFCompressFeature = class extends Feature {
       document.getElementById("comp-size").textContent = comp;
       document.getElementById("comp-ratio").textContent = reduction;
       document.getElementById("compress-result").style.display = "block";
+      const skipped = typeof result.skipped_images === "number" ? result.skipped_images : 0;
+      const skippedRow = document.getElementById("skipped-images-row");
+      if (skipped > 0 && skippedRow) {
+        document.getElementById("skipped-images").textContent = String(skipped);
+        skippedRow.style.display = "block";
+        this.log(`${skipped} imagem(ns) mantida(s) intacta(s) (codec indispon\xEDvel neste ambiente ou j\xE1 abaixo do DPI alvo).`);
+      } else if (skippedRow) {
+        skippedRow.style.display = "none";
+      }
       if (result.ratio >= 1) {
         this.log(`Sem redu\xE7\xE3o de tamanho: ${orig} KB -> ${comp} KB (conte\xFAdo j\xE1 estava otimizado).`);
         this.log(`Arquivo salvo em: ${result.output_path}`);
@@ -4143,6 +4184,14 @@ var PDFConvertToWordFeature = class extends Feature {
                 </div>
             </div>
 
+            <div class="card mb-4" id="convert-pages-card">
+                <div class="card-body">
+                    <h5 class="card-title section-title">P\xE1ginas (PDF \u2192 Word)</h5>
+                    <input type="text" id="convert-pages" class="form-control" placeholder="Todas as p\xE1ginas (ou ex.: 1-100, 200-250)">
+                    <small class="text-zinc-500">Deixe vazio para converter o arquivo inteiro \u2014 em PDFs enormes use um intervalo para agilizar.</small>
+                </div>
+            </div>
+
             <button class="btn btn-success" id="btn-convert-execute"><i data-lucide="play" class="me-1"></i>Converter</button>
 
             ${this.progressHTML()}
@@ -4152,10 +4201,18 @@ var PDFConvertToWordFeature = class extends Feature {
     document.querySelectorAll('input[name="convert-direction"]').forEach((radio) => {
       radio.addEventListener("change", (e) => {
         this.direction = e.target.value;
+        this.togglePagesCard();
         this.updateSuggestions();
       });
     });
+    this.togglePagesCard();
     this.attachEvents();
+  }
+  togglePagesCard() {
+    const card = document.getElementById("convert-pages-card");
+    if (card) {
+      card.style.display = this.direction === "pdf_to_word" ? "block" : "none";
+    }
   }
   attachEvents() {
     document.getElementById("btn-convert-input").addEventListener("click", () => {
@@ -4187,7 +4244,10 @@ var PDFConvertToWordFeature = class extends Feature {
     document.getElementById("btn-convert-execute").addEventListener("click", () => this.executeConvert());
     document.getElementById("convert-input-file").addEventListener("change", () => this.suggestOutput());
     document.querySelectorAll('input[name="convert-direction"]').forEach((radio) => {
-      radio.addEventListener("change", () => this.suggestOutput());
+      radio.addEventListener("change", () => {
+        this.suggestOutput();
+        this.togglePagesCard();
+      });
     });
   }
   suggestOutput() {
@@ -4213,12 +4273,32 @@ var PDFConvertToWordFeature = class extends Feature {
     this.clearLog();
     try {
       if (this.direction === "pdf_to_word") {
-        this.log("Convertendo PDF \u2192 Word...");
+        const pagesSel = document.getElementById("convert-pages").value.trim() || "all";
+        if (pagesSel === "all") {
+          const info = await API.pdf.info({ pdf_path: inputFile });
+          if (info.pages > 200) {
+            const ok = confirm(
+              `PDF com ${info.pages} p\xE1ginas.
+
+Converter o arquivo INTEIRO pode levar bastante tempo (em teste real com 9315 p\xE1ginas: mais de 53 minutos).
+
+OK = converter todas as p\xE1ginas.
+Cancelar = informe um intervalo no campo "P\xE1ginas" (ex.: 1-100) para agilizar.`
+            );
+            if (!ok) {
+              this.log("Convers\xE3o cancelada. Informe um intervalo de p\xE1ginas (ex.: 1-100) para converter s\xF3 uma parte.");
+              return;
+            }
+          }
+        }
+        this.log(pagesSel === "all" ? "Convertendo PDF \u2192 Word (todas as p\xE1ginas)..." : `Convertendo PDF \u2192 Word (p\xE1ginas ${pagesSel})...`);
         const result = await API.pdf.convertToWord({
           pdf_path: inputFile,
-          output_path: outputFile
+          output_path: outputFile,
+          pages_selection: pagesSel
         });
         if (result.warning) this.log(`Aviso: ${result.warning}`);
+        if (result.pages_converted) this.log(`(${result.pages_converted} p\xE1gina(s) convertida(s))`);
         this.log(`Conclu\xEDdo! Arquivo salvo em: ${result.output_path}`);
       } else {
         this.log("Convertendo Word \u2192 PDF...");
@@ -5257,9 +5337,9 @@ var PDFRemovePagesFeature = class extends Feature {
         save_removed: saveRemoved,
         removed_output_path: removedOutput
       });
-      const { total_pages, remaining_pages, removed_pages, output_file, removed_file, errors } = result;
+      const { total_pages, remaining_pages, removed_pages, output_path, removed_file, errors } = result;
       this.log(`Conclu\xEDdo! Total: ${total_pages} p\xE1ginas, Removidas: ${removed_pages}, Restantes: ${remaining_pages}`);
-      this.log(`Arquivo sem p\xE1ginas: ${output_file}`);
+      this.log(`Arquivo sem p\xE1ginas: ${output_path}`);
       if (removed_file) {
         this.log(`P\xE1ginas removidas salvas em: ${removed_file}`);
       }
@@ -5396,8 +5476,8 @@ var PDFReorderFeature = class extends Feature {
         output_path: outputFile,
         new_order_str: orderStr
       });
-      const { total_pages, output_file, errors } = result;
-      this.log(`Conclu\xEDdo! PDF reordenado salvo em: ${output_file}`);
+      const { total_pages, output_path, errors } = result;
+      this.log(`Conclu\xEDdo! PDF reordenado salvo em: ${output_path}`);
       this.log(`Total de p\xE1ginas: ${total_pages}`);
       if (errors.length) {
         this.log(`Erros: ${errors.length}`);
@@ -7482,6 +7562,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const page = btn.dataset.page;
       window.navigateTo(page);
     });
+  });
+  document.addEventListener("click", (e) => {
+    const alvo = e.target instanceof Element ? e.target.closest(".progress-cancel") : null;
+    if (alvo) {
+      void API.jobs.cancel();
+    }
   });
   window.navigateTo("home");
   let iconsPending = false;

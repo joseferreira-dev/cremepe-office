@@ -91,6 +91,13 @@ export class PDFCompressFeature extends Feature {
                     <div class="col-span-6"><span class="badge bg-brand-600">Comprimido: <span id="comp-size">0</span> KB</span></div>
                 </div>
                 <div class="mt-2"><span class="badge bg-sky-100">Redução: <span id="comp-ratio">0</span>%</span></div>
+                <div class="mt-2" id="skipped-images-row" style="display:none;">
+                    <span class="badge bg-amber-100 text-amber-800">
+                        <span id="skipped-images">0</span> imagem(ns) mantida(s) intacta(s)
+                    </span>
+                    <div class="mt-1"><small class="text-zinc-500">Não reamostradas (codec indisponível no
+                        ambiente ou já abaixo do DPI alvo) — preservadas para não degradar a qualidade.</small></div>
+                </div>
             </div>
 
             ${this.logHTML()}
@@ -181,6 +188,20 @@ export class PDFCompressFeature extends Feature {
             document.getElementById('comp-size')!.textContent = comp;
             document.getElementById('comp-ratio')!.textContent = reduction;
             document.getElementById('compress-result')!.style.display = 'block';
+
+            // Imagens que o backend nao reamostrou (skipped_images):
+            // mostra a contagem para o usuario entender por que a reducao
+            // ficou abaixo do esperado (ex.: JBIG2/DeviceN no arquivo real).
+            const skipped = typeof result.skipped_images === 'number'
+                ? result.skipped_images : 0;
+            const skippedRow = document.getElementById('skipped-images-row');
+            if (skipped > 0 && skippedRow) {
+                document.getElementById('skipped-images')!.textContent = String(skipped);
+                skippedRow.style.display = 'block';
+                this.log(`${skipped} imagem(ns) mantida(s) intacta(s) (codec indisponível neste ambiente ou já abaixo do DPI alvo).`);
+            } else if (skippedRow) {
+                skippedRow.style.display = 'none';
+            }
 
             if (result.ratio >= 1) {
                 this.log(`Sem redução de tamanho: ${orig} KB -> ${comp} KB (conteúdo já estava otimizado).`);
