@@ -1,4 +1,4 @@
-"""Validacao @require das 51 rotas POST da API."""
+"""Validacao @require das 52 rotas POST da API."""
 from pathlib import Path
 
 from helpers import post_sync
@@ -10,8 +10,8 @@ def _post_rules(app):
     )
 
 
-def test_sao_51_rotas_post(app):
-    assert len(_post_rules(app)) == 51
+def test_sao_52_rotas_post(app):
+    assert len(_post_rules(app)) == 52
 
 
 # ===== Envelope de sucesso padrao (opcao 5 da auditoria) =====
@@ -44,11 +44,14 @@ def test_todo_retorno_200_carrega_envelope_de_sucesso():
 
 
 def test_todas_as_rotas_validam_corpo_vazio(app, client):
-    """{} -> 400 com mensagem, exceto watermark/preview (sem campos)."""
+    """{} -> 400 com mensagem, exceto watermark/preview (sem campos)
+    e /cancel (rota de job sem campos de corpo -> job inexistente 404)."""
     for rule in _post_rules(app):
         r = post_sync(client, rule, json={})
         if rule.endswith("watermark/preview"):
             assert r.status_code == 200, f"{rule} deveria aceitar corpo vazio"
+        elif rule.endswith("/cancel"):
+            assert r.status_code == 404, f"{rule}: {r.get_json()}"
         else:
             assert r.status_code == 400, f"{rule} deveria exigir campos"
             assert r.get_json()["error"].startswith("Campo"), \

@@ -27,36 +27,51 @@ function assertSuccessEnvelope(data: unknown): void {
     }
 }
 
+// Job ativo no momento (apenas1 por janela): usado pelo botao Cancelar
+// da barra — o frontend so conhece o id durante o polling.
+let activeJobId: string | null = null;
+
 // Contrato dos jobs/respostas: `any` deliberado na fronteira HTTP — o
 // shape e validado pela auditoria funcional (48/48) e pelos testes do
 // backend; tipar aqui seria duplicar o contrato Flask em TS.
 async function pollJob(jobId: string): Promise<any> {
     const bar = document.querySelector('.progress-bar');
+    // Botao Cancelar: visivel SO enquanto ha um job (so o polling
+    // disso); cliques vao por delegacao global em app.ts.
+    const cancelBtns = document.querySelectorAll<HTMLElement>('.progress-cancel');
+    cancelBtns.forEach(b => { b.style.display = 'inline-block'; });
     const startedAt = Date.now();
     let delay = 0;
 
-    for (;;) {
-        if (delay) await sleep(delay);
-        if (Date.now() - startedAt > 30 * 60 * 1000) {
-            throw new Error('Tempo esgotado aguardando a operação (30 min)');
-        }
+    try {
+        for (;;) {
+            if (delay) await sleep(delay);
+            if (Date.now() - startedAt > 30 * 60 * 1000) {
+                throw new Error('Tempo esgotado aguardando a operação (30 min)');
+            }
 
-        const response = await fetch(`${API_BASE}/jobs/${jobId}`);
-        const job = await response.json();
-        if (!response.ok) {
-            throw new Error(job.error || 'Job não encontrado ou expirado');
-        }
-        if (job.status === 'done') {
-            assertSuccessEnvelope(job.result);
-            return job.result;
-        }
-        if (job.status === 'error') throw new Error(job.error || 'Erro na operação');
+            const response = await fetch(`${API_BASE}/jobs/${jobId}`);
+            const job = await response.json();
+            if (!response.ok) {
+                throw new Error(job.error || 'Job não encontrado ou expirado');
+            }
+            if (job.status === 'cancelled') {
+                throw new Error('Operação cancelada');
+            }
+            if (job.status === 'done') {
+                assertSuccessEnvelope(job.result);
+                return job.result;
+            }
+            if (job.status === 'error') throw new Error(job.error || 'Erro na operação');
 
-        if (bar && typeof job.progress === 'number') {
-            (bar as HTMLElement).style.width = `${job.progress}%`;
+            if (bar && typeof job.progress === 'number') {
+                (bar as HTMLElement).style.width = `${job.progress}%`;
+            }
+            // backoff: 100ms -> 500ms (operacoes rapidas terminam no 1o poll)
+            delay = delay === 0 ? 100 : Math.min(delay + 50, 500);
         }
-        // backoff: 100ms -> 500ms (operacoes rapidas terminam no 1o poll)
-        delay = delay === 0 ? 100 : Math.min(delay + 50, 500);
+    } finally {
+        cancelBtns.forEach(b => { b.style.display = 'none'; });
     }
 }
 
@@ -70,7 +85,12 @@ async function apiRequest(endpoint: string, method = 'GET', body: unknown = null
         if (!response.ok) throw new Error(data.error || 'Erro na requisição');
         // POSTs assincronos: 202 {job_id, status} -> acompanha o job
         if (data && data.job_id && data.status) {
-            return await pollJob(data.job_id);
+            activeJobId = data.job_id;
+            try {
+                return await pollJob(data.job_id);
+            } finally {
+                activeJobId = null;
+            }
         }
         assertSuccessEnvelope(data);
         return data;
@@ -122,6 +142,13 @@ export const API = {
         repair: (params: Params) => apiRequest('/pdf/repair', 'POST', params),
         protectPassword: (params: Params) => apiRequest('/pdf/protect-password', 'POST', params),
         removePassword: (params: Params) => apiRequest('/pdf/remove-password', 'POST', params),
+    },
+    jobs: {
+        // Cancela o job ativo (pollJob): cooperativo — encerra no
+        // proximo report_progress. No-op se nao ha job em andamento.
+        cancel: () => (activeJobId
+            ? apiRequest(`/jobs/${activeJobId}/cancel`, 'POST')
+            : Promise.resolve(null)),
     },
     word: {
         merge: (params: Params) => apiRequest('/word/merge', 'POST', params),

@@ -21,6 +21,7 @@ ALLOW_NO_STYLE = {
     'btn-src-select', 'btn-src-remove', 'feature-checkbox',
     'pdf-item', 'pdf-items', 'src-dir-input',
     'field-name', 'field-source', 'field-source-container', 'field-type',
+    'progress-cancel',
 }
 
 

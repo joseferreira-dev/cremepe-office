@@ -23,17 +23,30 @@ JOB_MAX_AGE = 3600
 JOB_MAX_COUNT = 200
 
 
+class JobCancelled(Exception):
+    """Levantado dentro do job quando o usuario pediu cancelamento.
+
+    Propaga pelos loops que chamam report_progress e e interceptado
+    pelo runner do @as_job (status -> 'cancelled'). Fora de job o
+    report_progress continua no-op.
+    """
+
+
 def report_progress(current: int, total: int, message: str = None) -> None:
     """Reporta progresso da operação em andamento (no-op fora de um job).
 
     current/total em unidades do trabalho (arquivos, paginas...).
-    Nunca levanta exceção: falha de progresso não derruba a operação.
+    Nunca levanta excecao de progresso: falha de progresso nao derruba
+    a operacao — EXCETO JobCancelled (cancelamento do usuario), que
+    deve propagar para encerrar o job.
     """
     callback = _progress.get()
     if callback is None:
         return
     try:
         callback(current, total, message)
+    except JobCancelled:
+        raise
     except Exception:
         pass
 
@@ -63,6 +76,7 @@ class Job:
         self.error_status = None
         self.created_at = time.time()
         self.finished_at = None
+        self.cancel_requested = False
         self._lock = threading.Lock()
 
     def mark_running(self):
@@ -70,9 +84,30 @@ class Job:
             if self.status == "queued":
                 self.status = "running"
 
-    def report(self, current: int, total: int, message=None):
-        """Recebe report_progress(); atualiza o percentual."""
+    def request_cancel(self):
+        """Pede cancelamento cooperativo: o job encerra no proximo
+        report_progress. Job ainda na fila vira 'cancelled' na hora
+        (o runner verifica antes de executar)."""
         with self._lock:
+            self.cancel_requested = True
+            if self.status == "queued":
+                self.status = "cancelled"
+                self.finished_at = time.time()
+
+    def cancelled(self) -> None:
+        with self._lock:
+            self.status = "cancelled"
+            self.finished_at = time.time()
+
+    def report(self, current: int, total: int, message=None):
+        """Recebe report_progress(); atualiza o percentual.
+
+        Levanta JobCancelled quando ha pedido de cancelamento — a
+        excecao propaga pelo loop do service ate o runner do @as_job.
+        """
+        with self._lock:
+            if self.cancel_requested:
+                raise JobCancelled()
             if self.status not in ("queued", "running"):
                 return
             if total and total > 0:

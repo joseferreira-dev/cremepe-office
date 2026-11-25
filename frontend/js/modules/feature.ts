@@ -127,7 +127,8 @@ export class Feature {
 
     /** HTML da barra de progresso (estado inicial 0%). */
     progressHTML(): string {
-        return `<div class="progress mt-2"><div class="progress-bar" id="${this.progressId}" style="width:0%"></div></div>`;
+        return `<div class="progress mt-2"><div class="progress-bar" id="${this.progressId}" style="width:0%"></div></div>
+            <button class="btn btn-outline-danger btn-sm progress-cancel mt-2" style="display:none;">Cancelar</button>`;
     }
 
     /** HTML da area de log com rotulo (padrao: LOG DE OPERACOES). */

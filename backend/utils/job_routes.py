@@ -25,7 +25,7 @@ from functools import wraps
 from flask import jsonify
 
 from utils.errors import describe_exception
-from utils.jobs import jobs, _set_progress, _reset_progress
+from utils.jobs import JobCancelled, jobs, _set_progress, _reset_progress
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +52,18 @@ def as_job(label: str = None):
                         job.fail("Sem contexto Flask para executar a operação")
                         return
                     with flask_app.app_context():
+                        # cancelado ANTES de comecar: nem inicia
+                        if job.status == "cancelled":
+                            return
                         job.mark_running()
                         try:
                             rv = view(*args, **kwargs)
+                        except JobCancelled:
+                            # pedido do usuario via report_progress
+                            job.cancelled()
+                            logger.info("Job %s (%s) cancelado pelo usuario",
+                                        job.id, job.label)
+                            return
                         except Exception as exc:
                             logger.error(
                                 "Job %s (%s) falhou: %s",

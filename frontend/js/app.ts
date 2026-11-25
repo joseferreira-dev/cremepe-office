@@ -60,6 +60,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // Cancelamento de jobs: delegacao global do botao Cancelar da
+    // barra de progresso (o botao fica visivel so durante o polling,
+    // em pollJob; sem job ativo o clique e um no-op).
+    document.addEventListener('click', (e) => {
+        const alvo = e.target instanceof Element
+            ? e.target.closest('.progress-cancel')
+            : null;
+        if (alvo) {
+            void API.jobs.cancel();
+        }
+    });
+
     window.navigateTo('home');
 
     // ====== ÍCONES LUCIDE ======

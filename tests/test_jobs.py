@@ -173,3 +173,89 @@ def test_jobmanager_respeita_teto_de_jobs(monkeypatch):
     assert mgr.get(ids[0]) is None
     assert mgr.get(ids[2]) is None
     assert mgr.get(ids[7]) is not None
+
+
+# ===== Cancelamento =====
+
+def test_cancel_mecanismo_cooperativo():
+    """request_cancel faz report_progress levantar JobCancelled e um
+    job na fila vira 'cancelled' na hora."""
+    from utils.jobs import JobCancelled
+
+    job = jobs_mod.jobs.create("teste-cancel-report")
+    token = jobs_mod._progress.set(job.report)
+    try:
+        job.request_cancel()
+        try:
+            report_progress(1, 10)
+            raise AssertionError("report_progress nao levantou JobCancelled")
+        except JobCancelled:
+            pass
+    finally:
+        jobs_mod._progress.reset(token)
+
+    fila = jobs_mod.jobs.create("teste-cancel-fila")
+    fila.request_cancel()
+    assert fila.status == "cancelled"
+
+
+def test_rota_cancel_job(client):
+    job = jobs_mod.jobs.create("teste-cancel-rota")
+    r = client.post(f"/api/jobs/{job.id}/cancel")
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body["success"] is True
+    assert body["status"] == "cancelled"
+
+    # id inexistente -> 404
+    r2 = client.post("/api/jobs/naoexiste999/cancel")
+    assert r2.status_code == 404
+
+    # job finalizado: no-op devolve o status atual (done)
+    pronto = jobs_mod.jobs.create("teste-cancel-done")
+    pronto.mark_running()
+    pronto.succeed({"ok": True})
+    r3 = client.post(f"/api/jobs/{pronto.id}/cancel")
+    assert r3.status_code == 200
+    assert r3.get_json()["status"] == "done"
+
+
+def test_cancel_e2e_encerra_job_em_andamento(client, monkeypatch):
+    """POST /pdf/split-fixed com service lento: cancela no meio e o
+    job termina como 'cancelled' (o runner intercepta JobCancelled)."""
+    import time as _time
+
+    import controllers.pdf_controller as pc
+    from utils.jobs import report_progress
+
+    def lento(*args, **kwargs):
+        for i in range(200):
+            report_progress(i + 1, 200)
+            _time.sleep(0.02)  # ~4s no total
+        return {"total_pages": 200, "total_files": 1,
+                "output_files": [], "errors": []}
+
+    monkeypatch.setattr(pc, "split_fixed", lento)
+
+    r = client.post("/api/pdf/split-fixed",
+                    json={"pdf_path": "qualquer.pdf",
+                          "output_dir": "/tmp/x", "pages_per_file": 10})
+    assert r.status_code == 202
+    job_id = r.get_json()["job_id"]
+
+    # espera o progresso comecar (2o report -> progress >= 1)
+    for _ in range(200):
+        job = client.get(f"/api/jobs/{job_id}").get_json()
+        if job["progress"] > 0:
+            break
+        _time.sleep(0.02)
+    c = client.post(f"/api/jobs/{job_id}/cancel")
+    assert c.status_code == 200, c.get_json()
+
+    # termina como cancelled (cooperativo, no proximo report)
+    for _ in range(300):
+        job = client.get(f"/api/jobs/{job_id}").get_json()
+        if job["status"] in ("done", "error", "cancelled"):
+            break
+        _time.sleep(0.02)
+    assert job["status"] == "cancelled", job
