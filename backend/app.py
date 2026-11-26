@@ -12,6 +12,17 @@ logger = logging.getLogger(__name__)
 from flask import Flask
 from flask_cors import CORS
 
+# O pdf2docx (dependencia) faz `import fitz`, que no PyMuPDF2.x emite
+# FutureWarning de depreciacao a cada inicializacao — poluiria o log do
+# backend com um aviso que nao e nosso. Filtra SÓ esse warning; os
+# demais FutureWarning seguem aparecendo normalmente.
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message=r"The `fitz` API is deprecated.*",
+    category=FutureWarning,
+)
+
 from routes.file_routes import file_bp
 from routes.pdf_routes import pdf_bp
 from routes.word_routes import word_bp

@@ -3,7 +3,7 @@
 Cobre o servico (dois motores comparados, criterio de maior cobertura)
 e as rotas /pdf/ocr-text e /pdf/ocr-searchable.
 """
-import fitz
+import pymupdf
 import pytest
 from helpers import post_sync
 
@@ -24,13 +24,13 @@ def _digitalizado(tmp_path, nome="scan.pdf", linhas=None):
         c.drawString(60, 750 - i * 30, l)
     c.save()
 
-    doc = fitz.open(str(vet))
+    doc = pymupdf.open(str(vet))
     page = doc[0]
     img = page.get_pixmap(dpi=200).tobytes("png")
     doc.close()
 
     scan = tmp_path / nome
-    d2 = fitz.open()
+    d2 = pymupdf.open()
     np_ = d2.new_page(width=595, height=842)
     np_.insert_image(np_.rect, stream=img)
     d2.save(str(scan))
@@ -46,7 +46,7 @@ def test_ocr_pagina_compara_os_dois_motores(tmp_path):
 
     configurar_tesseract()
     scan = _digitalizado(tmp_path)
-    doc = fitz.open(str(scan))
+    doc = pymupdf.open(str(scan))
     try:
         res = ocr_pagina(doc[0])
     finally:
@@ -153,8 +153,8 @@ def test_pdf_pesquisavel_tem_camada_invisivel(tmp_path):
     assert rep["spans_inseridos"] > 0, rep
     assert saida.exists()
 
-    orig = fitz.open(str(scan))
-    novo = fitz.open(str(saida))
+    orig = pymupdf.open(str(scan))
+    novo = pymupdf.open(str(saida))
     try:
         texto = novo[0].get_text()
         assert "10717-2026" in texto, texto  # busca/selecao funciona
@@ -222,7 +222,7 @@ def test_rota_ocr_searchable(client, tmp_path):
     assert body["spans_inseridos"] > 0, body
     assert saida.exists()
 
-    doc = fitz.open(str(saida))
+    doc = pymupdf.open(str(saida))
     try:
         assert "10717-2026" in doc[0].get_text()
     finally:

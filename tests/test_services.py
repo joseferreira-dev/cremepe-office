@@ -425,8 +425,8 @@ def test_compress_reamostra_imagens_e_reduz(tmp_path):
     doc = PdfReader(str(out))
     assert len(doc.pages) == 1
     assert 'alta densidade' in (doc.pages[0].extract_text() or '')
-    import fitz
-    d = fitz.open(str(out))
+    import pymupdf
+    d = pymupdf.open(str(out))
     assert d[0].get_pixmap(dpi=36).width > 0
     d.close()
 
@@ -676,7 +676,7 @@ def test_repair_recupera_juncao_bruta(tmp_path):
     """O reparo separa os segmentos e funde com renumeracao — recupera
     TODAS as paginas (antes: falso sucesso com1 pagina)."""
     from services.pdf_processor import repair_pdf, validate_pdf
-    import fitz
+    import pymupdf
     fontes = [_mk_pdf_bytes(tmp_path, 'a.pdf', 2, 'ALPHA'),
               _mk_pdf_bytes(tmp_path, 'b.pdf', 1, 'BETA'),
               _mk_pdf_bytes(tmp_path, 'c.pdf', 1, 'GAMMA')]
@@ -684,14 +684,14 @@ def test_repair_recupera_juncao_bruta(tmp_path):
     originais = colado.read_bytes()
 
     # confirmacao do problema: so1 pagina antes do reparo
-    with fitz.open(str(colado)) as d:
+    with pymupdf.open(str(colado)) as d:
         assert d.page_count == 1, d.page_count
 
     saida = tmp_path / 'recuperado.pdf'
     rep = repair_pdf(str(colado), str(saida))
 
     # as4 paginas de volta, na ordem original
-    with fitz.open(str(saida)) as d:
+    with pymupdf.open(str(saida)) as d:
         assert d.page_count == 4, d.page_count
         textos = [d[i].get_text().strip() for i in range(d.page_count)]
     assert textos == ['ALPHA p1', 'ALPHA p2', 'BETA p1', 'GAMMA p1'], textos
@@ -777,7 +777,7 @@ def test_rota_validate_contrato_e_404(client, pdf_factory, tmp_path):
 # ===== pdf/info: contagem de paginas (sync) para validar antes do job =====
 
 def test_rota_pdf_info_paginas_e_status(client, pdf_factory, tmp_path):
-    import fitz
+    import pymupdf
 
     from helpers import post_sync
 
@@ -793,8 +793,8 @@ def test_rota_pdf_info_paginas_e_status(client, pdf_factory, tmp_path):
     # criptografado: conta as paginas mesmo sem a senha (fitz; o PyPDF2
     # instalado nao tem PyCryptodome e falharia em AES)
     enc = tmp_path / 'info_enc.pdf'
-    doc = fitz.open(str(src))
-    doc.save(str(enc), encryption=fitz.PDF_ENCRYPT_AES_256,
+    doc = pymupdf.open(str(src))
+    doc.save(str(enc), encryption=pymupdf.PDF_ENCRYPT_AES_256,
              owner_pw='segredo', user_pw='segredo')
     doc.close()
     ok_enc = post_sync(client, '/api/pdf/info', json={'pdf_path': str(enc)})
@@ -1014,7 +1014,7 @@ def test_validate_pdf_acusa_devicen_com_aridade_errada(tmp_path):
 
 
 def test_repair_pdf_corrige_fallback_e_revalida(tmp_path):
-    import fitz
+    import pymupdf
     from services.pdf_processor import repair_pdf
     src = tmp_path / 'devicen_quebrado.pdf'
     fixed = tmp_path / 'corrigido.pdf'
@@ -1033,7 +1033,7 @@ def test_repair_pdf_corrige_fallback_e_revalida(tmp_path):
     assert rep['validation']['stats']['color_issues'] == 0
 
     # abre no fitz e a funcao gerada faz a identidade CMYK certa
-    with fitz.open(str(fixed)) as doc:
+    with pymupdf.open(str(fixed)) as doc:
         assert doc.page_count == 1
     prog = _tint_programs(fixed)[0]
     assert _eval_type4(prog, [0.3, 0.7], 4) == [0.3, 0.7, 0.0, 0.0]
@@ -1963,7 +1963,7 @@ def test_scan_images_fallback_fitz_decodifica(tmp_path, monkeypatch):
     # se o fitz TAMBEM falha -> vira falha real (nao codec)
     def pixmap_quebrado(*args, **kwargs):
         raise RuntimeError('fitz simulado como inoperante')
-    monkeypatch.setattr(pp.fitz, 'Pixmap', pixmap_quebrado)
+    monkeypatch.setattr(pp.pymupdf, 'Pixmap', pixmap_quebrado)
     with _pk.open(str(src)) as pdf:
         total2, fails2 = pp._scan_images(pdf, pdf_path=str(src))
     assert len(fails2) == 1, fails2

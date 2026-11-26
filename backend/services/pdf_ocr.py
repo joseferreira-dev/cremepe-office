@@ -30,7 +30,7 @@ import os
 import shutil
 from pathlib import Path
 
-import fitz
+import pymupdf
 from PIL import Image
 
 try:
@@ -291,7 +291,7 @@ def _parse_paginas(selecao):
 
 def _paginas_abertas(pdf_path, pages):
     """(doc, lista_de_numeros_1based, total)."""
-    doc = fitz.open(str(pdf_path))
+    doc = pymupdf.open(str(pdf_path))
     total = doc.page_count
     pages = _parse_paginas(pages)
     if pages is None:
@@ -375,7 +375,7 @@ def _inserir_invisivel(page, spans) -> int:
         texto = (sp.get("text") or "").strip()
         if not texto:
             continue
-        rect = fitz.Rect(*sp["bbox"])
+        rect = pymupdf.Rect(*sp["bbox"])
         if rect.is_empty or rect.width <= 0 or rect.height <= 0:
             continue
         size = float(sp.get("size") or 0) or max(6.0, rect.height * 0.8)

@@ -11,7 +11,7 @@ from PIL import Image
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 import tempfile
-import fitz
+import pymupdf
 import pikepdf
 import secrets
 from utils.jobs import report_progress
@@ -910,7 +910,7 @@ def add_page_numbers(
     show_background: bool = False,
     margin_cm: float = 1.0
 ) -> dict:
-    import fitz
+    import pymupdf
     from pathlib import Path
 
     input_path = Path(input_path).resolve()
@@ -920,7 +920,7 @@ def add_page_numbers(
     output_path = Path(output_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    doc = fitz.open(input_path)
+    doc = pymupdf.open(input_path)
     total_pages = len(doc)
 
     if end_page is None:
@@ -969,7 +969,7 @@ def add_page_numbers(
         text = str(page_counter)
 
         # Largura exata do texto com a fonte escolhida
-        text_width = fitz.get_text_length(text, fontname="helv", fontsize=font_size)
+        text_width = pymupdf.get_text_length(text, fontname="helv", fontsize=font_size)
         # Altura do texto é aproximadamente o próprio font_size (em pontos)
         text_height = font_size
         pad = 8
@@ -1001,7 +1001,7 @@ def add_page_numbers(
         if cy + box_height/2 > rect.height:
             cy = rect.height - box_height/2
 
-        text_rect = fitz.Rect(cx - box_width/2, cy - box_height/4, cx + box_width/2, cy + box_height/2)
+        text_rect = pymupdf.Rect(cx - box_width/2, cy - box_height/4, cx + box_width/2, cy + box_height/2)
 
         # Desenhar fundo (retângulo) se solicitado
         if show_background and bg_color:
@@ -1014,7 +1014,7 @@ def add_page_numbers(
             fontsize=font_size,
             fontname="helv",
             color=text_color,
-            align=fitz.TEXT_ALIGN_CENTER
+            align=pymupdf.TEXT_ALIGN_CENTER
         )
 
         page_counter += 1
@@ -1035,7 +1035,7 @@ def _scanned_pdf_warning(pdf_path: Path) -> Optional[str]:
     log interno — aqui o aviso chega ao cliente na resposta.
     """
     try:
-        with fitz.open(str(pdf_path)) as doc:
+        with pymupdf.open(str(pdf_path)) as doc:
             total_words = sum(len(page.get_text().split()) for page in doc)
     except Exception:
         return None  # nao conseguiu analisar: nao bloqueia nem avisa
@@ -1091,7 +1091,7 @@ def convert_pdf_to_word(pdf_path: str, output_path: str,
     # Selecao ANTES do try: ValueError do parse vira 400 (nao 500)
     pages = None
     if pages_selection and pages_selection.strip().lower() != 'all':
-        with fitz.open(str(pdf_path)) as d:
+        with pymupdf.open(str(pdf_path)) as d:
             total = d.page_count
         pages = _parse_selection_0based(pages_selection, total)
 
@@ -1338,7 +1338,7 @@ def convert_pdf_to_images(
     total_units = 0
     for p in pdf_paths:
         try:
-            with fitz.open(str(p)) as d0:
+            with pymupdf.open(str(p)) as d0:
                 t = d0.page_count
                 if pages_selection.strip().lower() == 'all':
                     total_units += t
@@ -1356,7 +1356,7 @@ def convert_pdf_to_images(
             continue
 
         try:
-            doc = fitz.open(pdf_path)
+            doc = pymupdf.open(pdf_path)
             total_pages = doc.page_count
 
             if pages_selection.strip().lower() == 'all':
@@ -1373,7 +1373,7 @@ def convert_pdf_to_images(
                 try:
                     page = doc.load_page(page_num)
                     # Aumentar resolução para 150 DPI para boa qualidade
-                    matrix = fitz.Matrix(150/72, 150/72)
+                    matrix = pymupdf.Matrix(150/72, 150/72)
                     pix = page.get_pixmap(matrix=matrix)
                     # Se jpg, converter para RGB
                     if image_format == 'jpg':
@@ -1407,7 +1407,7 @@ def _display_size_inches(input_path: Path) -> dict:
     """
     sizes = {}
     try:
-        with fitz.open(str(input_path)) as doc:
+        with pymupdf.open(str(input_path)) as doc:
             for page in doc:
                 for info in page.get_image_info(xrefs=True):
                     xref = info.get('xref') or 0
@@ -1654,7 +1654,7 @@ def pdf_info(pdf_path: str) -> dict:
     if not path.is_file():
         raise ValueError(f"Caminho não é um arquivo: {path}")
     try:
-        with fitz.open(str(path)) as doc:
+        with pymupdf.open(str(path)) as doc:
             try:
                 meta = doc.metadata or {}
             except Exception:
@@ -1671,7 +1671,7 @@ def pdf_info(pdf_path: str) -> dict:
     except (FileNotFoundError, ValueError):
         raise
     except Exception as exc:
-        # fitz.FileDataError (arquivo que nao e PDF valido) e demais
+        # pymupdf.FileDataError (arquivo que nao e PDF valido) e demais
         # falhas de leitura -> 400 com mensagem clara, nao 500.
         raise ValueError(f"Não foi possível ler o PDF: {str(exc)[:200]}") from exc
 
@@ -2099,7 +2099,7 @@ def _fitz_decode(cache, pdf_path, img):
     try:
         if cache.get('doc') is None and not cache.get('tried'):
             try:
-                cache['doc'] = fitz.open(str(pdf_path))
+                cache['doc'] = pymupdf.open(str(pdf_path))
             except Exception:
                 cache['tried'] = True
         doc = cache.get('doc')
@@ -2110,9 +2110,9 @@ def _fitz_decode(cache, pdf_path, img):
             return None  # inline: fitz resolve por xref
         # O MuPDF e TOLERANTE: imprime o erro mas devolve um pixmap em
         # branco. Captura os avisos: houve erro de decode -> falha.
-        fitz.TOOLS.mupdf_warnings(reset=True)
-        pix = fitz.Pixmap(doc, og[0])
-        if fitz.TOOLS.mupdf_warnings():
+        pymupdf.TOOLS.mupdf_warnings(reset=True)
+        pix = pymupdf.Pixmap(doc, og[0])
+        if pymupdf.TOOLS.mupdf_warnings():
             return None
         if pix.width <= 0 or pix.height <= 0:
             return None
@@ -2655,7 +2655,7 @@ def validate_pdf(pdf_path: str, progress_span=(0, 100)) -> dict:
 
         # ---- leitor alternativo (fitz): detecta truncamento/reparo ----
         try:
-            with fitz.open(str(path)) as doc:
+            with pymupdf.open(str(path)) as doc:
                 stats['pages'] = doc.page_count
                 stats['repaired'] = bool(doc.is_repaired)
                 stats['encrypted'] = stats['encrypted'] or bool(doc.is_encrypted)
@@ -3024,7 +3024,7 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
         # arquivos que o qpdf rejeita.
         salvaged = False
         try:
-            with fitz.open(str(input_path)) as doc:
+            with pymupdf.open(str(input_path)) as doc:
                 doc.save(str(output_path), garbage=3, deflate=True)
             salvaged = True
         except Exception:
@@ -3073,7 +3073,7 @@ def repair_pdf(input_path: str, output_path: str) -> dict:
                 })
                 issues_before['eof'] = 1
             try:
-                with fitz.open(str(input_path)) as d0:
+                with pymupdf.open(str(input_path)) as d0:
                     if d0.is_repaired:
                         repaired.append({
                             'category': 'estrutura', 'ref': 'arquivo',
