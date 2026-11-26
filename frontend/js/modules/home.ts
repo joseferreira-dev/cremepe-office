@@ -33,6 +33,7 @@ const HOME_META: Record<string, { id?: string; icon?: string; title?: string; de
     'pdf/convert-to-image': { id: 'pdf-image', icon: 'image', title: 'PDF ↔ Imagem', desc: 'Converta entre PDF e imagens.' },
     'pdf/compress': { id: 'pdf-compress', icon: 'minimize-2', title: 'Comprimir PDF', desc: 'Reduza o tamanho do PDF.' },
     'pdf/validate': { id: 'pdf-validate', icon: 'shield-check', title: 'Validar PDF', desc: 'Confira integridade e erros do arquivo.' },
+    'pdf/ocr': { id: 'pdf-ocr', icon: 'scan-text', title: 'OCR / Texto', desc: 'Reconheça texto em PDFs digitalizados.' },
     'pdf/protect': { id: 'pdf-protect', icon: 'lock', title: 'Proteger/Desproteger', desc: 'Adicione ou remova senha.' },
     // WORD
     'word/merge': { id: 'word-merge', icon: 'file-pen', title: 'Juntar Documentos', desc: 'Combine vários Word.' },

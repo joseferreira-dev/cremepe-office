@@ -87,3 +87,17 @@ class PDFController:
 
     def remove_password(self, input_path, output_path, password):
         return remove_password(input_path, output_path, password)
+
+    # --- OCR (item10): import lazy para isolar a dependência do
+    # pytesseract — se faltar, so a feature de OCR falha, nao todo o
+    # controller de PDF. ---
+    def ocr_text(self, pdf_path, language='por+eng', dpi=300, pages=None):
+        from services.pdf_ocr import extrair_texto
+        return extrair_texto(pdf_path, language=language, dpi=dpi,
+                             pages=pages)
+
+    def ocr_searchable(self, input_path, output_path, language='por+eng',
+                       dpi=300, pages=None):
+        from services.pdf_ocr import tornar_pesquisavel
+        return tornar_pesquisavel(input_path, output_path,
+                                  language=language, dpi=dpi, pages=pages)

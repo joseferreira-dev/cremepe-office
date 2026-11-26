@@ -6,6 +6,7 @@ import { PDFConvertToWordFeature } from './convert_to_word.js';
 import { PDFExtractPagesFeature } from './extract_pages.js';
 import { PDFMergeFeature } from './merge.js';
 import { PDFMergeBySizeFeature } from './merge_by_size.js';
+import { PDFOcrFeature } from './ocr.js';
 import { PDFProtectFeature } from './protect.js';
 import { PDFRemovePagesFeature } from './remove_pages.js';
 import { PDFReorderFeature } from './reorder.js';
@@ -28,6 +29,7 @@ export class PDFModule extends DomainModule {
         { id: 'convert-to-word', label: 'Converter para Word', icon: 'refresh-cw', make: () => new PDFConvertToWordFeature() },
         { id: 'convert-to-image', label: 'Converter para Imagem', icon: 'image', make: () => new PDFConvertToImageFeature() },
         { id: 'compress', label: 'Comprimir', icon: 'minimize-2', make: () => new PDFCompressFeature() },
+        { id: 'ocr', label: 'OCR / Texto', icon: 'scan-text', make: () => new PDFOcrFeature() },
         { id: 'validate', label: 'Validar PDF', icon: 'shield-check', make: () => new PDFValidateFeature() },
         { id: 'protect', label: 'Proteger/Desproteger', icon: 'lock', make: () => new PDFProtectFeature() },
     ];

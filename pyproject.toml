@@ -30,6 +30,10 @@ dependencies = [
     "pdf2docx==0.5.13",
     "PyMuPDF==1.28.0",
     "pikepdf==10.10.0",
+    # OCR (item10): binario do Tesseract vem do PROPRIO sistema
+    # (C:\Program Files\Tesseract-OCR com 'por'+'eng'); esta lib e o
+    # puente Python. So requer packaging+Pillow, ja presentes.
+    "pytesseract==0.3.13",
 ]
 
 [project.optional-dependencies]

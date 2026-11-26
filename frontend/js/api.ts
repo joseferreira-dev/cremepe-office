@@ -140,6 +140,9 @@ export const API = {
         compress: (params: Params) => apiRequest('/pdf/compress', 'POST', params),
         validate: (params: Params) => apiRequest('/pdf/validate', 'POST', params),
         repair: (params: Params) => apiRequest('/pdf/repair', 'POST', params),
+        // OCR (item10): dois motores comparados no backend
+        ocrText: (params: Params) => apiRequest('/pdf/ocr-text', 'POST', params),
+        ocrSearchable: (params: Params) => apiRequest('/pdf/ocr-searchable', 'POST', params),
         protectPassword: (params: Params) => apiRequest('/pdf/protect-password', 'POST', params),
         removePassword: (params: Params) => apiRequest('/pdf/remove-password', 'POST', params),
     },

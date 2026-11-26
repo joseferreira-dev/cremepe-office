@@ -258,3 +258,35 @@ def repair(data):
         output_path=data['output_path'],
     )
     return jsonify({"success": True, **result}), 200
+
+
+# --- OCR (item10) ---
+# Extração de texto: digitalizado via OCR (dois motores comparados),
+# nativo via leitura. Job porque roda o OCR em todas as páginas.
+@pdf_bp.route('/ocr-text', methods=['POST'])
+@require('pdf_path')
+@as_job()
+def ocr_text(data):
+    result = controller.ocr_text(
+        pdf_path=data['pdf_path'],
+        language=data.get('language', 'por+eng'),
+        dpi=int(data.get('dpi', 300)),
+        pages=data.get('pages'),
+    )
+    return jsonify({"success": True, **result}), 200
+
+
+# PDF pesquisável: cópia com camada de texto invisível sobre a imagem
+# (busca/seleção passam a funcionar; a renderização fica idêntica).
+@pdf_bp.route('/ocr-searchable', methods=['POST'])
+@require('input_path', 'output_path')
+@as_job()
+def ocr_searchable(data):
+    result = controller.ocr_searchable(
+        input_path=data['input_path'],
+        output_path=data['output_path'],
+        language=data.get('language', 'por+eng'),
+        dpi=int(data.get('dpi', 300)),
+        pages=data.get('pages'),
+    )
+    return jsonify({"success": True, **result}), 200

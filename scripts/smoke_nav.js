@@ -245,7 +245,7 @@ function cleanup() {
             console.log(`pagina ${page}: ${featureIds.length} features OK`);
         }
 
-        // Home: catálogo de atalhos (edit mode) deve ter 34 opções
+        // Home: catálogo de atalhos (edit mode) deve ter35 opções
         await evaluate("window.navigateTo('home')");
         await sleep(500);
 
@@ -259,12 +259,12 @@ function cleanup() {
         await shot('home.png');
 
         await evaluate("document.getElementById('toggle-edit-mode').click()");
-        await waitFor("document.querySelectorAll('.feature-checkbox').length === 34");
+        await waitFor("document.querySelectorAll('.feature-checkbox').length === 35");
         const checkboxCount = await evaluate("document.querySelectorAll('.feature-checkbox').length");
-        if (checkboxCount !== 34) {
-            exceptions.push(`home: ${checkboxCount} checkboxes (esperado 34)`);
+        if (checkboxCount !== 35) {
+            exceptions.push(`home: ${checkboxCount} checkboxes (esperado 35)`);
         } else {
-            console.log('home: 34 checkboxes de atalho OK');
+            console.log('home: 35 checkboxes de atalho OK');
         }
         await shot('home-edit.png');
 
@@ -357,10 +357,10 @@ function cleanup() {
             const lis = Array.from(document.querySelectorAll('.feature-list li'));
             return { total: lis.length, visible: lis.filter(li => !li.hidden).length };
         })()`);
-        if (searchState.total !== 13 || searchState.visible !== 1) {
-            exceptions.push(`busca: ${searchState.visible}/${searchState.total} visiveis (esperado 1/13)`);
+        if (searchState.total !== 14 || searchState.visible !== 1) {
+            exceptions.push(`busca: ${searchState.visible}/${searchState.total} visiveis (esperado 1/14)`);
         } else {
-            console.log('busca: filtro "numerar" isola 1/13 OK');
+            console.log('busca: filtro "numerar" isola 1/14 OK');
         }
 
         // Fluxo completo da feature "Validar PDF": digitar caminho,
