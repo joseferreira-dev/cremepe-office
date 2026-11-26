@@ -135,19 +135,7 @@ export class PDFSplitFeature extends Feature {
     attachEvents() {
         this.pageInfo = attachPageInfoHint('split-pdf-input', 'split-info-hint');
 
-        document.getElementById('btn-split-pdf-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('split-pdf-input') as DomElement).value = result.filePaths[0];
-                        this.pageInfo.refresh();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('split-pdf-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.pageInfo.refresh(); }})
 
         document.getElementById('btn-split-pdf-output')!.addEventListener('click', () => {
             FileUtils.selectDirectory('split-pdf-output');

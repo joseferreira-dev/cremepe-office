@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature, escapeHtml } from '../feature.js';
 
 const STATUS_STYLE: Record<string, { icon: string; cls: string }> = {
@@ -58,18 +59,7 @@ export class PDFValidateFeature extends Feature {
             ${this.logHTML()}
         `;
 
-        document.getElementById('btn-validate-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('validate-input') as DomElement).value = result.filePaths[0];
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('validate-input', [{ name: 'PDF', extensions: ['pdf'] }])
 
         document.getElementById('btn-validate')!.addEventListener('click', () => this.validatePDF());
         document.getElementById('btn-validate-repair')!.addEventListener('click', () => this.repairCores());

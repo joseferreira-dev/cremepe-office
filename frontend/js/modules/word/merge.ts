@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature, escapeHtml } from '../feature.js';
 import type { DomainModule } from '../domain.js';
 
@@ -66,39 +67,9 @@ export class MergeFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        container.querySelector('#btn-add-docx')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile', 'multiSelections'],
-                    filters: [
-                        { name: 'Word', extensions: ['docx', 'doc'] }
-                    ]
-                })
-                    .then(result => {
-                        if (!result.canceled) {
-                            const current = (document.getElementById('merge-docx-list') as DomElement).value;
-                            const newPaths = result.filePaths.join(', ');
-                            (document.getElementById('merge-docx-list') as DomElement).value = current ? current + ', ' + newPaths : newPaths;
-                            this.updateDocxList();
-                        }
-                    });
-            }
-        });
+        FileUtils.selectFile('merge-docx-list', [ { name: 'Word', extensions: ['docx', 'doc'] } ], {multiple: true, append: true, onSelect: () => { this.updateDocxList(); }})
 
-        container.querySelector('#btn-merge-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [
-                        { name: 'Word', extensions: ['docx'] }
-                    ]
-                })
-                    .then(result => {
-                        if (!result.canceled && result.filePath) {
-                            (document.getElementById('merge-output') as DomElement).value = result.filePath;
-                        }
-                    });
-            }
-        });
+        FileUtils.selectSaveFile('merge-output', [ { name: 'Word', extensions: ['docx'] } ])
 
         container.querySelector('#btn-merge')!.addEventListener('click', () => this.mergeDocuments());
     }

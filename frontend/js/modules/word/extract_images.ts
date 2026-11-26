@@ -65,18 +65,7 @@ export class ExtractImagesFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        container.querySelector('#btn-extract-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('extract-input') as DomElement).value = result.filePaths[0];
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('extract-input', [{ name: 'Word', extensions: ['docx', 'doc'] }])
 
         container.querySelector('#btn-extract-output')!.addEventListener('click', () => {
             FileUtils.selectDirectory('extract-output');

@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature, escapeHtml } from '../feature.js';
 
 /**
@@ -107,33 +108,9 @@ export class PDFOcrFeature extends Feature {
     }
 
     attachEvents() {
-        document.getElementById('btn-ocr-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('ocr-input') as DomElement).value =
-                            result.filePaths[0];
-                        this.suggestOutput();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('ocr-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
 
-        document.getElementById('btn-ocr-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('ocr-output') as DomElement).value =
-                            result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('ocr-output', [{ name: 'PDF', extensions: ['pdf'] }])
 
         document.getElementById('ocr-input')!
             .addEventListener('change', () => this.suggestOutput());

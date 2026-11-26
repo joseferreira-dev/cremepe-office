@@ -275,11 +275,20 @@ var DomainModule = class {
 var FileUtils = {
   _dialogOpen: false,
   // impede múltiplas aberturas simultâneas
-  selectDirectory: function(inputId) {
+  /**
+   * Abre o diálogo de PASTA e preenche o input.
+   *
+   * opts.append   -> concatena ao valor atual (em vez de substituir);
+   * opts.onSelect -> callback pós-preenchimento.
+   * Os25 pontos existentes chamam sem opts — comportamento idêntico
+   * (substitui + dispara 'change').
+   */
+  selectDirectory: function(inputId, opts) {
     if (this._dialogOpen) {
       console.warn("Di\xE1logo j\xE1 em andamento.");
       return;
     }
+    const o = opts || {};
     if (window.electronAPI && window.electronAPI.showOpenDialog) {
       this._dialogOpen = true;
       window.electronAPI.showOpenDialog({ properties: ["openDirectory"] }).then((result) => {
@@ -287,9 +296,12 @@ var FileUtils = {
         if (!result.canceled && result.filePaths.length > 0) {
           const input = document.getElementById(inputId);
           if (input) {
-            input.value = result.filePaths[0];
+            const alvo = input;
+            const nova = result.filePaths[0];
+            alvo.value = o.append && alvo.value ? `${alvo.value}, ${nova}` : nova;
             const event = new Event("change", { bubbles: true });
             input.dispatchEvent(event);
+            if (o.onSelect) o.onSelect();
           }
         }
       }).catch(() => {
@@ -315,23 +327,66 @@ var FileUtils = {
     }
   },
   // Adicione no FileUtils:
-  selectFile: function(inputId, filters) {
+  /**
+   * Abre o diálogo de ARQUIVO e preenche o input.
+   *
+   * Substitui os blocos inline de showOpenDialog (56 ocorrências com
+   * boilerplate repetido) e corrige o que eles não faziam:
+   *   - dispara 'change' após preencher (o selectDirectory já fazia;
+   *     sem isso o suggestOutput() não rodava via diálogo);
+   *   - opts.multiple -> multiSelections (seleção múltipla);
+   *   - opts.append   -> concatena ao valor atual (listas separadas
+   *                      por vírgula) em vez de substituir;
+   *   - opts.onSelect -> callback pós-preenchimento (ex.: re-render
+   *                      da lista de arquivos);
+   *   - guarda de diálogo simultâneo (igual ao selectDirectory).
+   */
+  selectFile: function(inputId, filters, opts) {
+    if (this._dialogOpen) {
+      console.warn("Di\xE1logo j\xE1 em andamento.");
+      return;
+    }
+    const o = opts || {};
     if (window.electronAPI && window.electronAPI.showOpenDialog) {
-      window.electronAPI.showOpenDialog({ properties: ["openFile"], filters }).then((result) => {
-        if (!result.canceled && result.filePaths.length > 0) {
-          document.getElementById(inputId).value = result.filePaths[0];
-        }
+      this._dialogOpen = true;
+      const properties = ["openFile"];
+      if (o.multiple) properties.push("multiSelections");
+      window.electronAPI.showOpenDialog({ properties, filters }).then((result) => {
+        this._dialogOpen = false;
+        if (result.canceled || !result.filePaths.length) return;
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        const alvo = input;
+        const novos = o.multiple ? result.filePaths.join(", ") : result.filePaths[0];
+        alvo.value = o.append && alvo.value ? `${alvo.value}, ${novos}` : novos;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        if (o.onSelect) o.onSelect();
+      }).catch(() => {
+        this._dialogOpen = false;
       });
     } else {
       alert("Selecione o arquivo manualmente.");
     }
   },
-  selectSaveFile: function(inputId, filters) {
+  /** Igual ao selectFile mas com o diálogo Salvar (showSaveDialog). */
+  selectSaveFile: function(inputId, filters, opts) {
+    if (this._dialogOpen) {
+      console.warn("Di\xE1logo j\xE1 em andamento.");
+      return;
+    }
+    const o = opts || {};
     if (window.electronAPI && window.electronAPI.showSaveDialog) {
+      this._dialogOpen = true;
       window.electronAPI.showSaveDialog({ filters }).then((result) => {
-        if (!result.canceled && result.filePath) {
-          document.getElementById(inputId).value = result.filePath;
-        }
+        this._dialogOpen = false;
+        if (result.canceled || !result.filePath) return;
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        input.value = result.filePath;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        if (o.onSelect) o.onSelect();
+      }).catch(() => {
+        this._dialogOpen = false;
       });
     } else {
       alert("Selecione o local para salvar.");
@@ -648,15 +703,7 @@ var ExcelExtractCellsFeature = class extends Feature {
     });
     document.getElementById("btn-extract-output").addEventListener("click", (e) => {
       e.stopPropagation();
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "CSV", extensions: ["csv"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("extract-output-csv").value = result.filePath;
-          }
-        });
-      }
+      FileUtils.selectSaveFile("extract-output-csv", [{ name: "CSV", extensions: ["csv"] }]);
     });
     document.getElementById("add-field-btn").addEventListener("click", () => this.addField());
     document.getElementById("btn-extract-run").addEventListener("click", () => this.runExtract());
@@ -866,15 +913,7 @@ var ExcelMergeAllFeature = class extends Feature {
     });
     document.getElementById("btn-merge-dest").addEventListener("click", (e) => {
       e.stopPropagation();
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "Excel", extensions: ["xlsx"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("merge-dest-file").value = result.filePath;
-          }
-        });
-      }
+      FileUtils.selectSaveFile("merge-dest-file", [{ name: "Excel", extensions: ["xlsx"] }]);
     });
     document.getElementById("btn-merge-all").addEventListener("click", () => this.mergeAll());
   }
@@ -999,16 +1038,7 @@ var ExcelSplitFeature = class extends Feature {
   attachEvents() {
     document.getElementById("btn-split-input").addEventListener("click", (e) => {
       e.stopPropagation();
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Excel", extensions: ["xlsx"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("split-input-file").value = result.filePaths[0];
-          }
-        });
-      }
+      FileUtils.selectFile("split-input-file", [{ name: "Excel", extensions: ["xlsx"] }]);
     });
     document.getElementById("btn-split-output").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1157,16 +1187,7 @@ var ExcelSplitSheetsFeature = class extends Feature {
   attachEvents() {
     document.getElementById("btn-split-sheets-input").addEventListener("click", (e) => {
       e.stopPropagation();
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Excel", extensions: ["xlsx"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("split-sheets-input").value = result.filePaths[0];
-          }
-        });
-      }
+      FileUtils.selectFile("split-sheets-input", [{ name: "Excel", extensions: ["xlsx"] }]);
     });
     document.getElementById("btn-split-sheets-output").addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1384,53 +1405,17 @@ var ArchiveFeature = class extends Feature {
         document.getElementById("archive-extract-content").style.display = mode === "extract" ? "block" : "none";
       });
     });
-    container.querySelector("#btn-add-files").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({ properties: ["openFile", "multiSelections"] }).then((result) => {
-          if (!result.canceled) {
-            const current = document.getElementById("archive-sources").value;
-            const newPaths = result.filePaths.join(", ");
-            document.getElementById("archive-sources").value = current ? current + ", " + newPaths : newPaths;
-            this.updateSourceList();
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("archive-sources", [], { multiple: true, append: true, onSelect: () => {
+      this.updateSourceList();
+    } });
     container.querySelector("#btn-add-folder").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({ properties: ["openDirectory"] }).then((result) => {
-          if (!result.canceled) {
-            const current = document.getElementById("archive-sources").value;
-            const newPath = result.filePaths[0];
-            document.getElementById("archive-sources").value = current ? current + ", " + newPath : newPath;
-            this.updateSourceList();
-          }
-        });
-      }
+      FileUtils.selectDirectory("archive-sources", { append: true, onSelect: () => {
+        this.updateSourceList();
+      } });
     });
-    container.querySelector("#btn-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({ filters: [{ name: "ZIP", extensions: ["zip"] }] }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("archive-output").value = result.filePath;
-          }
-        });
-      }
-    });
-    container.querySelector("#btn-extract-archive").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({ properties: ["openFile"], filters: [{ name: "Arquivos compactados", extensions: ["zip", "7z", "rar", "tar", "gz", "tgz"] }] }).then((result) => {
-          if (!result.canceled) document.getElementById("extract-archive").value = result.filePaths[0];
-        });
-      }
-    });
-    container.querySelector("#btn-extract-dir").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({ properties: ["openDirectory"] }).then((result) => {
-          if (!result.canceled) document.getElementById("extract-dir").value = result.filePaths[0];
-        });
-      }
-    });
+    FileUtils.selectSaveFile("archive-output", [{ name: "ZIP", extensions: ["zip"] }]);
+    FileUtils.selectFile("extract-archive", [{ name: "Arquivos compactados", extensions: ["zip", "7z", "rar", "tar", "gz", "tgz"] }]);
+    FileUtils.selectDirectory("extract-dir");
     container.querySelector("#compression-level").addEventListener("input", (e) => {
       document.getElementById("level-label").textContent = e.target.value;
     });
@@ -2959,16 +2944,9 @@ var ReportFeature = class extends Feature {
     });
     container.querySelector("#btn-report-output").addEventListener("click", (e) => {
       e.stopPropagation();
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        const formatRadio = document.querySelector('input[name="report-format"]:checked');
-        const ext = formatRadio ? formatRadio.value : "txt";
-        const filters = [{ name: ext.toUpperCase(), extensions: [ext] }];
-        window.electronAPI.showSaveDialog({ filters }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("report-output-path").value = result.filePath;
-          }
-        });
-      }
+      const formatRadio = document.querySelector('input[name="report-format"]:checked');
+      const ext = formatRadio ? formatRadio.value : "txt";
+      FileUtils.selectSaveFile("report-output-path", [{ name: ext.toUpperCase(), extensions: [ext] }]);
     });
     container.querySelector("#btn-generate-report").addEventListener("click", () => this.generateReport());
   }
@@ -3125,38 +3103,15 @@ var SplitFeature = class extends Feature {
         document.getElementById("merge-content").style.display = mode === "merge" ? "block" : "none";
       });
     });
-    container.querySelector("#btn-split-file").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({ properties: ["openFile"] }).then((result) => {
-          if (!result.canceled) document.getElementById("split-file").value = result.filePaths[0];
-        });
-      }
-    });
+    FileUtils.selectFile("split-file", []);
     container.querySelector("#btn-split-dir").addEventListener("click", () => {
       FileUtils.selectDirectory("split-output-dir");
     });
     container.querySelector("#btn-split").addEventListener("click", () => this.splitFile());
-    container.querySelector("#btn-merge-parts").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({ properties: ["openFile", "multiSelections"] }).then((result) => {
-          if (!result.canceled) {
-            const current = document.getElementById("merge-parts").value;
-            const newPaths = result.filePaths.join(", ");
-            document.getElementById("merge-parts").value = current ? current + ", " + newPaths : newPaths;
-            this.updatePartsList();
-          }
-        });
-      }
-    });
-    container.querySelector("#btn-merge-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({}).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("merge-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("merge-parts", [], { multiple: true, append: true, onSelect: () => {
+      this.updatePartsList();
+    } });
+    FileUtils.selectSaveFile("merge-output", []);
     container.querySelector("#btn-merge").addEventListener("click", () => this.mergeParts());
   }
   updatePartsList() {
@@ -3401,30 +3356,10 @@ var PDFAddPageNumbersFeature = class extends Feature {
     this.updatePreview();
   }
   attachEvents() {
-    document.getElementById("btn-pn-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("pn-input").value = result.filePaths[0];
-            this.suggestOutput();
-          }
-        });
-      }
-    });
-    document.getElementById("btn-pn-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("pn-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("pn-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.suggestOutput();
+    } });
+    FileUtils.selectSaveFile("pn-output", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-pn-apply").addEventListener("click", () => this.applyPageNumbers());
     document.getElementById("pn-input").addEventListener("change", () => this.suggestOutput());
   }
@@ -3669,30 +3604,10 @@ var PDFCompressFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    document.getElementById("btn-compress-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("compress-input").value = result.filePaths[0];
-            this.suggestOutput();
-          }
-        });
-      }
-    });
-    document.getElementById("btn-compress-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("compress-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("compress-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.suggestOutput();
+    } });
+    FileUtils.selectSaveFile("compress-output", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-compress").addEventListener("click", () => this.compressPDF());
     document.getElementById("compress-input").addEventListener("change", () => this.suggestOutput());
   }
@@ -3973,17 +3888,7 @@ var PDFConvertToImageFeature = class extends Feature {
       this.imagePaths = [];
       this.updateImageList();
     });
-    document.getElementById("btn-image-to-pdf-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("image-to-pdf-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectSaveFile("image-to-pdf-output", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-image-to-pdf-folder").addEventListener("click", () => {
       FileUtils.selectDirectory("image-to-pdf-folder");
     });
@@ -4242,29 +4147,13 @@ var PDFConvertToWordFeature = class extends Feature {
   attachEvents() {
     document.getElementById("btn-convert-input").addEventListener("click", () => {
       const filters = this.direction === "pdf_to_word" ? [{ name: "PDF", extensions: ["pdf"] }] : [{ name: "Word", extensions: ["docx", "doc"] }];
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("convert-input-file").value = result.filePaths[0];
-            this.suggestOutput();
-          }
-        });
-      }
+      FileUtils.selectFile("convert-input-file", filters, { onSelect: () => {
+        this.suggestOutput();
+      } });
     });
     document.getElementById("btn-convert-output").addEventListener("click", () => {
       const ext = this.direction === "pdf_to_word" ? "docx" : "pdf";
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: ext.toUpperCase(), extensions: [ext] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("convert-output-file").value = result.filePath;
-          }
-        });
-      }
+      FileUtils.selectSaveFile("convert-output-file", [{ name: ext.toUpperCase(), extensions: [ext] }]);
     });
     document.getElementById("btn-convert-execute").addEventListener("click", () => this.executeConvert());
     document.getElementById("convert-input-file").addEventListener("change", () => this.suggestOutput());
@@ -4508,19 +4397,9 @@ var PDFExtractPagesFeature = class extends Feature {
   }
   attachEvents() {
     this.pageInfo = attachPageInfoHint("extract-pdf-input", "extract-info-hint");
-    document.getElementById("btn-extract-pdf-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("extract-pdf-input").value = result.filePaths[0];
-            this.pageInfo.refresh();
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("extract-pdf-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.pageInfo.refresh();
+    } });
     document.getElementById("btn-extract-pdf-output").addEventListener("click", () => {
       FileUtils.selectDirectory("extract-pdf-output");
     });
@@ -4669,17 +4548,7 @@ var PDFMergeFeature = class extends Feature {
   attachEvents() {
     document.getElementById("btn-pdf-merge-add").addEventListener("click", () => this.addPDFs());
     document.getElementById("btn-pdf-merge-clear").addEventListener("click", () => this.clearAll());
-    document.getElementById("btn-pdf-merge-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("pdf-merge-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectSaveFile("pdf-merge-output", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-pdf-merge").addEventListener("click", () => this.mergePDFs());
     document.getElementById("btn-pdf-merge-preview").addEventListener("click", () => this.previewOrder());
     const list = document.getElementById("pdf-merge-list");
@@ -5091,30 +4960,10 @@ var PDFOcrFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    document.getElementById("btn-ocr-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("ocr-input").value = result.filePaths[0];
-            this.suggestOutput();
-          }
-        });
-      }
-    });
-    document.getElementById("btn-ocr-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("ocr-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("ocr-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.suggestOutput();
+    } });
+    FileUtils.selectSaveFile("ocr-output", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("ocr-input").addEventListener("change", () => this.suggestOutput());
     document.getElementById("btn-ocr-extrair").addEventListener("click", () => this.extrairTexto());
     document.getElementById("btn-ocr-pesquisavel").addEventListener("click", () => this.gerarPesquisavel());
@@ -5349,54 +5198,14 @@ var PDFProtectFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    document.getElementById("btn-protect-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("protect-input").value = result.filePaths[0];
-            this.suggestOutput("protect-input", "protect-output", "_protegido");
-          }
-        });
-      }
-    });
-    document.getElementById("btn-protect-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("protect-output").value = result.filePath;
-          }
-        });
-      }
-    });
-    document.getElementById("btn-remove-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("remove-input").value = result.filePaths[0];
-            this.suggestOutput("remove-input", "remove-output", "_desprotegido");
-          }
-        });
-      }
-    });
-    document.getElementById("btn-remove-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("remove-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("protect-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.suggestOutput("protect-input", "protect-output", "_protegido");
+    } });
+    FileUtils.selectSaveFile("protect-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    FileUtils.selectFile("remove-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.suggestOutput("remove-input", "remove-output", "_desprotegido");
+    } });
+    FileUtils.selectSaveFile("remove-output", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-protect").addEventListener("click", () => this.protectPassword());
     document.getElementById("btn-remove").addEventListener("click", () => this.removePassword());
   }
@@ -5548,41 +5357,11 @@ var PDFRemovePagesFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    document.getElementById("btn-remove-pages-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("remove-pages-input").value = result.filePaths[0];
-            this.suggestOutputs();
-          }
-        });
-      }
-    });
-    document.getElementById("btn-remove-pages-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("remove-pages-output").value = result.filePath;
-          }
-        });
-      }
-    });
-    document.getElementById("btn-remove-pages-removed-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("remove-pages-removed-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("remove-pages-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.suggestOutputs();
+    } });
+    FileUtils.selectSaveFile("remove-pages-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    FileUtils.selectSaveFile("remove-pages-removed-output", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-remove-pages-execute").addEventListener("click", () => this.executeRemove());
   }
   suggestOutputs() {
@@ -5699,31 +5478,11 @@ var PDFReorderFeature = class extends Feature {
   }
   attachEvents() {
     this.pageInfo = attachPageInfoHint("reorder-input", "reorder-info-hint");
-    document.getElementById("btn-reorder-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("reorder-input").value = result.filePaths[0];
-            this.suggestOutput();
-            this.pageInfo.refresh();
-          }
-        });
-      }
-    });
-    document.getElementById("btn-reorder-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("reorder-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("reorder-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.suggestOutput();
+      this.pageInfo.refresh();
+    } });
+    FileUtils.selectSaveFile("reorder-output", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-reorder-execute").addEventListener("click", () => this.executeReorder());
   }
   suggestOutput() {
@@ -5905,19 +5664,9 @@ var PDFSplitFeature = class extends Feature {
   }
   attachEvents() {
     this.pageInfo = attachPageInfoHint("split-pdf-input", "split-info-hint");
-    document.getElementById("btn-split-pdf-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("split-pdf-input").value = result.filePaths[0];
-            this.pageInfo.refresh();
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("split-pdf-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+      this.pageInfo.refresh();
+    } });
     document.getElementById("btn-split-pdf-output").addEventListener("click", () => {
       FileUtils.selectDirectory("split-pdf-output");
     });
@@ -6088,18 +5837,7 @@ var PDFSplitBySizeFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    document.getElementById("btn-split-size-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("split-size-input").value = result.filePaths[0];
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("split-size-input", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-split-size-output").addEventListener("click", () => {
       FileUtils.selectDirectory("split-size-output");
     });
@@ -6198,18 +5936,7 @@ var PDFValidateFeature = class extends Feature {
 
             ${this.logHTML()}
         `;
-    document.getElementById("btn-validate-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "PDF", extensions: ["pdf"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("validate-input").value = result.filePaths[0];
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("validate-input", [{ name: "PDF", extensions: ["pdf"] }]);
     document.getElementById("btn-validate").addEventListener("click", () => this.validatePDF());
     document.getElementById("btn-validate-repair").addEventListener("click", () => this.repairCores());
   }
@@ -6436,30 +6163,8 @@ var DocCompareFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    container.querySelector("#btn-compare-doc1").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Word", extensions: ["docx", "doc"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("compare-doc1").value = result.filePaths[0];
-          }
-        });
-      }
-    });
-    container.querySelector("#btn-compare-doc2").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Word", extensions: ["docx", "doc"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("compare-doc2").value = result.filePaths[0];
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("compare-doc1", [{ name: "Word", extensions: ["docx", "doc"] }]);
+    FileUtils.selectFile("compare-doc2", [{ name: "Word", extensions: ["docx", "doc"] }]);
     container.querySelector("#btn-compare").addEventListener("click", () => this.compareDocuments());
   }
   async compareDocuments() {
@@ -6582,31 +6287,12 @@ var ConvertFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    container.querySelector("#btn-convert-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Word", extensions: ["docx", "doc"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("convert-input").value = result.filePaths[0];
-            this.suggestOutputPath();
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("convert-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
+      this.suggestOutputPath();
+    } });
     container.querySelector("#btn-convert-output").addEventListener("click", () => {
       const format = document.querySelector('input[name="convert-format"]:checked').value;
-      const ext = format;
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: format.toUpperCase(), extensions: [ext] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("convert-output").value = result.filePath;
-          }
-        });
-      }
+      FileUtils.selectSaveFile("convert-output", [{ name: format.toUpperCase(), extensions: [format] }]);
     });
     container.querySelectorAll('input[name="convert-format"]').forEach((radio) => {
       radio.addEventListener("change", () => this.suggestOutputPath());
@@ -6712,18 +6398,7 @@ var ExtractImagesFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    container.querySelector("#btn-extract-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Word", extensions: ["docx", "doc"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("extract-input").value = result.filePaths[0];
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("extract-input", [{ name: "Word", extensions: ["docx", "doc"] }]);
     container.querySelector("#btn-extract-output").addEventListener("click", () => {
       FileUtils.selectDirectory("extract-output");
     });
@@ -6887,30 +6562,10 @@ var FilePathFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    container.querySelector("#btn-fp-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Word", extensions: ["docx", "doc"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("fp-input").value = result.filePaths[0];
-            this.suggestOutput();
-          }
-        });
-      }
-    });
-    container.querySelector("#btn-fp-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "Word", extensions: ["docx"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("fp-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("fp-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
+      this.suggestOutput();
+    } });
+    FileUtils.selectSaveFile("fp-output", [{ name: "Word", extensions: ["docx"] }]);
     container.querySelector("#fp-transparency").addEventListener("input", (e) => {
       document.getElementById("fp-transparency-label").textContent = e.target.value + "%";
     });
@@ -7027,36 +6682,10 @@ var MergeFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    container.querySelector("#btn-add-docx").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile", "multiSelections"],
-          filters: [
-            { name: "Word", extensions: ["docx", "doc"] }
-          ]
-        }).then((result) => {
-          if (!result.canceled) {
-            const current = document.getElementById("merge-docx-list").value;
-            const newPaths = result.filePaths.join(", ");
-            document.getElementById("merge-docx-list").value = current ? current + ", " + newPaths : newPaths;
-            this.updateDocxList();
-          }
-        });
-      }
-    });
-    container.querySelector("#btn-merge-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [
-            { name: "Word", extensions: ["docx"] }
-          ]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("merge-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("merge-docx-list", [{ name: "Word", extensions: ["docx", "doc"] }], { multiple: true, append: true, onSelect: () => {
+      this.updateDocxList();
+    } });
+    FileUtils.selectSaveFile("merge-output", [{ name: "Word", extensions: ["docx"] }]);
     container.querySelector("#btn-merge").addEventListener("click", () => this.mergeDocuments());
   }
   updateDocxList() {
@@ -7257,42 +6886,11 @@ var WatermarkFeature = class extends Feature {
         document.getElementById("wm-image-group").style.display = isText ? "none" : "block";
       });
     });
-    container.querySelector("#btn-wm-input").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Word", extensions: ["docx", "doc"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("wm-input").value = result.filePaths[0];
-            this.suggestOutput();
-          }
-        });
-      }
-    });
-    container.querySelector("#btn-wm-image").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showOpenDialog) {
-        window.electronAPI.showOpenDialog({
-          properties: ["openFile"],
-          filters: [{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "bmp", "gif"] }]
-        }).then((result) => {
-          if (!result.canceled) {
-            document.getElementById("wm-image-path").value = result.filePaths[0];
-          }
-        });
-      }
-    });
-    container.querySelector("#btn-wm-output").addEventListener("click", () => {
-      if (window.electronAPI && window.electronAPI.showSaveDialog) {
-        window.electronAPI.showSaveDialog({
-          filters: [{ name: "Word", extensions: ["docx"] }]
-        }).then((result) => {
-          if (!result.canceled && result.filePath) {
-            document.getElementById("wm-output").value = result.filePath;
-          }
-        });
-      }
-    });
+    FileUtils.selectFile("wm-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
+      this.suggestOutput();
+    } });
+    FileUtils.selectFile("wm-image-path", [{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "bmp", "gif"] }]);
+    FileUtils.selectSaveFile("wm-output", [{ name: "Word", extensions: ["docx"] }]);
     container.querySelector("#wm-transparency").addEventListener("input", (e) => {
       document.getElementById("wm-transparency-label").textContent = e.target.value + "%";
     });

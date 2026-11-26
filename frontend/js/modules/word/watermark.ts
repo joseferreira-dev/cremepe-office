@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 import type { DomainModule } from '../domain.js';
 
@@ -168,46 +169,13 @@ export class WatermarkFeature extends Feature {
         });
 
         // Selecionar documento
-        container.querySelector('#btn-wm-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('wm-input') as DomElement).value = result.filePaths[0];
-                        this.suggestOutput();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('wm-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutput(); }})
 
         // Selecionar imagem
-        container.querySelector('#btn-wm-image')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('wm-image-path') as DomElement).value = result.filePaths[0];
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('wm-image-path', [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif'] }])
 
         // Selecionar saída
-        container.querySelector('#btn-wm-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'Word', extensions: ['docx'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('wm-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('wm-output', [{ name: 'Word', extensions: ['docx'] }])
 
         // Transparência
         container.querySelector('#wm-transparency')!.addEventListener('input', (e: any) => {

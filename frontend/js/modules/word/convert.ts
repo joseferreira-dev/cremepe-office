@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 import type { DomainModule } from '../domain.js';
 
@@ -79,32 +80,11 @@ export class ConvertFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        container.querySelector('#btn-convert-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('convert-input') as DomElement).value = result.filePaths[0];
-                        this.suggestOutputPath();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('convert-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutputPath(); }})
 
         container.querySelector('#btn-convert-output')!.addEventListener('click', () => {
             const format = (document.querySelector('input[name="convert-format"]:checked') as DomElement).value;
-            const ext = format;
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: format.toUpperCase(), extensions: [ext] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('convert-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
+            FileUtils.selectSaveFile('convert-output', [{ name: format.toUpperCase(), extensions: [format] }]);
         });
 
         container.querySelectorAll('input[name="convert-format"]').forEach((radio: any) => {

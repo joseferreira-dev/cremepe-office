@@ -91,17 +91,9 @@ export class ReportFeature extends Feature {
 
         container.querySelector('#btn-report-output')!.addEventListener('click', (e: any) => {
             e.stopPropagation();
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                const formatRadio = document.querySelector('input[name="report-format"]:checked')!;
-                const ext = formatRadio ? (formatRadio as DomElement).value : 'txt';
-                const filters = [{ name: ext.toUpperCase(), extensions: [ext] }];
-                window.electronAPI.showSaveDialog({ filters })
-                    .then(result => {
-                        if (!result.canceled && result.filePath) {
-                            (document.getElementById('report-output-path') as DomElement).value = result.filePath;
-                        }
-                    });
-            }
+            const formatRadio = document.querySelector('input[name="report-format"]:checked')!;
+            const ext = formatRadio ? (formatRadio as DomElement).value : 'txt';
+            FileUtils.selectSaveFile('report-output-path', [{ name: ext.toUpperCase(), extensions: [ext] }]);
         });
 
         container.querySelector('#btn-generate-report')!.addEventListener('click', () => this.generateReport());

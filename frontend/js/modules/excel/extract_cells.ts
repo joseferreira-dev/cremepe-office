@@ -86,17 +86,9 @@ export class ExcelExtractCellsFeature extends Feature {
             FileUtils.selectDirectory('extract-source-dir');
         });
 
-        document.getElementById('btn-extract-output')!.addEventListener('click', (e) => {
+                document.getElementById('btn-extract-output')!.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'CSV', extensions: ['csv'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('extract-output-csv') as DomElement).value = result.filePath;
-                    }
-                });
-            }
+            FileUtils.selectSaveFile('extract-output-csv', [{ name: 'CSV', extensions: ['csv'] }])
         });
 
         document.getElementById('add-field-btn')!.addEventListener('click', () => this.addField());

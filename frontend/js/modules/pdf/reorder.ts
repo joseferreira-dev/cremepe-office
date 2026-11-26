@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 import { attachPageInfoHint, validatePageRange } from './pageinfo.js';
 
@@ -61,32 +62,9 @@ export class PDFReorderFeature extends Feature {
     attachEvents() {
         this.pageInfo = attachPageInfoHint('reorder-input', 'reorder-info-hint');
 
-        document.getElementById('btn-reorder-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('reorder-input') as DomElement).value = result.filePaths[0];
-                        this.suggestOutput();
-                        this.pageInfo.refresh();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('reorder-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); this.pageInfo.refresh(); }})
 
-        document.getElementById('btn-reorder-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('reorder-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('reorder-output', [{ name: 'PDF', extensions: ['pdf'] }])
 
         document.getElementById('btn-reorder-execute')!.addEventListener('click', () => this.executeReorder());
     }

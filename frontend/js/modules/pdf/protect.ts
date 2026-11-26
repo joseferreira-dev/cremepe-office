@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 
 export class PDFProtectFeature extends Feature {
@@ -110,57 +111,13 @@ export class PDFProtectFeature extends Feature {
     }
 
     attachEvents() {
-        document.getElementById('btn-protect-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('protect-input') as DomElement).value = result.filePaths[0];
-                        this.suggestOutput('protect-input', 'protect-output', '_protegido');
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('protect-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput('protect-input', 'protect-output', '_protegido'); }})
 
-        document.getElementById('btn-protect-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('protect-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('protect-output', [{ name: 'PDF', extensions: ['pdf'] }])
 
-        document.getElementById('btn-remove-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('remove-input') as DomElement).value = result.filePaths[0];
-                        this.suggestOutput('remove-input', 'remove-output', '_desprotegido');
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('remove-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput('remove-input', 'remove-output', '_desprotegido'); }})
 
-        document.getElementById('btn-remove-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('remove-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('remove-output', [{ name: 'PDF', extensions: ['pdf'] }])
 
         document.getElementById('btn-protect')!.addEventListener('click', () => this.protectPassword());
         document.getElementById('btn-remove')!.addEventListener('click', () => this.removePassword());

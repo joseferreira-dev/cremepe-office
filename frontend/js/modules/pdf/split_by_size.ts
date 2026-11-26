@@ -61,18 +61,7 @@ export class PDFSplitBySizeFeature extends Feature {
     }
 
     attachEvents() {
-        document.getElementById('btn-split-size-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('split-size-input') as DomElement).value = result.filePaths[0];
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('split-size-input', [{ name: 'PDF', extensions: ['pdf'] }])
 
         document.getElementById('btn-split-size-output')!.addEventListener('click', () => {
             FileUtils.selectDirectory('split-size-output');

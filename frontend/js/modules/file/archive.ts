@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from './utils.js';
 import { Feature, escapeHtml } from '../feature.js';
 import type { DomainModule } from '../domain.js';
 
@@ -163,64 +164,19 @@ export class ArchiveFeature extends Feature {
         });
 
         // Selecionar arquivos/pastas para compactar
-        container.querySelector('#btn-add-files')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
-                    .then(result => {
-                        if (!result.canceled) {
-                            const current = (document.getElementById('archive-sources') as DomElement).value;
-                            const newPaths = result.filePaths.join(', ');
-                            (document.getElementById('archive-sources') as DomElement).value = current ? current + ', ' + newPaths : newPaths;
-                            this.updateSourceList();
-                        }
-                    });
-            }
-        });
+        FileUtils.selectFile('archive-sources', [], { multiple: true, append: true, onSelect: () => { this.updateSourceList(); } })
 
         container.querySelector('#btn-add-folder')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
-                    .then(result => {
-                        if (!result.canceled) {
-                            const current = (document.getElementById('archive-sources') as DomElement).value;
-                            const newPath = result.filePaths[0];
-                            (document.getElementById('archive-sources') as DomElement).value = current ? current + ', ' + newPath : newPath;
-                            this.updateSourceList();
-                        }
-                    });
-            }
+            FileUtils.selectDirectory('archive-sources', { append: true, onSelect: () => { this.updateSourceList(); } });
         });
 
         // Selecionar destino
-        container.querySelector('#btn-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({ filters: [{ name: 'ZIP', extensions: ['zip'] }] })
-                    .then(result => {
-                        if (!result.canceled && result.filePath) {
-                            (document.getElementById('archive-output') as DomElement).value = result.filePath;
-                        }
-                    });
-            }
-        });
+        FileUtils.selectSaveFile('archive-output', [{ name: 'ZIP', extensions: ['zip'] }])
 
         // Selecionar arquivo para extrair
-        container.querySelector('#btn-extract-archive')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openFile'], filters: [{ name: 'Arquivos compactados', extensions: ['zip', '7z', 'rar', 'tar', 'gz', 'tgz'] }] })
-                    .then(result => {
-                        if (!result.canceled) (document.getElementById('extract-archive') as DomElement).value = result.filePaths[0];
-                    });
-            }
-        });
+        FileUtils.selectFile('extract-archive', [{ name: 'Arquivos compactados', extensions: ['zip', '7z', 'rar', 'tar', 'gz', 'tgz'] }])
 
-        container.querySelector('#btn-extract-dir')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openDirectory'] })
-                    .then(result => {
-                        if (!result.canceled) (document.getElementById('extract-dir') as DomElement).value = result.filePaths[0];
-                    });
-            }
-        });
+        FileUtils.selectDirectory('extract-dir')
 
         // Nível de compressão
         container.querySelector('#compression-level')!.addEventListener('input', (e: any) => {

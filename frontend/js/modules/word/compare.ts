@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature, escapeHtml } from '../feature.js';
 import type { DomainModule } from '../domain.js';
 
@@ -60,31 +61,9 @@ export class DocCompareFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        container.querySelector('#btn-compare-doc1')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('compare-doc1') as DomElement).value = result.filePaths[0];
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('compare-doc1', [{ name: 'Word', extensions: ['docx', 'doc'] }])
 
-        container.querySelector('#btn-compare-doc2')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('compare-doc2') as DomElement).value = result.filePaths[0];
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('compare-doc2', [{ name: 'Word', extensions: ['docx', 'doc'] }])
 
         container.querySelector('#btn-compare')!.addEventListener('click', () => this.compareDocuments());
     }

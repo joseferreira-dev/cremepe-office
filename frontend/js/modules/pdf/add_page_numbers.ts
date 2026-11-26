@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 
 export class PDFAddPageNumbersFeature extends Feature {
@@ -153,31 +154,9 @@ export class PDFAddPageNumbersFeature extends Feature {
     }
 
     attachEvents() {
-        document.getElementById('btn-pn-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('pn-input') as DomElement).value = result.filePaths[0];
-                        this.suggestOutput();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('pn-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
 
-        document.getElementById('btn-pn-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('pn-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('pn-output', [{ name: 'PDF', extensions: ['pdf'] }])
 
         document.getElementById('btn-pn-apply')!.addEventListener('click', () => this.applyPageNumbers());
         document.getElementById('pn-input')!.addEventListener('change', () => this.suggestOutput());

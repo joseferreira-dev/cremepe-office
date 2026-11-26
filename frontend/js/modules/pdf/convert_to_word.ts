@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 
 export class PDFConvertToWordFeature extends Feature {
@@ -96,30 +97,12 @@ export class PDFConvertToWordFeature extends Feature {
             const filters = this.direction === 'pdf_to_word'
                 ? [{ name: 'PDF', extensions: ['pdf'] }]
                 : [{ name: 'Word', extensions: ['docx', 'doc'] }];
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: filters
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('convert-input-file') as DomElement).value = result.filePaths[0];
-                        this.suggestOutput();
-                    }
-                });
-            }
+            FileUtils.selectFile('convert-input-file', filters, { onSelect: () => { this.suggestOutput(); } });
         });
 
         document.getElementById('btn-convert-output')!.addEventListener('click', () => {
             const ext = this.direction === 'pdf_to_word' ? 'docx' : 'pdf';
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: ext.toUpperCase(), extensions: [ext] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('convert-output-file') as DomElement).value = result.filePath;
-                    }
-                });
-            }
+            FileUtils.selectSaveFile('convert-output-file', [{ name: ext.toUpperCase(), extensions: [ext] }]);
         });
 
         document.getElementById('btn-convert-execute')!.addEventListener('click', () => this.executeConvert());

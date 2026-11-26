@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 
 export class PDFRemovePagesFeature extends Feature {
@@ -80,44 +81,11 @@ export class PDFRemovePagesFeature extends Feature {
     }
 
     attachEvents() {
-        document.getElementById('btn-remove-pages-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('remove-pages-input') as DomElement).value = result.filePaths[0];
-                        // Sugerir nome de saída
-                        this.suggestOutputs();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('remove-pages-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutputs(); }})
 
-        document.getElementById('btn-remove-pages-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('remove-pages-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('remove-pages-output', [{ name: 'PDF', extensions: ['pdf'] }])
 
-        document.getElementById('btn-remove-pages-removed-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('remove-pages-removed-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('remove-pages-removed-output', [{ name: 'PDF', extensions: ['pdf'] }])
 
         document.getElementById('btn-remove-pages-execute')!.addEventListener('click', () => this.executeRemove());
     }

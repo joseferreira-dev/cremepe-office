@@ -124,19 +124,7 @@ export class PDFExtractPagesFeature extends Feature {
     attachEvents() {
         this.pageInfo = attachPageInfoHint('extract-pdf-input', 'extract-info-hint');
 
-        document.getElementById('btn-extract-pdf-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('extract-pdf-input') as DomElement).value = result.filePaths[0];
-                        this.pageInfo.refresh();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('extract-pdf-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.pageInfo.refresh(); }})
 
         document.getElementById('btn-extract-pdf-output')!.addEventListener('click', () => {
             FileUtils.selectDirectory('extract-pdf-output');

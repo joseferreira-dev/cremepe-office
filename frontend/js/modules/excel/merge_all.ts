@@ -83,17 +83,9 @@ export class ExcelMergeAllFeature extends Feature {
             FileUtils.selectDirectory('merge-source-dir');
         });
 
-        document.getElementById('btn-merge-dest')!.addEventListener('click', (e) => {
+                document.getElementById('btn-merge-dest')!.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('merge-dest-file') as DomElement).value = result.filePath;
-                    }
-                });
-            }
+            FileUtils.selectSaveFile('merge-dest-file', [{ name: 'Excel', extensions: ['xlsx'] }])
         });
 
         document.getElementById('btn-merge-all')!.addEventListener('click', () => this.mergeAll());

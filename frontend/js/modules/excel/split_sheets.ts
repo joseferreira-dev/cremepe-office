@@ -65,18 +65,9 @@ export class ExcelSplitSheetsFeature extends Feature {
     }
 
     attachEvents() {
-        document.getElementById('btn-split-sheets-input')!.addEventListener('click', (e) => {
+                document.getElementById('btn-split-sheets-input')!.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'Excel', extensions: ['xlsx'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('split-sheets-input') as DomElement).value = result.filePaths[0];
-                    }
-                });
-            }
+            FileUtils.selectFile('split-sheets-input', [{ name: 'Excel', extensions: ['xlsx'] }])
         });
 
         document.getElementById('btn-split-sheets-output')!.addEventListener('click', (e) => {

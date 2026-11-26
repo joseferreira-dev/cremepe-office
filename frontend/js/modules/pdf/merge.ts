@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature, escapeHtml } from '../feature.js';
 
 export class PDFMergeFeature extends Feature {
@@ -75,17 +76,7 @@ export class PDFMergeFeature extends Feature {
     attachEvents() {
         document.getElementById('btn-pdf-merge-add')!.addEventListener('click', () => this.addPDFs());
         document.getElementById('btn-pdf-merge-clear')!.addEventListener('click', () => this.clearAll());
-        document.getElementById('btn-pdf-merge-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('pdf-merge-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('pdf-merge-output', [{ name: 'PDF', extensions: ['pdf'] }])
         document.getElementById('btn-pdf-merge')!.addEventListener('click', () => this.mergePDFs());
         document.getElementById('btn-pdf-merge-preview')!.addEventListener('click', () => this.previewOrder());
 

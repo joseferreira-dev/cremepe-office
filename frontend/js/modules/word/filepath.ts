@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 import type { DomainModule } from '../domain.js';
 
@@ -130,31 +131,9 @@ export class FilePathFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        container.querySelector('#btn-fp-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'Word', extensions: ['docx', 'doc'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('fp-input') as DomElement).value = result.filePaths[0];
-                        this.suggestOutput();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('fp-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutput(); }})
 
-        container.querySelector('#btn-fp-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'Word', extensions: ['docx'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('fp-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('fp-output', [{ name: 'Word', extensions: ['docx'] }])
 
         container.querySelector('#fp-transparency')!.addEventListener('input', (e: any) => {
             document.getElementById('fp-transparency-label')!.textContent = e.target.value + '%';

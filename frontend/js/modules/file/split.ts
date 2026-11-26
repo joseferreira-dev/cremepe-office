@@ -123,43 +123,15 @@ export class SplitFeature extends Feature {
         });
 
         // Dividir
-        container.querySelector('#btn-split-file')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openFile'] })
-                    .then(result => {
-                        if (!result.canceled) (document.getElementById('split-file') as DomElement).value = result.filePaths[0];
-                    });
-            }
-        });
+        FileUtils.selectFile('split-file', [])
         container.querySelector('#btn-split-dir')!.addEventListener('click', () => {
             FileUtils.selectDirectory('split-output-dir');
         });
         container.querySelector('#btn-split')!.addEventListener('click', () => this.splitFile());
 
         // Remontar
-        container.querySelector('#btn-merge-parts')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
-                    .then(result => {
-                        if (!result.canceled) {
-                            const current = (document.getElementById('merge-parts') as DomElement).value;
-                            const newPaths = result.filePaths.join(', ');
-                            (document.getElementById('merge-parts') as DomElement).value = current ? current + ', ' + newPaths : newPaths;
-                            this.updatePartsList();
-                        }
-                    });
-            }
-        });
-        container.querySelector('#btn-merge-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({})
-                    .then(result => {
-                        if (!result.canceled && result.filePath) {
-                            (document.getElementById('merge-output') as DomElement).value = result.filePath;
-                        }
-                    });
-            }
-        });
+        FileUtils.selectFile('merge-parts', [], { multiple: true, append: true, onSelect: () => { this.updatePartsList(); } })
+        FileUtils.selectSaveFile('merge-output', [])
         container.querySelector('#btn-merge')!.addEventListener('click', () => this.mergeParts());
     }
 

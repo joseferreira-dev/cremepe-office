@@ -1,4 +1,5 @@
 import { API } from '../../api.js';
+import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
 
 export class PDFCompressFeature extends Feature {
@@ -112,31 +113,9 @@ export class PDFCompressFeature extends Feature {
     }
 
     attachEvents() {
-        document.getElementById('btn-compress-input')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showOpenDialog) {
-                window.electronAPI.showOpenDialog({
-                    properties: ['openFile'],
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled) {
-                        (document.getElementById('compress-input') as DomElement).value = result.filePaths[0];
-                        this.suggestOutput();
-                    }
-                });
-            }
-        });
+        FileUtils.selectFile('compress-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
 
-        document.getElementById('btn-compress-output')!.addEventListener('click', () => {
-            if (window.electronAPI && window.electronAPI.showSaveDialog) {
-                window.electronAPI.showSaveDialog({
-                    filters: [{ name: 'PDF', extensions: ['pdf'] }]
-                }).then(result => {
-                    if (!result.canceled && result.filePath) {
-                        (document.getElementById('compress-output') as DomElement).value = result.filePath;
-                    }
-                });
-            }
-        });
+        FileUtils.selectSaveFile('compress-output', [{ name: 'PDF', extensions: ['pdf'] }])
 
         document.getElementById('btn-compress')!.addEventListener('click', () => this.compressPDF());
         document.getElementById('compress-input')!.addEventListener('change', () => this.suggestOutput());
