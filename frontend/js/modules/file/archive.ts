@@ -143,6 +143,9 @@ export class ArchiveFeature extends Feature {
             ${this.logHTML()}
         `;
 
+        // Renderiza a lista ja existente (input pode ter valor de uma
+        // sessao anterior); sem isso a lista nascia vazia.
+        this.updateSourceList();
         this.attachEvents(container);
     }
 

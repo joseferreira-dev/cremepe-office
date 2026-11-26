@@ -1355,6 +1355,7 @@ var ArchiveFeature = class extends Feature {
 
             ${this.logHTML()}
         `;
+    this.updateSourceList();
     this.attachEvents(container);
   }
   attachEvents(container) {
@@ -2166,6 +2167,8 @@ var DuplicatesFeature = class extends Feature {
     const recursive = document.getElementById("duplicates-recursive").checked;
     const matchBy = document.getElementById("duplicates-match").value;
     const includeHidden = document.getElementById("duplicates-hidden").checked;
+    const btn = document.getElementById("btn-find-duplicates");
+    btn.disabled = true;
     this.clearLog();
     this.log("Procurando duplicatas...");
     try {
@@ -2196,6 +2199,8 @@ var DuplicatesFeature = class extends Feature {
       this.setProgress(100);
     } catch (err) {
       this.log(`Erro: ${err.message}`);
+    } finally {
+      btn.disabled = false;
     }
   }
   async removeDuplicates() {
@@ -3091,6 +3096,7 @@ var SplitFeature = class extends Feature {
 
             ${this.logHTML()}
         `;
+    this.updatePartsList();
     this.attachEvents(container);
   }
   attachEvents(container) {
@@ -3531,6 +3537,7 @@ var PDFAddPageNumbersFeature = class extends Feature {
       document.getElementById("pn-processed").textContent = result.processed_pages;
       document.getElementById("pn-result").style.display = "block";
       this.log(`Numera\xE7\xE3o inserida! ${result.processed_pages} p\xE1ginas numeradas.`);
+      this.log(`Arquivo: ${result.output_path}`);
       this.setProgress(100);
     } catch (err) {
       this.log(`Erro: ${err.message}`);
@@ -4631,6 +4638,12 @@ var PDFMergeFeature = class extends Feature {
                 <button class="btn btn-outline-secondary" id="btn-pdf-merge-preview"><i data-lucide="eye" class="me-1"></i> Pr\xE9-visualizar ordem</button>
             </div>
 
+            <!-- preview da ordem (antes: alert(); inline como as outras8 previews) -->
+            <div id="pdf-merge-order" style="display:none;" class="mt-4">
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Ordem dos PDFs</label>
+                <div id="pdf-merge-order-list" class="border rounded border-zinc-200 p-3 text-sm" style="max-height:250px; overflow:auto;"></div>
+            </div>
+
             ${this.progressHTML()}
 
             ${this.logHTML()}
@@ -4794,10 +4807,17 @@ var PDFMergeFeature = class extends Feature {
       this.log("Adicione PDFs primeiro.");
       return;
     }
-    const order = this.files.map((f, i) => `${i + 1}. ${f.name}`).join("\n");
-    alert(`Ordem dos PDFs:
-
-${order}`);
+    const box = document.getElementById("pdf-merge-order");
+    const lista = document.getElementById("pdf-merge-order-list");
+    lista.innerHTML = this.files.map((f, i) => `
+            <div class="flex items-center gap-2 py-0.5">
+                <span class="w-5 shrink-0 text-right text-zinc-400">${i + 1}.</span>
+                <i data-lucide="file-text" class="shrink-0 text-zinc-400"></i>
+                <span class="min-w-0 break-all">${escapeHtml(f.name)}</span>
+            </div>
+        `).join("");
+    box.style.display = "block";
+    this.log(`Ordem dos PDFs: ${this.files.length} arquivo(s).`);
   }
   async mergePDFs() {
     const files = this.files.map((f) => f.path);
@@ -4946,6 +4966,7 @@ var PDFMergeBySizeFeature = class extends Feature {
       this.log(`Conclu\xEDdo! ${processed} arquivos processados.`);
       this.log(`  ${merged_groups} grupos combinados`);
       this.log(`  ${copied_files} arquivos individuais copiados (excederam o limite)`);
+      this.log(`  Destino: ${destDir}`);
       if (errors.length) {
         this.log(`Erros: ${errors.length}`);
         errors.forEach((e) => this.log(`  ${e}`));
@@ -5122,6 +5143,7 @@ var PDFOcrFeature = class extends Feature {
     this.clearLog();
     try {
       await rotina();
+      this.setProgress(100);
     } catch (err) {
       this.log(`Erro: ${err.message}`);
     } finally {
@@ -5384,7 +5406,7 @@ var PDFProtectFeature = class extends Feature {
     this.clearLog();
     this.log("Protegendo PDF...");
     try {
-      await API.pdf.protectPassword({
+      const result = await API.pdf.protectPassword({
         input_path: inputPath,
         output_path: outputPath,
         password
@@ -5399,6 +5421,7 @@ var PDFProtectFeature = class extends Feature {
       pwdLine.appendChild(document.createTextNode(password));
       pwdInfo.appendChild(pwdLine);
       this.log(`PDF protegido com sucesso!`);
+      this.log(`Arquivo: ${result.output_path}`);
       this.setProgress(100);
     } catch (err) {
       this.log(`Erro: ${err.message}`);
@@ -6149,7 +6172,7 @@ var PDFValidateFeature = class extends Feature {
                 <div class="mb-3 flex flex-wrap gap-2" id="validate-stats"></div>
                 <div class="card">
                     <div class="card-body p-0">
-                        <ul id="validate-checks" class="divide-y divide-zinc-100"></ul>
+                        <ul id="validate-checks" class="divide-y divide-zinc-100" style="max-height:400px; overflow:auto;"></ul>
                     </div>
                 </div>
                 <div id="validate-repair" class="mt-4 flex items-center gap-3" style="display:none;">
@@ -6662,12 +6685,14 @@ var ExtractImagesFeature = class extends Feature {
 
             ${this.progressHTML()}
 
-            ${this.logHTML()}
-
+            <!-- resultado ANTES do log (padrao das demais features:
+                 o usuario ve o output sem rolar alem do log) -->
             <div id="extract-result" style="display:none;" class="mt-4">
                 <label class="font-semibold text-zinc-600">Imagens extra\xEDdas</label>
                 <div id="extract-list" class="border rounded p-2 border-zinc-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
+
+            ${this.logHTML()}
         `;
     this.attachEvents(container);
   }
@@ -6983,6 +7008,7 @@ var MergeFeature = class extends Feature {
 
             ${this.logHTML()}
         `;
+    this.updateDocxList();
     this.attachEvents(container);
   }
   attachEvents(container) {

@@ -1,7 +1,7 @@
 /**
  * Classe base para as features das telas (PDF, Word, Excel, Arquivos).
  *
- * Centraliza o comportamento comum das 33 features:
+ * Centraliza o comportamento comum das35 features:
  *   - area de log de operacoes e barra de progresso (HTML identico)
  *   - acesso aos IDs derivados do prefixo da feature
  *

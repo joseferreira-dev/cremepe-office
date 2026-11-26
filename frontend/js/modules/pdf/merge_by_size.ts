@@ -132,6 +132,7 @@ export class PDFMergeBySizeFeature extends Feature {
             this.log(`Concluído! ${processed} arquivos processados.`);
             this.log(`  ${merged_groups} grupos combinados`);
             this.log(`  ${copied_files} arquivos individuais copiados (excederam o limite)`);
+            this.log(`  Destino: ${destDir}`);
             if (errors.length) {
                 this.log(`Erros: ${errors.length}`);
                 errors.forEach((e: any) => this.log(`  ${e}`));

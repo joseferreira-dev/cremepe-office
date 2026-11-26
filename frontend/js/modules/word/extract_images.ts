@@ -51,12 +51,14 @@ export class ExtractImagesFeature extends Feature {
 
             ${this.progressHTML()}
 
-            ${this.logHTML()}
-
+            <!-- resultado ANTES do log (padrao das demais features:
+                 o usuario ve o output sem rolar alem do log) -->
             <div id="extract-result" style="display:none;" class="mt-4">
                 <label class="font-semibold text-zinc-600">Imagens extraídas</label>
                 <div id="extract-list" class="border rounded p-2 border-zinc-200" style="max-height:200px; overflow:auto; font-size:0.9rem;"></div>
             </div>
+
+            ${this.logHTML()}
         `;
 
         this.attachEvents(container);

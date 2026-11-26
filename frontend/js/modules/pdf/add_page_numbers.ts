@@ -328,6 +328,7 @@ export class PDFAddPageNumbersFeature extends Feature {
             document.getElementById('pn-result')!.style.display = 'block';
 
             this.log(`Numeração inserida! ${result.processed_pages} páginas numeradas.`);
+            this.log(`Arquivo: ${result.output_path}`);
             this.setProgress(100);
         } catch (err) {
             this.log(`Erro: ${(err as Error).message}`);

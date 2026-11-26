@@ -46,7 +46,7 @@ export class PDFValidateFeature extends Feature {
                 <div class="mb-3 flex flex-wrap gap-2" id="validate-stats"></div>
                 <div class="card">
                     <div class="card-body p-0">
-                        <ul id="validate-checks" class="divide-y divide-zinc-100"></ul>
+                        <ul id="validate-checks" class="divide-y divide-zinc-100" style="max-height:400px; overflow:auto;"></ul>
                     </div>
                 </div>
                 <div id="validate-repair" class="mt-4 flex items-center gap-3" style="display:none;">

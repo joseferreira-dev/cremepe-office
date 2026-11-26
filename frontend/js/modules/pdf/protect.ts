@@ -191,7 +191,7 @@ export class PDFProtectFeature extends Feature {
         this.log('Protegendo PDF...');
 
         try {
-            await API.pdf.protectPassword({
+            const result = await API.pdf.protectPassword({
                 input_path: inputPath,
                 output_path: outputPath,
                 password: password
@@ -210,6 +210,7 @@ export class PDFProtectFeature extends Feature {
             pwdInfo.appendChild(pwdLine);
 
             this.log(`PDF protegido com sucesso!`);
+            this.log(`Arquivo: ${result.output_path}`);
             this.setProgress(100);
         } catch (err) {
             this.log(`Erro: ${(err as Error).message}`);

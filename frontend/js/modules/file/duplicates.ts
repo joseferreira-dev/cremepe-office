@@ -103,6 +103,10 @@ export class DuplicatesFeature extends Feature {
         const matchBy = (document.getElementById('duplicates-match') as DomElement).value;
         const includeHidden = (document.getElementById('duplicates-hidden') as DomElement).checked;
 
+        // desabilita durante a busca (unico botao das35 que nao fazia
+        // isso — permitia cliques duplicados durante o job)
+        const btn = document.getElementById('btn-find-duplicates')!;
+        (btn as DomElement).disabled = true;
         this.clearLog();
         this.log('Procurando duplicatas...');
         try {
@@ -133,6 +137,8 @@ export class DuplicatesFeature extends Feature {
             this.setProgress(100);
         } catch (err) {
             this.log(`Erro: ${(err as Error).message}`);
+        } finally {
+            (btn as DomElement).disabled = false;
         }
     }
 

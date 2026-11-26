@@ -188,6 +188,9 @@ export class PDFOcrFeature extends Feature {
         this.clearLog();
         try {
             await rotina();
+            // completa a barra no sucesso (as demais features chamam
+            // setProgress(100) — sem isso a barra ficava em0%)
+            this.setProgress(100);
         } catch (err) {
             this.log(`Erro: ${(err as Error).message}`);
         } finally {

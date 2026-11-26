@@ -56,6 +56,12 @@ export class PDFMergeFeature extends Feature {
                 <button class="btn btn-outline-secondary" id="btn-pdf-merge-preview"><i data-lucide="eye" class="me-1"></i> Pré-visualizar ordem</button>
             </div>
 
+            <!-- preview da ordem (antes: alert(); inline como as outras8 previews) -->
+            <div id="pdf-merge-order" style="display:none;" class="mt-4">
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Ordem dos PDFs</label>
+                <div id="pdf-merge-order-list" class="border rounded border-zinc-200 p-3 text-sm" style="max-height:250px; overflow:auto;"></div>
+            </div>
+
             ${this.progressHTML()}
 
             ${this.logHTML()}
@@ -247,8 +253,19 @@ export class PDFMergeFeature extends Feature {
             this.log('Adicione PDFs primeiro.');
             return;
         }
-        const order = this.files.map((f: any, i: any) => `${i + 1}. ${f.name}`).join('\n');
-        alert(`Ordem dos PDFs:\n\n${order}`);
+        // Painel inline (antes: alert()) — mesmo padrao das outras8
+        // previews da aplicacao.
+        const box = document.getElementById('pdf-merge-order')!;
+        const lista = document.getElementById('pdf-merge-order-list')!;
+        lista.innerHTML = this.files.map((f: any, i: number) => `
+            <div class="flex items-center gap-2 py-0.5">
+                <span class="w-5 shrink-0 text-right text-zinc-400">${i + 1}.</span>
+                <i data-lucide="file-text" class="shrink-0 text-zinc-400"></i>
+                <span class="min-w-0 break-all">${escapeHtml(f.name)}</span>
+            </div>
+        `).join('');
+        box.style.display = 'block';
+        this.log(`Ordem dos PDFs: ${this.files.length} arquivo(s).`);
     }
 
     async mergePDFs() {
