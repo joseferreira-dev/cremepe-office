@@ -3,6 +3,7 @@ import { ExcelModule } from './excel/index.js';
 import { FileModule } from './file/index.js';
 import { PDFModule } from './pdf/index.js';
 import { WordModule } from './word/index.js';
+import { Recents } from '../recents.js';
 
 // Metadados exclusivos da Home por "pagina/feature": id legado do card
 // (persistido no electron-store), icone, titulo e descricao. A lista de
@@ -77,7 +78,11 @@ const DEFAULT_SHORTCUT_IDS = [
     'word-convert', 'excel-convert',
 ];
 
-function buildAvailableFeatures() {
+/**
+ * Catálogo completo das funcionalidades (fonte única de ids/navegação).
+ * Consumido pela Home (atalhos) e pela busca global (Ctrl+K).
+ */
+export function buildAvailableFeatures() {
     return MODULE_CATALOG.flatMap(({ page, section, module }) =>
         module.features.map((f) => {
             const meta = HOME_META[`${page}/${f.id}`] || {};
@@ -228,6 +233,7 @@ export class HomePage extends Feature {
     // ====== RENDER ======
     async render() {
         this.cards = await this.getCards();
+        const recentes = await this.renderRecents();
 
         this.container.innerHTML = `
             <div class="page active module-home">
@@ -239,6 +245,8 @@ export class HomePage extends Feature {
                         para escolher quais aparecem aqui, ou navegue pelos domínios no menu lateral.
                     </p>
                 </div>
+
+                ${recentes}
 
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -291,6 +299,36 @@ export class HomePage extends Feature {
                 ${c.label} <span class="text-xs opacity-70">(${this.countBySection(c.section)})</span>
             </button>
         `).join('');
+    }
+
+    /**
+     * Seção "Recentes": features abertas nas últimas visitas, como
+     * chips clicáveis. Oculta quando não há histórico (1ª execução).
+     */
+    async renderRecents(): Promise<string> {
+        const pares = await Recents.listar();
+        if (pares.length === 0) return '';
+        const byKey = new Map(
+            this.availableFeatures.map((f: any) => [`${f.page}/${f.feature}`, f]));
+        const feats = pares
+            .map((r) => byKey.get(`${r.page}/${r.feature}`))
+            .filter(Boolean)
+            .slice(0, 8);
+        if (feats.length === 0) return '';
+        return `
+            <div class="mb-6">
+                <h2 class="mb-2 text-xs font-semibold tracking-widest text-zinc-400 uppercase">Recentes</h2>
+                <div class="flex flex-wrap gap-2" id="recent-chips">
+                    ${feats.map((f: any) => `
+                        <button type="button" class="recent-chip"
+                                data-page="${f.page}" data-feature="${f.feature}">
+                            <i data-lucide="${f.icon}"></i>
+                            <span>${escapeHtml(f.title)}</span>
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
     }
 
     /** Zona de favoritos: grade de cards ou mensagem de estado vazio. */
@@ -413,6 +451,13 @@ export class HomePage extends Feature {
 
         this.on(this.container, 'click', async (e) => {
             const target = e.target as HTMLElement;
+
+            // 0. Chip de recente: navega direto para a feature
+            const recente = target.closest?.('.recent-chip') as HTMLElement | null;
+            if (recente) {
+                window.navigateTo(recente.dataset.page!, recente.dataset.feature!);
+                return;
+            }
 
             // 1. Estrela: remove dos favoritos (sem confirm — é
             //    reversível voltando ao catálogo)

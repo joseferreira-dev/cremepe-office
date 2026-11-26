@@ -156,6 +156,43 @@ var API = {
   health: () => apiRequest("/health")
 };
 
+// frontend/js/recents.ts
+var CHAVE = "recentFeatures";
+var MAX = 8;
+var Recents = {
+  /**
+   * Registra o uso de uma feature: mais recente primeiro, sem
+   * duplicatas, limitado a MAX. Chamado no navigateTo (home) e no
+   * selectFeature (menu dos módulos) — silencioso em erro para não
+   * interromper a navegação.
+   */
+  async registrar(page, feature) {
+    if (!page || !feature || !window.electronAPI?.storeGet) return;
+    try {
+      const stored = await window.electronAPI.storeGet(CHAVE);
+      const lista = Array.isArray(stored) ? stored : [];
+      const nova = [
+        { page, feature },
+        ...lista.filter((r) => !(r.page === page && r.feature === feature))
+      ].slice(0, MAX);
+      await window.electronAPI.storeSet(CHAVE, nova);
+    } catch (e) {
+      console.warn("Erro ao registrar recente:", e);
+    }
+  },
+  /** Pares brutos {page, feature} (o consumidor hidrata o meta). */
+  async listar() {
+    if (!window.electronAPI?.storeGet) return [];
+    try {
+      const stored = await window.electronAPI.storeGet(CHAVE);
+      if (!Array.isArray(stored) || stored.length === 0) return [];
+      return stored.filter((r) => r && r.page && r.feature);
+    } catch {
+      return [];
+    }
+  }
+};
+
 // frontend/js/modules/domain.ts
 var normalizeText = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 var DomainModule = class {
@@ -235,6 +272,7 @@ var DomainModule = class {
   }
   selectFeature(featureId) {
     this.currentFeature = featureId;
+    void Recents.registrar(this.page, featureId);
     this.container.querySelectorAll(".feature-list li").forEach((li) => {
       li.classList.toggle("active", li.dataset.feature === featureId);
     });
@@ -7251,6 +7289,7 @@ var HomePage = class extends Feature {
   // ====== RENDER ======
   async render() {
     this.cards = await this.getCards();
+    const recentes = await this.renderRecents();
     this.container.innerHTML = `
             <div class="page active module-home">
                 <div class="hero mb-7">
@@ -7261,6 +7300,8 @@ var HomePage = class extends Feature {
                         para escolher quais aparecem aqui, ou navegue pelos dom\xEDnios no menu lateral.
                     </p>
                 </div>
+
+                ${recentes}
 
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -7313,6 +7354,33 @@ var HomePage = class extends Feature {
                 ${c.label} <span class="text-xs opacity-70">(${this.countBySection(c.section)})</span>
             </button>
         `).join("");
+  }
+  /**
+   * Seção "Recentes": features abertas nas últimas visitas, como
+   * chips clicáveis. Oculta quando não há histórico (1ª execução).
+   */
+  async renderRecents() {
+    const pares = await Recents.listar();
+    if (pares.length === 0) return "";
+    const byKey = new Map(
+      this.availableFeatures.map((f) => [`${f.page}/${f.feature}`, f])
+    );
+    const feats = pares.map((r) => byKey.get(`${r.page}/${r.feature}`)).filter(Boolean).slice(0, 8);
+    if (feats.length === 0) return "";
+    return `
+            <div class="mb-6">
+                <h2 class="mb-2 text-xs font-semibold tracking-widest text-zinc-400 uppercase">Recentes</h2>
+                <div class="flex flex-wrap gap-2" id="recent-chips">
+                    ${feats.map((f) => `
+                        <button type="button" class="recent-chip"
+                                data-page="${f.page}" data-feature="${f.feature}">
+                            <i data-lucide="${f.icon}"></i>
+                            <span>${escapeHtml(f.title)}</span>
+                        </button>
+                    `).join("")}
+                </div>
+            </div>
+        `;
   }
   /** Zona de favoritos: grade de cards ou mensagem de estado vazio. */
   renderFavorites() {
@@ -7418,6 +7486,11 @@ var HomePage = class extends Feature {
     });
     this.on(this.container, "click", async (e) => {
       const target = e.target;
+      const recente = target.closest?.(".recent-chip");
+      if (recente) {
+        window.navigateTo(recente.dataset.page, recente.dataset.feature);
+        return;
+      }
       const star = target.closest?.(".star-btn");
       if (star) {
         e.stopPropagation();
@@ -7519,6 +7592,118 @@ var HomePage = class extends Feature {
   }
 };
 
+// frontend/js/search.ts
+var normalizeText2 = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+var MAX_RESULTADOS = 8;
+function initGlobalSearch() {
+  const input = document.getElementById("global-search");
+  const box = document.getElementById("global-search-results");
+  if (!input || !box) return;
+  const catalogo = buildAvailableFeatures();
+  const fechar = () => {
+    box.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  };
+  const abrir = () => {
+    box.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  };
+  const filtrar = () => {
+    const term = normalizeText2(input.value.trim());
+    if (!term) {
+      fechar();
+      return [];
+    }
+    return catalogo.filter(
+      (f) => normalizeText2(f.title).includes(term) || normalizeText2(f.desc || "").includes(term) || normalizeText2(f.section).includes(term)
+    ).slice(0, MAX_RESULTADOS);
+  };
+  const render = () => {
+    const hits = filtrar();
+    if (!hits.length) {
+      box.innerHTML = `<div class="gs-empty">Nenhuma funcionalidade para
+                "${escapeHtml(input.value.trim())}"</div>`;
+      abrir();
+      return;
+    }
+    box.innerHTML = hits.map((f, i) => `
+            <button type="button" class="gs-item" role="option"
+                    data-page="${f.page}" data-feature="${f.feature}"
+                    data-idx="${i}">
+                <i data-lucide="${f.icon}"></i>
+                <span class="gs-text">
+                    <span class="gs-title">${escapeHtml(f.title)}</span>
+                    <span class="gs-section">${escapeHtml(f.section)}</span>
+                </span>
+            </button>
+        `).join("");
+    abrir();
+  };
+  const navegar = (page, feature) => {
+    fechar();
+    input.value = "";
+    input.blur();
+    window.navigateTo(page, feature);
+  };
+  input.addEventListener("input", render);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      const primeiro = box.querySelector(".gs-item");
+      if (primeiro) {
+        e.preventDefault();
+        navegar(primeiro.dataset.page, primeiro.dataset.feature);
+      }
+    } else if (e.key === "Escape") {
+      input.value = "";
+      fechar();
+      input.blur();
+    } else if (e.key === "ArrowDown") {
+      const primeiro = box.querySelector(".gs-item");
+      if (primeiro) {
+        e.preventDefault();
+        primeiro.focus();
+      }
+    }
+  });
+  box.addEventListener("click", (e) => {
+    const item = e.target.closest?.(".gs-item");
+    if (item) navegar(item.dataset.page, item.dataset.feature);
+  });
+  box.addEventListener("keydown", (e) => {
+    const item = e.target.closest?.(".gs-item");
+    if (!item) return;
+    const itens = Array.from(box.querySelectorAll(".gs-item"));
+    const idx = itens.indexOf(item);
+    if (e.key === "ArrowDown" && idx < itens.length - 1) {
+      e.preventDefault();
+      itens[idx + 1].focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (idx === 0) input.focus();
+      else itens[idx - 1].focus();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      navegar(item.dataset.page, item.dataset.feature);
+    } else if (e.key === "Escape") {
+      input.focus();
+      input.value = "";
+      fechar();
+    }
+  });
+  document.addEventListener("click", (e) => {
+    const alvo = e.target;
+    if (!alvo.closest?.("#global-search-wrap")) fechar();
+  });
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      input.focus();
+      input.select();
+      if (input.value.trim()) render();
+    }
+  });
+}
+
 // frontend/js/app.ts
 if (window.pdfjsLib) {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
@@ -7535,6 +7720,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentModuleInstance = null;
   window.navigateTo = (page, feature = null) => {
     document.getElementById("result-bar").style.display = "none";
+    if (feature) void Recents.registrar(page, feature);
     document.querySelectorAll(".nav-btn").forEach((btn2) => btn2.classList.remove("active"));
     const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
     if (btn) btn.classList.add("active");
@@ -7594,6 +7780,7 @@ ${r.error || "erro desconhecido"}`);
     document.getElementById("result-bar").style.display = "none";
   });
   window.navigateTo("home");
+  initGlobalSearch();
   let iconsPending = false;
   function renderIcons() {
     if (iconsPending) return;

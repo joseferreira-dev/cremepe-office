@@ -31,6 +31,7 @@
  *     com o módulo o recebem pelo construtor.
  */
 import type { Feature } from './feature.js';
+import { Recents } from '../recents.js';
 
 // Texto normalizado para busca: sem acentos e em minúsculas
 // ("numerar" encontra "Numerar Páginas").
@@ -137,6 +138,8 @@ export class DomainModule {
 
     selectFeature(featureId: string): void {
         this.currentFeature = featureId;
+        // Rastreia para a seção "Recentes" da home (silencioso em erro)
+        void Recents.registrar(this.page, featureId);
         this.container.querySelectorAll<HTMLElement>('.feature-list li').forEach(li => {
             li.classList.toggle('active', li.dataset.feature === featureId);
         });

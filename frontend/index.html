@@ -21,6 +21,21 @@
             <div class="sidebar-brand">
                 <img src="assets/logo.svg" alt="CREMEPE Office" id="sidebar-logo">
             </div>
+
+            <!-- Busca global de funcionalidades (Ctrl+K foca aqui):
+                 filtra as 35 features de todos os domínios e navega
+                 direto — evita clicar por domínio até achar. -->
+            <div id="global-search-wrap">
+                <i data-lucide="search" id="global-search-icon" aria-hidden="true"></i>
+                <input type="search" id="global-search"
+                       placeholder="Buscar...  Ctrl+K"
+                       autocomplete="off" spellcheck="false"
+                       aria-label="Buscar funcionalidade"
+                       aria-controls="global-search-results"
+                       aria-expanded="false">
+                <div id="global-search-results" role="listbox" hidden></div>
+            </div>
+
             <nav class="flex flex-col gap-1">
                 <button class="nav-btn active" data-page="home">
                     <i data-lucide="house"></i> Home

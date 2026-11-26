@@ -539,6 +539,64 @@ function cleanup() {
             }
         }
 
+        // Busca global (sidebar / Ctrl+K): o termo filtra o catalogo
+        // completo e Enter navega para o1o resultado; a feature aberta
+        // vira chip de "Recentes" na home.
+        await evaluate("window.navigateTo('home')");
+        await sleep(500);
+        await evaluate(`(() => {
+            const i = document.getElementById('global-search');
+            i.value = 'numerar';
+            i.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await sleep(300);
+        const gs = await evaluate(`(() => {
+            const box = document.getElementById('global-search-results');
+            const itens = box ? box.querySelectorAll('.gs-item') : [];
+            return {
+                aberto: !!box && !box.hidden,
+                n: itens.length,
+                titulo: itens[0]?.querySelector('.gs-title')?.textContent?.trim() || '',
+            };
+        })()`);
+        if (!gs.aberto || gs.n < 1) {
+            exceptions.push(`busca-global: dropdown nao abriu (aberto=${gs.aberto}, n=${gs.n})`);
+        } else {
+            console.log(`busca-global: "numerar" -> ${gs.n} resultado(s) ("${gs.titulo}")`);
+        }
+
+        // Enter navega para o1o resultado (Numerar Paginas / PDF)
+        await evaluate(`(() => {
+            const i = document.getElementById('global-search');
+            i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        })()`);
+        await sleep(700);
+        const aposBusca = await evaluate(`(() => {
+            const naPagina = !!document.querySelector('.module-pdf');
+            const ativo = document.querySelector('.feature-list li.active')?.dataset?.feature || '';
+            const inputVazio = (document.getElementById('global-search')?.value || '') === '';
+            return { naPagina, ativo, inputVazio };
+        })()`);
+        if (!aposBusca.naPagina || aposBusca.ativo !== 'add-page-numbers' || !aposBusca.inputVazio) {
+            exceptions.push(`busca-global: Enter nao navegou (pagina=${aposBusca.naPagina}, feature=${aposBusca.ativo}, inputVazio=${aposBusca.inputVazio})`);
+        } else {
+            console.log('busca-global: Enter navega e limpa o campo OK');
+        }
+
+        // Recent chip: ao voltar para a home, a feature aberta aparece
+        await evaluate("window.navigateTo('home')");
+        await sleep(900);
+        const recentes = await evaluate(`(() => {
+            const chips = document.querySelectorAll('#recent-chips .recent-chip');
+            const primeiro = chips[0]?.querySelector('span')?.textContent?.trim() || '';
+            return { n: chips.length, primeiro };
+        })()`);
+        if (recentes.n < 1) {
+            exceptions.push('recentes: nenhum chip apos abrir uma feature');
+        } else {
+            console.log(`recentes: ${recentes.n} chip(s), primeiro "${recentes.primeiro}" OK`);
+        }
+
         console.log(`features percorridas: ${featuresVisited}`);
 
         // Sonda de enforcement: um script inline INJETADO deve ser

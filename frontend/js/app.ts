@@ -4,6 +4,8 @@ import { FileModule } from './modules/file/index.js';
 import { HomePage } from './modules/home.js';
 import { PDFModule } from './modules/pdf/index.js';
 import { WordModule } from './modules/word/index.js';
+import { Recents } from './recents.js';
+import { initGlobalSearch } from './search.js';
 
 // pdf.js carrega como script clássico (vendor/pdf.min.js); o worker
 // local é configurado aqui para que o index.html não precise de script
@@ -30,6 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.navigateTo = (page, feature = null) => {
         // Troca de tela: a barra de resultado pertence à tela anterior
         document.getElementById('result-bar')!.style.display = 'none';
+
+        // Rastreia a feature aberta para a seção "Recentes" da home
+        if (feature) void Recents.registrar(page, feature);
 
         document.querySelectorAll<HTMLElement>('.nav-btn').forEach(btn => btn.classList.remove('active'));
         const btn = document.querySelector(`.nav-btn[data-page="${page}"]`)!;
@@ -108,6 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     window.navigateTo('home');
+
+    // Busca global (campo no sidebar + Ctrl+K)
+    initGlobalSearch();
 
     // ====== ÍCONES LUCIDE ======
     // Converte <i data-lucide> em <svg> após cada render. A chamada
