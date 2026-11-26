@@ -51,6 +51,37 @@
         <!-- Conteúdo principal -->
         <main id="content" class="grow overflow-auto bg-zinc-50 p-7">
             <div id="page-container"></div>
+
+            <!-- Barra de resultado: preenchida pelo api.ts quando a
+                 resposta traz output_path — oferece abrir/copiar o
+                 arquivo gerado (antes o caminho só ia para o log e o
+                 usuario digitava à mão em outro lugar). -->
+            <div id="result-bar" class="mt-4" style="display:none;">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="min-w-0 grow">
+                                <div class="text-xs font-semibold tracking-wider text-zinc-500 uppercase">Arquivo gerado</div>
+                                <div id="result-path" class="truncate text-sm text-zinc-800" title=""></div>
+                            </div>
+                            <div class="flex shrink-0 flex-wrap gap-2">
+                                <button class="btn btn-success btn-sm" id="result-open">
+                                    <i data-lucide="external-link"></i> Abrir
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" id="result-copy">
+                                    <i data-lucide="copy"></i> Copiar caminho
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" id="result-reveal">
+                                    <i data-lucide="folder-open"></i> Na pasta
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" id="result-close" title="Fechar">
+                                    <i data-lucide="x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 

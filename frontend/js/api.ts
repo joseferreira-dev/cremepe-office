@@ -75,6 +75,27 @@ async function pollJob(jobId: string): Promise<any> {
     }
 }
 
+/**
+ * Preenche a barra global #result-bar quando a resposta traz um
+ * arquivo gerado (output_path). Automático em TODAS as features —
+ * antes o caminho só ia para o log e o usuário digitava à mão.
+ *
+ * Não esconde em operações sem output_path (o health roda a cada5s e
+ * apagaria a barra); quem limpa é o navigateTo ao trocar de tela.
+ */
+function mostrarResultado(data: unknown): void {
+    const bar = document.getElementById('result-bar');
+    if (!bar) return;
+    const caminho = (data as { output_path?: unknown } | null)?.output_path;
+    if (typeof caminho !== 'string' || !caminho) return;
+    const el = document.getElementById('result-path');
+    if (el) {
+        el.textContent = caminho;
+        el.setAttribute('title', caminho);
+    }
+    bar.style.display = 'block';
+}
+
 async function apiRequest(endpoint: string, method = 'GET', body: unknown = null): Promise<any> {
     const url = `${API_BASE}${endpoint}`;
     const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
@@ -87,12 +108,15 @@ async function apiRequest(endpoint: string, method = 'GET', body: unknown = null
         if (data && data.job_id && data.status) {
             activeJobId = data.job_id;
             try {
-                return await pollJob(data.job_id);
+                const resultado = await pollJob(data.job_id);
+                mostrarResultado(resultado);
+                return resultado;
             } finally {
                 activeJobId = null;
             }
         }
         assertSuccessEnvelope(data);
+        mostrarResultado(data);
         return data;
     } catch (error) { console.error('API Error:', error); throw error; }
 }

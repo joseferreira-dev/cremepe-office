@@ -23,7 +23,11 @@ import_electron.contextBridge.exposeInMainWorld("electronAPI", {
   // ========== API do electron-store ==========
   storeGet: (key) => import_electron.ipcRenderer.invoke("store:get", key),
   storeSet: (key, value) => import_electron.ipcRenderer.invoke("store:set", key, value),
-  storeDelete: (key) => import_electron.ipcRenderer.invoke("store:delete", key)
+  storeDelete: (key) => import_electron.ipcRenderer.invoke("store:delete", key),
+  // ========== Resultado da operação (barra "Abrir/Copiar") ==========
+  openPath: (caminho) => import_electron.ipcRenderer.invoke("shell:open-path", caminho),
+  showItemInFolder: (caminho) => import_electron.ipcRenderer.invoke("shell:show-item", caminho),
+  copyText: (texto) => import_electron.ipcRenderer.invoke("clipboard:write-text", texto)
 });
 import_electron.contextBridge.exposeInMainWorld("getBasePath", () => {
   return import_electron.ipcRenderer.invoke("get-base-path");

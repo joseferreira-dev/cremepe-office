@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentModuleInstance: any = null;
 
     window.navigateTo = (page, feature = null) => {
+        // Troca de tela: a barra de resultado pertence à tela anterior
+        document.getElementById('result-bar')!.style.display = 'none';
+
         document.querySelectorAll<HTMLElement>('.nav-btn').forEach(btn => btn.classList.remove('active'));
         const btn = document.querySelector(`.nav-btn[data-page="${page}"]`)!;
         if (btn) btn.classList.add('active');
@@ -70,6 +73,38 @@ document.addEventListener('DOMContentLoaded', () => {
         if (alvo) {
             void API.jobs.cancel();
         }
+    });
+
+    // Barra de resultado (arquivo gerado): delegacao global dos botoes
+    // Abrir / Copiar caminho / Na pasta / Fechar.
+    const caminhoResultado = () =>
+        (document.getElementById('result-path')?.textContent || '').trim();
+
+    document.getElementById('result-open')?.addEventListener('click', async () => {
+        const p = caminhoResultado();
+        if (!p || !window.electronAPI?.openPath) return;
+        const r = await window.electronAPI.openPath(p);
+        if (r && !r.ok) alert(`Não foi possível abrir:\n${r.error || 'erro desconhecido'}`);
+    });
+
+    document.getElementById('result-copy')?.addEventListener('click', async () => {
+        const p = caminhoResultado();
+        if (!p || !window.electronAPI?.copyText) return;
+        await window.electronAPI.copyText(p);
+        const btn = document.getElementById('result-copy')!;
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i data-lucide="check"></i> Copiado';
+        setTimeout(() => { btn.innerHTML = original; }, 1500);
+    });
+
+    document.getElementById('result-reveal')?.addEventListener('click', async () => {
+        const p = caminhoResultado();
+        if (!p || !window.electronAPI?.showItemInFolder) return;
+        await window.electronAPI.showItemInFolder(p);
+    });
+
+    document.getElementById('result-close')?.addEventListener('click', () => {
+        document.getElementById('result-bar')!.style.display = 'none';
     });
 
     window.navigateTo('home');

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, clipboard } from 'electron';
 import type { OpenDialogOptions, SaveDialogOptions } from 'electron';
 import path from 'path';
 import { spawn } from 'child_process';
@@ -295,4 +295,29 @@ ipcMain.handle('dialog:save', async (_event: Electron.IpcMainInvokeEvent, option
 
 ipcMain.handle('get-base-path', () => {
     return app.getAppPath();
+});
+
+// ========== IPC HANDLERS: resultado da operação ==========
+// Abrir/copiar o arquivo gerado — antes o usuario via o caminho no log
+// e precisava digitar à mão em outro lugar.
+ipcMain.handle('shell:open-path', async (_event: Electron.IpcMainInvokeEvent, caminho: string) => {
+    if (!caminho || typeof caminho !== 'string') {
+        return { ok: false, error: 'caminho inválido' };
+    }
+    if (!fs.existsSync(caminho)) {
+        return { ok: false, error: 'arquivo não encontrado' };
+    }
+    const erro = await shell.openPath(caminho);
+    return erro ? { ok: false, error: erro } : { ok: true };
+});
+
+ipcMain.handle('shell:show-item', (_event: Electron.IpcMainInvokeEvent, caminho: string) => {
+    if (!caminho || typeof caminho !== 'string') return false;
+    shell.showItemInFolder(caminho);
+    return true;
+});
+
+ipcMain.handle('clipboard:write-text', (_event: Electron.IpcMainInvokeEvent, texto: string) => {
+    clipboard.writeText(String(texto ?? ''));
+    return true;
 });

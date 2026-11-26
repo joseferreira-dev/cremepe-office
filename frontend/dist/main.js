@@ -340,3 +340,22 @@ import_electron.ipcMain.handle("dialog:save", async (_event, options) => {
 import_electron.ipcMain.handle("get-base-path", () => {
   return import_electron.app.getAppPath();
 });
+import_electron.ipcMain.handle("shell:open-path", async (_event, caminho) => {
+  if (!caminho || typeof caminho !== "string") {
+    return { ok: false, error: "caminho inv\xE1lido" };
+  }
+  if (!import_fs2.default.existsSync(caminho)) {
+    return { ok: false, error: "arquivo n\xE3o encontrado" };
+  }
+  const erro = await import_electron.shell.openPath(caminho);
+  return erro ? { ok: false, error: erro } : { ok: true };
+});
+import_electron.ipcMain.handle("shell:show-item", (_event, caminho) => {
+  if (!caminho || typeof caminho !== "string") return false;
+  import_electron.shell.showItemInFolder(caminho);
+  return true;
+});
+import_electron.ipcMain.handle("clipboard:write-text", (_event, texto) => {
+  import_electron.clipboard.writeText(String(texto ?? ""));
+  return true;
+});

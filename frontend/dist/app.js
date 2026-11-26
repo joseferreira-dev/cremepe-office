@@ -46,6 +46,18 @@ async function pollJob(jobId) {
     });
   }
 }
+function mostrarResultado(data) {
+  const bar = document.getElementById("result-bar");
+  if (!bar) return;
+  const caminho = data?.output_path;
+  if (typeof caminho !== "string" || !caminho) return;
+  const el = document.getElementById("result-path");
+  if (el) {
+    el.textContent = caminho;
+    el.setAttribute("title", caminho);
+  }
+  bar.style.display = "block";
+}
 async function apiRequest(endpoint, method = "GET", body = null) {
   const url = `${API_BASE}${endpoint}`;
   const options = { method, headers: { "Content-Type": "application/json" } };
@@ -57,12 +69,15 @@ async function apiRequest(endpoint, method = "GET", body = null) {
     if (data && data.job_id && data.status) {
       activeJobId = data.job_id;
       try {
-        return await pollJob(data.job_id);
+        const resultado = await pollJob(data.job_id);
+        mostrarResultado(resultado);
+        return resultado;
       } finally {
         activeJobId = null;
       }
     }
     assertSuccessEnvelope(data);
+    mostrarResultado(data);
     return data;
   } catch (error) {
     console.error("API Error:", error);
@@ -7921,6 +7936,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("page-container");
   let currentModuleInstance = null;
   window.navigateTo = (page, feature = null) => {
+    document.getElementById("result-bar").style.display = "none";
     document.querySelectorAll(".nav-btn").forEach((btn2) => btn2.classList.remove("active"));
     const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
     if (btn) btn.classList.add("active");
@@ -7951,6 +7967,33 @@ document.addEventListener("DOMContentLoaded", () => {
     if (alvo) {
       void API.jobs.cancel();
     }
+  });
+  const caminhoResultado = () => (document.getElementById("result-path")?.textContent || "").trim();
+  document.getElementById("result-open")?.addEventListener("click", async () => {
+    const p = caminhoResultado();
+    if (!p || !window.electronAPI?.openPath) return;
+    const r = await window.electronAPI.openPath(p);
+    if (r && !r.ok) alert(`N\xE3o foi poss\xEDvel abrir:
+${r.error || "erro desconhecido"}`);
+  });
+  document.getElementById("result-copy")?.addEventListener("click", async () => {
+    const p = caminhoResultado();
+    if (!p || !window.electronAPI?.copyText) return;
+    await window.electronAPI.copyText(p);
+    const btn = document.getElementById("result-copy");
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i data-lucide="check"></i> Copiado';
+    setTimeout(() => {
+      btn.innerHTML = original;
+    }, 1500);
+  });
+  document.getElementById("result-reveal")?.addEventListener("click", async () => {
+    const p = caminhoResultado();
+    if (!p || !window.electronAPI?.showItemInFolder) return;
+    await window.electronAPI.showItemInFolder(p);
+  });
+  document.getElementById("result-close")?.addEventListener("click", () => {
+    document.getElementById("result-bar").style.display = "none";
   });
   window.navigateTo("home");
   let iconsPending = false;

@@ -16,6 +16,10 @@ interface ElectronAPI {
     storeGet(key: string): Promise<unknown>;
     storeSet(key: string, value: unknown): Promise<boolean>;
     storeDelete(key: string): Promise<boolean>;
+    // Resultado da operação: abrir/copiar o arquivo gerado
+    openPath(caminho: string): Promise<{ ok: boolean; error?: string }>;
+    showItemInFolder(caminho: string): Promise<boolean>;
+    copyText(texto: string): Promise<boolean>;
 }
 
 interface PdfjsLibGlobal {

@@ -33,6 +33,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     storeSet: (key: string, value: unknown): Promise<boolean> =>
         ipcRenderer.invoke('store:set', key, value),
     storeDelete: (key: string): Promise<boolean> => ipcRenderer.invoke('store:delete', key),
+
+    // ========== Resultado da operação (barra "Abrir/Copiar") ==========
+    openPath: (caminho: string): Promise<{ ok: boolean; error?: string }> =>
+        ipcRenderer.invoke('shell:open-path', caminho),
+    showItemInFolder: (caminho: string): Promise<boolean> =>
+        ipcRenderer.invoke('shell:show-item', caminho),
+    copyText: (texto: string): Promise<boolean> =>
+        ipcRenderer.invoke('clipboard:write-text', texto),
 });
 
 // Função para obter o caminho base

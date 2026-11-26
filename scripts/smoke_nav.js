@@ -483,6 +483,62 @@ function cleanup() {
             await shot('feature-validate.png');
         }
 
+        // Barra de resultado: compress gera output_path e a barra
+        // global deve oferecer abrir/copiar (antes o caminho so ia
+        // para o log).
+        const OUT_PDF = path.join(os.tmpdir(), 'cremepe-smoke-comprimido.pdf');
+        try { fs.unlinkSync(OUT_PDF); } catch (e) { /* */ }
+        await evaluate("window.navigateTo('pdf', 'compress')");
+        await sleep(500);
+        await evaluate(`document.getElementById('compress-input').value = ${JSON.stringify(VALID_PDF)}`);
+        await evaluate(`document.getElementById('compress-output').value = ${JSON.stringify(OUT_PDF)}`);
+        await evaluate("document.getElementById('btn-compress').click()");
+        let barOk = false;
+        for (let bi = 0; bi < 30; bi++) {
+            await sleep(400);
+            barOk = await evaluate(
+                "document.getElementById('result-bar')?.style.display === 'block'"
+            );
+            if (barOk) break;
+        }
+        if (!barOk) {
+            exceptions.push('result-bar: nao apareceu apos compress');
+        } else {
+            const caminho = await evaluate(
+                "document.getElementById('result-path')?.textContent?.trim() || ''"
+            );
+            if (!caminho.toLowerCase().endsWith('.pdf')) {
+                exceptions.push(`result-bar: caminho invalido (${caminho})`);
+            } else {
+                console.log(`result-bar: arquivo gerado exposto OK (${caminho.split(/[\\\\/]/).pop()})`);
+            }
+
+            // Copiar caminho: feedback "Copiado" (clipboard via IPC)
+            await evaluate("document.getElementById('result-copy').click()");
+            await sleep(400);
+            const copiado = await evaluate(
+                "(document.getElementById('result-copy')?.textContent || '').includes('Copiado')"
+            );
+            if (!copiado) {
+                exceptions.push('result-bar: Copiar nao deu feedback');
+            } else {
+                console.log('result-bar: copiar caminho da feedback OK');
+            }
+            await shot('result-bar.png');
+
+            // Fechar esconde; navegar de tela tambem
+            await evaluate("document.getElementById('result-close').click()");
+            await sleep(200);
+            const fechou = await evaluate(
+                "document.getElementById('result-bar').style.display === 'none'"
+            );
+            if (!fechou) {
+                exceptions.push('result-bar: fechar nao escondeu');
+            } else {
+                console.log('result-bar: fechar OK');
+            }
+        }
+
         console.log(`features percorridas: ${featuresVisited}`);
 
         // Sonda de enforcement: um script inline INJETADO deve ser
