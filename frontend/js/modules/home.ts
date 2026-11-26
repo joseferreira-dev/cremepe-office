@@ -1,4 +1,4 @@
-import { Feature } from './feature.js';
+import { Feature, escapeHtml } from './feature.js';
 import { ExcelModule } from './excel/index.js';
 import { FileModule } from './file/index.js';
 import { PDFModule } from './pdf/index.js';
@@ -66,9 +66,11 @@ const MODULE_CATALOG = [
     { page: 'excel', section: 'Excel', module: ExcelModule },
 ];
 
+const SECTIONS = ['Arquivos', 'PDF', 'Word', 'Excel'];
+
 // Atalhos semeados na primeira execução (store sem a chave). Uma vez
 // gravados, passam a valer as escolhas do usuário — inclusive o
-// "Restaurar vazio", que não é ressemear.
+// "Limpar", que não é ressemear.
 const DEFAULT_SHORTCUT_IDS = [
     'collect', 'rename', 'duplicates',
     'pdf-merge', 'pdf-split', 'pdf-compress',
@@ -97,13 +99,20 @@ export class HomePage extends Feature {
     cards!: any[];
     container!: HTMLElement;
     draggedId!: any;
-    isEditing!: boolean;
+    // O catálogo aberto/fechado (antes "modo de edição"): a seleção
+    // agora é IMEDIATA — marcar o checkbox já salva, sem "Aplicar".
+    catalogOpen!: boolean;
+    searchTerm!: string;   // filtro de texto no catálogo
+    domainFilter!: string; // '' = todos os domínios
     storageKey!: string;
+
     constructor(container: HTMLElement) {
         super('home');
         this.container = container;
         this.storageKey = 'quickAccessCards';
-        this.isEditing = false;
+        this.catalogOpen = false;
+        this.searchTerm = '';
+        this.domainFilter = '';
         this.draggedId = null;
         this.cards = [];
 
@@ -158,36 +167,199 @@ export class HomePage extends Feature {
         return false;
     }
 
+    // ====== SELEÇÃO ======
+    get total() {
+        return this.availableFeatures.length;
+    }
+
+    /** Cards visíveis após o filtro de domínio. */
+    get visibleCards() {
+        return this.domainFilter
+            ? this.cards.filter((c: any) => c.section === this.domainFilter)
+            : this.cards;
+    }
+
+    countBySection(section: string) {
+        if (!section) return this.cards.length;
+        return this.cards.filter((c: any) => c.section === section).length;
+    }
+
+    /** Adiciona/remove um favorito e persiste (aplicação imediata). */
+    private async toggleFavorite(id: string, add: boolean) {
+        const existe = this.cards.some((c: any) => c.id === id);
+        if (add === existe) return; // nada a mudar
+        if (add) {
+            const feat = this.availableFeatures.find((f: any) => f.id === id);
+            if (feat) this.cards.push({ ...feat });
+        } else {
+            this.cards = this.cards.filter((c: any) => c.id !== id);
+        }
+        await this.saveCards(this.cards);
+        this.refreshFavorites();
+    }
+
+    /**
+     * Atualiza SÓ a zona de favoritos (grade, chips, contadores e
+     * checkboxes), sem re-renderizar o catálogo — assim o campo de busca
+     * mantém o foco e o cursor enquanto o usuário marca/desmarca.
+     */
+    private refreshFavorites() {
+        const set = (id: string, html: string) => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = html;
+        };
+        set('quick-access-container', this.renderFavorites());
+        set('domain-chips', this.renderDomainChips());
+
+        const fc = document.getElementById('favorites-count');
+        if (fc) fc.textContent = `${this.cards.length} de ${this.total} atalhos`;
+        const sc = document.getElementById('selected-count');
+        if (sc) sc.textContent = `${this.cards.length} de ${this.total} selecionados`;
+
+        // Espelha o estado nos checkboxes (ex.: remoção pela estrela)
+        document.querySelectorAll<HTMLInputElement>('.feature-checkbox')
+            .forEach((cb) => {
+                cb.checked = this.cards.some((c: any) => c.id === cb.value);
+            });
+
+        this.initDragDrop();
+    }
+
     // ====== RENDER ======
     async render() {
         this.cards = await this.getCards();
-        const cardIds = this.cards.map((c: any) => c.id);
 
-        let cardsHtml;
+        this.container.innerHTML = `
+            <div class="page active module-home">
+                <div class="hero mb-7">
+                    <p class="text-xs font-semibold tracking-widest text-white/60 uppercase">CREMEPE Office</p>
+                    <h1 class="mt-2 text-3xl font-semibold tracking-tight">Painel Inicial</h1>
+                    <p class="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">
+                        Atalhos das suas funcionalidades. Use <span class="font-semibold text-white">Adicionar atalhos</span>
+                        para escolher quais aparecem aqui, ou navegue pelos domínios no menu lateral.
+                    </p>
+                </div>
+
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 class="text-lg font-semibold text-zinc-900">Acesso Rápido</h2>
+                        <p class="text-sm text-zinc-500" id="favorites-count">${this.cards.length} de ${this.total} atalhos</p>
+                    </div>
+                    <button class="btn btn-outline-success btn-sm" id="toggle-edit-mode">
+                        <i data-lucide="${this.catalogOpen ? 'x' : 'plus'}"></i>
+                        ${this.catalogOpen ? 'Fechar catálogo' : 'Adicionar atalhos'}
+                    </button>
+                </div>
+
+                <div class="mb-4 flex flex-wrap gap-2" id="domain-chips">${this.renderDomainChips()}</div>
+
+                <div id="quick-access-container">${this.renderFavorites()}</div>
+
+                <div id="edit-area" style="${this.catalogOpen ? 'display:block;' : 'display:none;'}" class="mt-6">
+                    <div class="mb-4 flex flex-wrap items-center gap-3">
+                        <input type="search" id="catalog-search" class="form-control"
+                               placeholder="Buscar funcionalidade por nome..."
+                               value="${escapeHtml(this.searchTerm)}">
+                        <span class="selected-count" id="selected-count">${this.cards.length} de ${this.total} selecionados</span>
+                    </div>
+                    <div class="mb-4 flex flex-wrap gap-2">
+                        <button class="btn btn-outline-success btn-sm" id="select-all-btn">
+                            <i data-lucide="check-check"></i> Marcar todos
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" id="clear-all-btn">
+                            <i data-lucide="eraser"></i> Limpar
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" id="reset-default-btn">
+                            <i data-lucide="rotate-ccw"></i> Restaurar padrão
+                        </button>
+                    </div>
+                    <div id="checkboxes-container">${this.renderCatalog()}</div>
+                </div>
+            </div>
+        `;
+
+        this.initDragDrop();
+    }
+
+    /** Chips de filtro por domínio (com contagem por domínio). */
+    renderDomainChips() {
+        const chips = [{ label: 'Todos', section: '' },
+            ...SECTIONS.map((s) => ({ label: s, section: s }))];
+        return chips.map((c) => `
+            <button class="domain-chip${this.domainFilter === c.section ? ' active' : ''}"
+                    data-section="${c.section}">
+                ${c.label} <span class="text-xs opacity-70">(${this.countBySection(c.section)})</span>
+            </button>
+        `).join('');
+    }
+
+    /** Zona de favoritos: grade de cards ou mensagem de estado vazio. */
+    renderFavorites() {
         if (this.cards.length === 0) {
-            cardsHtml = `
+            return `
                 <div class="rounded-xl border border-dashed border-zinc-300 py-10 text-center">
                     <i data-lucide="grid-3x3" class="text-4xl text-zinc-300"></i>
-                    <p class="mt-4 text-sm text-zinc-500">Nenhum atalho adicionado. Clique em "Editar" e marque as funcionalidades desejadas.</p>
+                    <p class="mt-4 text-sm text-zinc-500">Nenhum atalho adicionado. Clique em
+                        "Adicionar atalhos" e marque as funcionalidades desejadas.</p>
                 </div>
             `;
-        } else {
-            cardsHtml = `<div class="grid grid-cols-12 gap-4" id="quick-access-grid">${this.renderCardItems(this.cards)}</div>`;
         }
+        const cards = this.visibleCards;
+        if (cards.length === 0) {
+            return `
+                <div class="rounded-xl border border-dashed border-zinc-300 py-8 text-center">
+                    <i data-lucide="folder-search" class="text-3xl text-zinc-300"></i>
+                    <p class="mt-3 text-sm text-zinc-500">Nenhum atalho em
+                        "${escapeHtml(this.domainFilter)}".</p>
+                </div>
+            `;
+        }
+        return `<div class="grid grid-cols-12 gap-4" id="quick-access-grid">${this.renderCardItems(cards)}</div>`;
+    }
 
-        const sections = ['Arquivos', 'PDF', 'Word', 'Excel'];
-        let checkboxesHtml = '';
-        sections.forEach(section => {
-            const sectionFeatures = this.availableFeatures.filter((f: any) => f.section === section);
-            if (sectionFeatures.length === 0) return;
-            checkboxesHtml += `
+    renderCardItems(cards: any) {
+        return cards.map((card: any) => {
+            const style = SECTION_STYLE[card.section] || { chip: '', badge: '', btn: 'btn-success' };
+            return `
+            <div class="col-span-6 md:col-span-3 quick-card" draggable="true" data-id="${card.id}">
+                <div class="card h-full" data-page="${card.page}" data-feature="${card.feature}">
+                    <button class="star-btn" data-id="${card.id}"
+                            title="Remover dos favoritos"
+                            aria-label="Remover ${escapeHtml(card.title)} dos favoritos">
+                        <i data-lucide="star"></i>
+                    </button>
+                    <div class="card-body">
+                        <div class="card-icon mb-1 ${style.chip}"><i data-lucide="${card.icon}"></i></div>
+                        <h5 class="card-title">${card.title}</h5>
+                        <p class="card-text">${card.desc}</p>
+                        <div class="mt-auto flex items-center gap-2 pt-1">
+                            <span class="badge ${style.badge}">${card.section}</span>
+                        </div>
+                        <button class="btn w-full ${style.btn} btn-open-card">Abrir <i data-lucide="arrow-right"></i></button>
+                    </div>
+                </div>
+            </div>
+        `;
+        }).join('');
+    }
+
+    /** Catálogo: checkboxes por seção, filtrados pelo termo de busca. */
+    renderCatalog() {
+        const term = this.searchTerm.trim().toLowerCase();
+        const blocos = SECTIONS.map((section) => {
+            const feats = this.availableFeatures.filter((f: any) =>
+                f.section === section &&
+                (!term || f.title.toLowerCase().includes(term) ||
+                    (f.desc || '').toLowerCase().includes(term)));
+            if (feats.length === 0) return '';
+            return `
                 <div class="mb-4">
                     <h6 class="text-brand-600 font-bold">${section}</h6>
                     <div class="grid grid-cols-12 gap-4">
-                        ${sectionFeatures.map((f: any) => `
+                        ${feats.map((f: any) => `
                             <div class="md:col-span-6 lg:col-span-4">
                                 <div class="form-check">
-                                    <input class="form-check-input feature-checkbox" type="checkbox" value="${f.id}" id="chk-${f.id}" ${cardIds.includes(f.id) ? 'checked' : ''}>
+                                    <input class="form-check-input feature-checkbox" type="checkbox" value="${f.id}" id="chk-${f.id}" ${this.cards.some((c: any) => c.id === f.id) ? 'checked' : ''}>
                                     <label class="form-check-label" for="chk-${f.id}">
                                         <i data-lucide="${f.icon}"></i> ${f.title}
                                     </label>
@@ -197,77 +369,23 @@ export class HomePage extends Feature {
                     </div>
                 </div>
             `;
-        });
-
-        this.container.innerHTML = `
-            <div class="page active module-home">
-                <div class="hero mb-7">
-                    <p class="text-xs font-semibold tracking-widest text-white/60 uppercase">CREMEPE Office</p>
-                    <h1 class="mt-2 text-3xl font-semibold tracking-tight">Painel Inicial</h1>
-                    <p class="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">
-                        Atalhos das suas funcionalidades. Reorganize com <span class="font-semibold text-white">Editar</span>
-                        ou navegue pelos domínios no menu lateral.
-                    </p>
-                </div>
-
-                <div class="mb-4 flex items-center justify-between">
-                    <h2 class="text-lg font-semibold text-zinc-900">Acesso Rápido</h2>
-                    <div>
-                        <button class="btn btn-outline-success btn-sm" id="toggle-edit-mode">
-                            <i data-lucide="pencil"></i> ${this.isEditing ? 'Concluir edição' : 'Editar'}
-                        </button>
-                    </div>
-                </div>
-
-                <div id="quick-access-container">
-                    ${cardsHtml}
-                </div>
-
-                <div id="edit-area" style="${this.isEditing ? 'display:block;' : 'display:none;'}" class="mt-6">
-                    <h5 class="mb-4 flex items-center gap-2 text-sm font-semibold text-zinc-700">
-                        <i data-lucide="square-check"></i> Selecione as funcionalidades para exibir
-                    </h5>
-                    <div id="checkboxes-container">
-                        ${checkboxesHtml}
-                    </div>
-                    <div class="mt-5 flex gap-2">
-                        <button class="btn btn-success" id="apply-changes-btn">
-                            <i data-lucide="check"></i> Aplicar alterações
-                        </button>
-                        <button class="btn btn-outline-secondary" id="reset-cards-btn">
-                            <i data-lucide="rotate-ccw"></i> Restaurar vazio
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Após atualizar o DOM, reaplica os eventos de drag (se necessário)
-        if (this.isEditing) {
-            this.initDragDrop();
+        }).join('');
+        if (!blocos) {
+            return `<p class="text-sm text-zinc-500">Nenhuma funcionalidade encontrada
+                para "${escapeHtml(this.searchTerm)}".</p>`;
         }
+        return blocos;
     }
 
-    renderCardItems(cards: any) {
-        return cards.map((card: any) => {
-            const style = SECTION_STYLE[card.section] || { chip: '', badge: '', btn: 'btn-success' };
-            return `
-            <div class="col-span-6 md:col-span-3 quick-card" draggable="${this.isEditing}" data-id="${card.id}">
-                <div class="card h-full" data-page="${card.page}" data-feature="${card.feature}">
-                    <div class="card-body">
-                        <div class="card-icon mb-1 ${style.chip}"><i data-lucide="${card.icon}"></i></div>
-                        <h5 class="card-title">${card.title}</h5>
-                        <p class="card-text">${card.desc}</p>
-                        <div class="mt-auto flex items-center gap-2 pt-1">
-                            <span class="badge ${style.badge}">${card.section}</span>
-                        </div>
-                        <button class="btn w-full ${style.btn} btn-open-card">Abrir <i data-lucide="arrow-right"></i></button>
-                        ${this.isEditing ? `<button class="btn btn-outline-danger btn-sm w-full remove-card-btn" data-id="${card.id}"><i data-lucide="trash"></i> Remover</button>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-        }).join('');
+    /** Navega para a feature do card clicado (clicou fora da estrela). */
+    private abrirCard(alvo: EventTarget | null) {
+        const card = (alvo as HTMLElement | null)?.closest?.('.card') as HTMLElement | null;
+        if (!card) return;
+        const page = card.dataset.page;
+        const feature = card.dataset.feature;
+        if (page && feature) {
+            window.navigateTo(page, feature);
+        }
     }
 
     // ====== CONFIGURAÇÃO DE EVENTOS (UMA ÚNICA VEZ) ======
@@ -275,84 +393,99 @@ export class HomePage extends Feature {
         // Delegação para todos os eventos do container
         // this.on() rastreia o listener: o #page-container persiste entre
         // visitas, então destroy() o remove quando a home é descartada.
+
+        // Aplicação IMEDIATA: marcar/desmarcar o checkbox salva na hora
+        // (sem botão "Aplicar") e atualiza só a zona de favoritos.
+        this.on(this.container, 'change', (e: any) => {
+            const cb = (e.target as HTMLElement)?.closest?.('.feature-checkbox') as HTMLInputElement | null;
+            if (!cb) return;
+            void this.toggleFavorite(cb.value, cb.checked);
+        });
+
+        // Busca no catálogo: filtra os checkboxes sem perder o foco
+        this.on(this.container, 'input', (e: any) => {
+            const el = e.target as HTMLElement;
+            if (!el || el.id !== 'catalog-search') return;
+            this.searchTerm = (el as HTMLInputElement).value;
+            const box = document.getElementById('checkboxes-container');
+            if (box) box.innerHTML = this.renderCatalog();
+        });
+
         this.on(this.container, 'click', async (e) => {
-            const target = e.target;
+            const target = e.target as HTMLElement;
 
-            // 1. Botão "Abrir" no card
-            if (target.closest('.btn-open-card')!) {
+            // 1. Estrela: remove dos favoritos (sem confirm — é
+            //    reversível voltando ao catálogo)
+            const star = target.closest?.('.star-btn') as HTMLElement | null;
+            if (star) {
                 e.stopPropagation();
-                const card = target.closest('.card')!;
-                const page = card.dataset.page;
-                const feature = card.dataset.feature;
-                if (page && feature) {
-                    window.navigateTo(page, feature);
-                }
+                await this.toggleFavorite(star.dataset.id!, false);
                 return;
             }
 
-            // 2. Clique no card (qualquer área, exceto botões)
-            if (target.closest('.quick-card .card')! && !target.closest('.btn-open-card')! && !target.closest('.remove-card-btn')!) {
-                const card = target.closest('.card')!;
-                const page = card.dataset.page;
-                const feature = card.dataset.feature;
-                if (page && feature) {
-                    window.navigateTo(page, feature);
-                }
-                return;
-            }
-
-            // 3. Botão "Remover"
-            if (target.closest('.remove-card-btn')!) {
+            // 2. Botão "Abrir" no card
+            if (target.closest('.btn-open-card')) {
                 e.stopPropagation();
-                const btn = target.closest('.remove-card-btn')!;
-                const id = btn.dataset.id;
-                if (!id) return;
-                const card = this.cards.find((c: any) => c.id === id);
-                if (!card) return;
-                if (confirm(`Remover o atalho "${card.title}"?`)) {
-                    const updated = this.cards.filter((c: any) => c.id !== id);
-                    await this.saveCards(updated);
-                    this.render();
-                }
+                this.abrirCard(target);
                 return;
             }
 
-            // 4. Alternar edição (closest: o clique pode cair no ícone)
-            if (target.closest('#toggle-edit-mode')!) {
-                this.isEditing = !this.isEditing;
+            // 3. Clique no card (qualquer área, exceto botões)
+            if (target.closest('.quick-card .card') &&
+                !target.closest('.btn-open-card') &&
+                !target.closest('.star-btn')) {
+                this.abrirCard(target);
+                return;
+            }
+
+            // 4. Alternar catálogo (closest: o clique pode cair no ícone)
+            if (target.closest('#toggle-edit-mode')) {
+                this.catalogOpen = !this.catalogOpen;
                 this.render();
                 return;
             }
 
-            // 5. Aplicar alterações (checkboxes)
-            if (target.closest('#apply-changes-btn')!) {
-                const checkedBoxes = document.querySelectorAll('.feature-checkbox:checked');
-                const selectedIds = Array.from(checkedBoxes).map(cb => (cb as DomElement).value);
-                const selectedFeatures = this.availableFeatures.filter((f: any) => selectedIds.includes(f.id));
-                const currentCards = this.cards;
-                const updatedCards: any[] = [];
-                // Manter a ordem dos cards existentes
-                currentCards.forEach((card: any) => {
-                    if (selectedIds.includes(card.id)) {
-                        updatedCards.push(card);
-                    }
-                });
-                // Adicionar novos que não estavam na lista
-                selectedFeatures.forEach((f: any) => {
-                    if (!updatedCards.some(c => c.id === f.id)) {
-                        updatedCards.push({ ...f });
-                    }
-                });
-                await this.saveCards(updatedCards);
-                this.render();
+            // 5. Filtro por domínio
+            const chip = target.closest?.('.domain-chip') as HTMLElement | null;
+            if (chip) {
+                this.domainFilter = chip.dataset.section || '';
+                this.refreshFavorites();
                 return;
             }
 
-            // 6. Restaurar vazio
-            if (target.closest('#reset-cards-btn')!) {
+            // 6. Marcar todos
+            if (target.closest('#select-all-btn')) {
+                const faltantes = this.availableFeatures
+                    .filter((f: any) => !this.cards.some((c: any) => c.id === f.id))
+                    .map((f: any) => ({ ...f }));
+                if (faltantes.length) {
+                    this.cards.push(...faltantes);
+                    await this.saveCards(this.cards);
+                    this.refreshFavorites();
+                }
+                return;
+            }
+
+            // 7. Limpar (remover todos os favoritos)
+            if (target.closest('#clear-all-btn')) {
+                if (this.cards.length === 0) return;
                 if (confirm('Remover todos os atalhos da Home?')) {
+                    this.cards = [];
                     await this.saveCards([]);
-                    this.render();
+                    this.refreshFavorites();
+                }
+                return;
+            }
+
+            // 8. Restaurar padrão (os atalhos semeados na1ª execução)
+            if (target.closest('#reset-default-btn')) {
+                if (confirm('Restaurar os atalhos padrão da Home?')) {
+                    this.cards = DEFAULT_SHORTCUT_IDS
+                        .map((id) => this.availableFeatures.find((f: any) => f.id === id))
+                        .filter(Boolean)
+                        .map((f: any) => ({ ...f }));
+                    await this.saveCards(this.cards);
+                    this.refreshFavorites();
                 }
                 return;
             }
@@ -360,8 +493,10 @@ export class HomePage extends Feature {
     }
 
     // ====== DRAG & DROP ======
+    // Sempre ativo (antes só no modo edição): a reordenação é uma
+    // operação de leitura do estado, não de edição da seleção.
     initDragDrop() {
-        const grid = document.getElementById('quick-access-grid')!;
+        const grid = document.getElementById('quick-access-grid');
         if (!grid) return;
 
         const items = grid.querySelectorAll<HTMLElement>('.quick-card');
@@ -406,9 +541,9 @@ export class HomePage extends Feature {
                 const newToIndex = this.cards.indexOf(targetCard);
                 this.cards.splice(newToIndex, 0, moved);
                 await this.saveCards(this.cards);
-                this.render();
+                // Só a zona de favoritos muda — preserva busca/filtro
+                this.refreshFavorites();
             });
         });
     }
 }
-

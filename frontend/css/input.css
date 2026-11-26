@@ -356,13 +356,39 @@
         @apply border-2 border-dashed border-brand-500 ring-4 ring-brand-500/10;
     }
     .quick-card .card {
-        @apply cursor-pointer;
+        @apply cursor-pointer relative; /* relative ancora a estrela */
     }
     .card-icon {
         @apply flex h-11 w-11 items-center justify-center rounded-xl;
     }
     .card-icon .lucide {
         @apply h-5 w-5;
+    }
+    /* ===== Home: seleção de favoritos ===== */
+    /* Estrela no canto do card: remove dos favoritos em1 clique
+       (sem entrar em modo de edição). Discreta mas sempre visível —
+       opacity0 até hover esconderia a ação de quem nunca passa o
+       mouse; vai a100% no hover/foco. */
+    .star-btn {
+        @apply absolute right-2 top-2 z-10 flex h-7 w-7 items-center
+               justify-center rounded-full text-zinc-300 opacity-40
+               transition hover:bg-amber-50 hover:text-amber-500
+               hover:opacity-100 focus-visible:opacity-100;
+    }
+    .star-btn .lucide {
+        @apply h-4 w-4 fill-current;
+    }
+    /* Chips de filtro por domínio (acima da grade de favoritos) */
+    .domain-chip {
+        @apply rounded-full border border-zinc-200 bg-white px-3 py-1.5
+               text-sm text-zinc-600 transition hover:border-brand-400
+               hover:text-brand-700;
+    }
+    .domain-chip.active {
+        @apply border-brand-500 bg-brand-50 font-semibold text-brand-700;
+    }
+    .selected-count {
+        @apply text-sm text-zinc-500;
     }
     /* chips de ícone por seção (cards da home) */
     .chip-arquivos { @apply bg-amber-50 text-amber-600; }

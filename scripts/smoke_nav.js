@@ -256,6 +256,12 @@ function cleanup() {
         } else {
             console.log('home: 8 atalhos padrao semeados OK');
         }
+        // Nota: com a janela oculta, o captureScreenshot pode devolver o
+        // ÚLTIMO frame que a janela compôs — observado: screenshots da
+        // home mostravam o estado FINAL da execução (dom com outro nº de
+        // cards). O DOM é a fonte de verdade; os asserts abaixo leem o
+        // DOM, não os pixels. home-edit.png/home-catalog.png saem
+        // corretos porque um click anterior forçou a composição.
         await shot('home.png');
 
         await evaluate("document.getElementById('toggle-edit-mode').click()");
@@ -313,6 +319,92 @@ function cleanup() {
                 console.log('icone: toggle-edit-mode responde no 1o clique OK');
             }
         }
+
+        // ===== Home: seleção de favoritos (comportamento novo) =====
+        // Aplicação IMEDIATA (sem botão "Aplicar"), estrela, filtro por
+        // domínio e busca no catálogo — nenhum desses existia antes.
+        await evaluate("window.navigateTo('home')");
+        await sleep(400);
+        // o teste anterior abriu o catálogo numa instância nova; garante
+        if (!(await evaluate("document.getElementById('edit-area')?.style.display === 'block'"))) {
+            await evaluate("document.getElementById('toggle-edit-mode').click()");
+            await waitFor("document.getElementById('edit-area')?.style.display === 'block'");
+        }
+        await waitFor("document.querySelectorAll('.feature-checkbox').length === 35");
+
+        // (1) marcar um checkbox NÃO marcado -> card aparece na hora
+        const nAntes = await evaluate("document.querySelectorAll('.quick-card').length");
+        await evaluate(`(() => {
+            const cb = Array.from(document.querySelectorAll('.feature-checkbox')).find(c => !c.checked);
+            if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+            return !!cb;
+        })()`);
+        const aplicou = await waitFor(`document.querySelectorAll('.quick-card').length === ${nAntes + 1}`);
+        const nDepois = await evaluate("document.querySelectorAll('.quick-card').length");
+        if (!aplicou || nDepois !== nAntes + 1) {
+            exceptions.push(`home: aplicacao imediata -> ${nDepois} cards (esperado ${nAntes + 1})`);
+        } else {
+            console.log('home: aplicacao imediata (sem botao Aplicar) OK');
+        }
+
+        // (2) estrela remove o favorito em1 clique (sem modo de edição)
+        await evaluate(`(() => {
+            const s = document.querySelector('.star-btn');
+            if (s) s.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            return !!s;
+        })()`);
+        const estrelou = await waitFor(`document.querySelectorAll('.quick-card').length === ${nAntes}`);
+        if (!estrelou) {
+            const n = await evaluate("document.querySelectorAll('.quick-card').length");
+            exceptions.push(`home: estrela -> ${n} cards (esperado ${nAntes})`);
+        } else {
+            console.log('home: estrela remove favorito em 1 clique OK');
+        }
+
+        // (3) filtro por domínio isola os cards do domínio escolhido
+        await evaluate(`(() => {
+            const c = Array.from(document.querySelectorAll('.domain-chip')).find(x => x.dataset.section === 'PDF');
+            if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            return !!c;
+        })()`);
+        await sleep(300);
+        const filtro = await evaluate(`(() => {
+            const cards = Array.from(document.querySelectorAll('.quick-card'));
+            const secoes = [...new Set(cards.map(c => c.querySelector('.badge')?.textContent))];
+            const ativo = document.querySelector('.domain-chip.active');
+            return { n: cards.length, secoes, ativo: ativo ? ativo.dataset.section : null };
+        })()`);
+        if (filtro.ativo !== 'PDF' || filtro.secoes.some(s => s !== 'PDF')) {
+            exceptions.push(`home: filtro PDF -> ${JSON.stringify(filtro)}`);
+        } else {
+            console.log(`home: filtro por dominio isola ${filtro.n} card(s) PDF OK`);
+        }
+        // volta para "Todos"
+        await evaluate(`(() => {
+            const c = Array.from(document.querySelectorAll('.domain-chip')).find(x => x.dataset.section === '');
+            if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            return !!c;
+        })()`);
+        await sleep(300);
+
+        // (4) busca no catálogo filtra os checkboxes
+        await evaluate(`(() => {
+            const i = document.getElementById('catalog-search');
+            if (i) { i.value = 'OCR'; i.dispatchEvent(new Event('input', { bubbles: true })); }
+            return !!i;
+        })()`);
+        await sleep(300);
+        const busca = await evaluate(`(() => ({
+            n: document.querySelectorAll('.feature-checkbox').length,
+            temOcr: !!document.getElementById('chk-pdf-ocr'),
+            semResultado: !!document.querySelector('#checkboxes-container p'),
+        }))()`);
+        if (busca.n !== 1 || !busca.temOcr) {
+            exceptions.push(`home: busca "OCR" -> ${busca.n} checkboxes (esperado 1) temOcr=${busca.temOcr}`);
+        } else {
+            console.log('home: busca isola OCR (1/35) OK');
+        }
+        await shot('home-catalog.png');
 
         // X de remover origem (Coletar Arquivos):1 add ->2 rows -> clique no svg
         await evaluate("window.navigateTo('files', 'collect')");
