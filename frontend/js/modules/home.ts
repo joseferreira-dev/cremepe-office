@@ -107,7 +107,6 @@ export class HomePage extends Feature {
     // O catálogo aberto/fechado (antes "modo de edição"): a seleção
     // agora é IMEDIATA — marcar o checkbox já salva, sem "Aplicar".
     catalogOpen!: boolean;
-    searchTerm!: string;   // filtro de texto no catálogo
     domainFilter!: string; // '' = todos os domínios
     storageKey!: string;
 
@@ -116,7 +115,6 @@ export class HomePage extends Feature {
         this.container = container;
         this.storageKey = 'quickAccessCards';
         this.catalogOpen = false;
-        this.searchTerm = '';
         this.domainFilter = '';
         this.draggedId = null;
         this.cards = [];
@@ -265,9 +263,6 @@ export class HomePage extends Feature {
 
                 <div id="edit-area" style="${this.catalogOpen ? 'display:block;' : 'display:none;'}" class="mt-6">
                     <div class="mb-4 flex flex-wrap items-center gap-3">
-                        <input type="search" id="catalog-search" class="form-control"
-                               placeholder="Buscar funcionalidade por nome..."
-                               value="${escapeHtml(this.searchTerm)}">
                         <span class="selected-count" id="selected-count">${this.cards.length} de ${this.total} selecionados</span>
                     </div>
                     <div class="mb-4 flex flex-wrap gap-2">
@@ -381,14 +376,10 @@ export class HomePage extends Feature {
         }).join('');
     }
 
-    /** Catálogo: checkboxes por seção, filtrados pelo termo de busca. */
+    /** Catálogo: checkboxes por seção (a filtragem é pela busca global). */
     renderCatalog() {
-        const term = this.searchTerm.trim().toLowerCase();
         const blocos = SECTIONS.map((section) => {
-            const feats = this.availableFeatures.filter((f: any) =>
-                f.section === section &&
-                (!term || f.title.toLowerCase().includes(term) ||
-                    (f.desc || '').toLowerCase().includes(term)));
+            const feats = this.availableFeatures.filter((f: any) => f.section === section);
             if (feats.length === 0) return '';
             return `
                 <div class="mb-4">
@@ -408,10 +399,6 @@ export class HomePage extends Feature {
                 </div>
             `;
         }).join('');
-        if (!blocos) {
-            return `<p class="text-sm text-zinc-500">Nenhuma funcionalidade encontrada
-                para "${escapeHtml(this.searchTerm)}".</p>`;
-        }
         return blocos;
     }
 
@@ -438,15 +425,6 @@ export class HomePage extends Feature {
             const cb = (e.target as HTMLElement)?.closest?.('.feature-checkbox') as HTMLInputElement | null;
             if (!cb) return;
             void this.toggleFavorite(cb.value, cb.checked);
-        });
-
-        // Busca no catálogo: filtra os checkboxes sem perder o foco
-        this.on(this.container, 'input', (e: any) => {
-            const el = e.target as HTMLElement;
-            if (!el || el.id !== 'catalog-search') return;
-            this.searchTerm = (el as HTMLInputElement).value;
-            const box = document.getElementById('checkboxes-container');
-            if (box) box.innerHTML = this.renderCatalog();
         });
 
         this.on(this.container, 'click', async (e) => {

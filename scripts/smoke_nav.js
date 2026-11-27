@@ -109,8 +109,9 @@ function cleanup() {
 
         const ws = new WebSocket(target.webSocketDebuggerUrl);
         await new Promise((res, rej) => {
-            ws.onopen = res;
-            ws.onerror = () => rej(new Error('ws falhou'));
+            const t = setTimeout(() => rej(new Error('ws nao abriu em 10s')), 10000);
+            ws.onopen = () => { clearTimeout(t); res(); };
+            ws.onerror = () => { clearTimeout(t); rej(new Error('ws falhou')); };
         });
 
         let msgId = 0;
@@ -137,9 +138,25 @@ function cleanup() {
             }
         };
 
+        // Sem isto, uma WS que fecha no meio do teste deixa todo
+        // send() pendurado para SEMPRE (o smoke trava sem saida e o
+        // gate vira ruim). Rejeita o que estiver em aberto.
+        ws.onclose = () => {
+            for (const { reject } of pending.values()) {
+                reject(new Error('ws do CDP fechou durante o teste'));
+            }
+            pending.clear();
+        };
+
         const send = (method, params = {}) => new Promise((resolve, reject) => {
             const id = ++msgId;
-            pending.set(id, { resolve, reject });
+            const timer = setTimeout(() => {
+                if (pending.delete(id)) reject(new Error(`timeout de 10s em ${method}`));
+            }, 10000);
+            pending.set(id, {
+                resolve: (v) => { clearTimeout(timer); resolve(v); },
+                reject: (e) => { clearTimeout(timer); reject(e); },
+            });
             ws.send(JSON.stringify({ id, method, params }));
         });
 
@@ -387,22 +404,17 @@ function cleanup() {
         })()`);
         await sleep(300);
 
-        // (4) busca no catálogo filtra os checkboxes
-        await evaluate(`(() => {
-            const i = document.getElementById('catalog-search');
-            if (i) { i.value = 'OCR'; i.dispatchEvent(new Event('input', { bubbles: true })); }
-            return !!i;
-        })()`);
-        await sleep(300);
+        // (4) busca local do catálogo REMOVIDA — só a global permanece:
+        // o catálogo renderiza os35 checkboxes sem filtro algum e o
+        // input #catalog-search não existe mais.
         const busca = await evaluate(`(() => ({
+            temInput: !!document.getElementById('catalog-search'),
             n: document.querySelectorAll('.feature-checkbox').length,
-            temOcr: !!document.getElementById('chk-pdf-ocr'),
-            semResultado: !!document.querySelector('#checkboxes-container p'),
         }))()`);
-        if (busca.n !== 1 || !busca.temOcr) {
-            exceptions.push(`home: busca "OCR" -> ${busca.n} checkboxes (esperado 1) temOcr=${busca.temOcr}`);
+        if (busca.temInput || busca.n !== 35) {
+            exceptions.push(`home: busca local presente=${busca.temInput} (esperado false), ${busca.n} checkboxes (esperado 35)`);
         } else {
-            console.log('home: busca isola OCR (1/35) OK');
+            console.log('home: busca local removida, catalogo com 35 OK');
         }
         await shot('home-catalog.png');
 
@@ -436,23 +448,23 @@ function cleanup() {
             }
         }
 
-        // Busca no menu: "numerar" deve isolar 1 das 12 features do PDF
+        // Busca local do menu de domínios REMOVIDA — só a global
+        // permanece: o PDF lista as14 features, todas visíveis, e o
+        // input #feature-search não existe mais.
         await evaluate("window.navigateTo('pdf')");
         await sleep(400);
-        await evaluate(`(() => {
-            const i = document.getElementById('feature-search');
-            i.value = 'numerar';
-            i.dispatchEvent(new Event('input', { bubbles: true }));
-        })()`);
-        await sleep(200);
-        const searchState = await evaluate(`(() => {
+        const menu = await evaluate(`(() => {
             const lis = Array.from(document.querySelectorAll('.feature-list li'));
-            return { total: lis.length, visible: lis.filter(li => !li.hidden).length };
+            return {
+                temInput: !!document.getElementById('feature-search'),
+                total: lis.length,
+                ocultos: lis.filter(li => li.hidden).length,
+            };
         })()`);
-        if (searchState.total !== 14 || searchState.visible !== 1) {
-            exceptions.push(`busca: ${searchState.visible}/${searchState.total} visiveis (esperado 1/14)`);
+        if (menu.temInput || menu.total !== 14 || menu.ocultos !== 0) {
+            exceptions.push(`busca-local: presente=${menu.temInput} (esperado false), ${menu.ocultos}/${menu.total} ocultos (esperado 0/14)`);
         } else {
-            console.log('busca: filtro "numerar" isola 1/14 OK');
+            console.log('busca-local: removida, menu do PDF com 14 OK');
         }
 
         // Fluxo completo da feature "Validar PDF": digitar caminho,

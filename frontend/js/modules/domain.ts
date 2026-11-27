@@ -33,11 +33,6 @@
 import type { Feature } from './feature.js';
 import { Recents } from '../recents.js';
 
-// Texto normalizado para busca: sem acentos e em minúsculas
-// ("numerar" encontra "Numerar Páginas").
-const normalizeText = (s: string): string =>
-    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-
 /** Declaração de uma feature no menu lateral de um módulo. */
 export interface FeatureDef {
     id: string;
@@ -87,19 +82,9 @@ export class DomainModule {
                 <div class="flex gap-6">
                     <div class="module-sidebar">
                         <h3>Funcionalidades</h3>
-                        <div class="feature-search">
-                            <div class="relative">
-                                <i data-lucide="search"
-                                   class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400"></i>
-                                <input type="search" class="form-control form-control-sm"
-                                       id="feature-search" placeholder="Buscar..."
-                                       aria-label="Buscar funcionalidade">
-                            </div>
-                        </div>
                         <ul class="feature-list">
                             ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}"><i data-lucide="${f.icon || 'circle'}"></i><span>${f.label}</span></li>`).join('')}
                         </ul>
-                        <p class="feature-empty text-xs" hidden>Nenhuma funcionalidade</p>
                     </div>
                     <div class="min-w-0 grow" id="feature-content"></div>
                 </div>
@@ -110,30 +95,7 @@ export class DomainModule {
             item.addEventListener('click', () => this.selectFeature(item.dataset.feature!));
         });
 
-        this.bindFeatureSearch();
-
         this.renderCurrentFeature();
-    }
-
-    // Filtro do menu: esconde itens que não batem com a busca
-    // (acentos/case-insensitive). Os listeners morrem junto com o
-    // innerHTML ao trocar de página.
-    bindFeatureSearch(): void {
-        const input = this.container.querySelector<HTMLInputElement>('#feature-search');
-        const items = this.container.querySelectorAll('.feature-list li');
-        const empty = this.container.querySelector('.feature-empty');
-        if (!input) return;
-
-        input.addEventListener('input', () => {
-            const query = normalizeText(input.value.trim());
-            let visible = 0;
-            items.forEach((li) => {
-                const match = !query || normalizeText(li.textContent || '').includes(query);
-                (li as HTMLElement).hidden = !match;
-                if (match) visible++;
-            });
-            if (empty) (empty as HTMLElement).hidden = visible > 0;
-        });
     }
 
     selectFeature(featureId: string): void {

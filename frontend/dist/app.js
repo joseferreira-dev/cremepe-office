@@ -194,7 +194,6 @@ var Recents = {
 };
 
 // frontend/js/modules/domain.ts
-var normalizeText = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 var DomainModule = class {
   container;
   page;
@@ -227,19 +226,9 @@ var DomainModule = class {
                 <div class="flex gap-6">
                     <div class="module-sidebar">
                         <h3>Funcionalidades</h3>
-                        <div class="feature-search">
-                            <div class="relative">
-                                <i data-lucide="search"
-                                   class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400"></i>
-                                <input type="search" class="form-control form-control-sm"
-                                       id="feature-search" placeholder="Buscar..."
-                                       aria-label="Buscar funcionalidade">
-                            </div>
-                        </div>
                         <ul class="feature-list">
                             ${this.features.map((f) => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? "active" : ""}"><i data-lucide="${f.icon || "circle"}"></i><span>${f.label}</span></li>`).join("")}
                         </ul>
-                        <p class="feature-empty text-xs" hidden>Nenhuma funcionalidade</p>
                     </div>
                     <div class="min-w-0 grow" id="feature-content"></div>
                 </div>
@@ -248,27 +237,7 @@ var DomainModule = class {
     this.container.querySelectorAll(".feature-list li").forEach((item) => {
       item.addEventListener("click", () => this.selectFeature(item.dataset.feature));
     });
-    this.bindFeatureSearch();
     this.renderCurrentFeature();
-  }
-  // Filtro do menu: esconde itens que não batem com a busca
-  // (acentos/case-insensitive). Os listeners morrem junto com o
-  // innerHTML ao trocar de página.
-  bindFeatureSearch() {
-    const input = this.container.querySelector("#feature-search");
-    const items = this.container.querySelectorAll(".feature-list li");
-    const empty = this.container.querySelector(".feature-empty");
-    if (!input) return;
-    input.addEventListener("input", () => {
-      const query = normalizeText(input.value.trim());
-      let visible = 0;
-      items.forEach((li) => {
-        const match = !query || normalizeText(li.textContent || "").includes(query);
-        li.hidden = !match;
-        if (match) visible++;
-      });
-      if (empty) empty.hidden = visible > 0;
-    });
   }
   selectFeature(featureId) {
     this.currentFeature = featureId;
@@ -7267,8 +7236,6 @@ var HomePage = class extends Feature {
   // O catálogo aberto/fechado (antes "modo de edição"): a seleção
   // agora é IMEDIATA — marcar o checkbox já salva, sem "Aplicar".
   catalogOpen;
-  searchTerm;
-  // filtro de texto no catálogo
   domainFilter;
   // '' = todos os domínios
   storageKey;
@@ -7277,7 +7244,6 @@ var HomePage = class extends Feature {
     this.container = container;
     this.storageKey = "quickAccessCards";
     this.catalogOpen = false;
-    this.searchTerm = "";
     this.domainFilter = "";
     this.draggedId = null;
     this.cards = [];
@@ -7398,9 +7364,6 @@ var HomePage = class extends Feature {
 
                 <div id="edit-area" style="${this.catalogOpen ? "display:block;" : "display:none;"}" class="mt-6">
                     <div class="mb-4 flex flex-wrap items-center gap-3">
-                        <input type="search" id="catalog-search" class="form-control"
-                               placeholder="Buscar funcionalidade por nome..."
-                               value="${escapeHtml(this.searchTerm)}">
                         <span class="selected-count" id="selected-count">${this.cards.length} de ${this.total} selecionados</span>
                     </div>
                     <div class="mb-4 flex flex-wrap gap-2">
@@ -7508,11 +7471,10 @@ var HomePage = class extends Feature {
         `;
     }).join("");
   }
-  /** Catálogo: checkboxes por seção, filtrados pelo termo de busca. */
+  /** Catálogo: checkboxes por seção (a filtragem é pela busca global). */
   renderCatalog() {
-    const term = this.searchTerm.trim().toLowerCase();
     const blocos = SECTIONS.map((section) => {
-      const feats = this.availableFeatures.filter((f) => f.section === section && (!term || f.title.toLowerCase().includes(term) || (f.desc || "").toLowerCase().includes(term)));
+      const feats = this.availableFeatures.filter((f) => f.section === section);
       if (feats.length === 0) return "";
       return `
                 <div class="mb-4">
@@ -7532,10 +7494,6 @@ var HomePage = class extends Feature {
                 </div>
             `;
     }).join("");
-    if (!blocos) {
-      return `<p class="text-sm text-zinc-500">Nenhuma funcionalidade encontrada
-                para "${escapeHtml(this.searchTerm)}".</p>`;
-    }
     return blocos;
   }
   /** Navega para a feature do card clicado (clicou fora da estrela). */
@@ -7554,13 +7512,6 @@ var HomePage = class extends Feature {
       const cb = e.target?.closest?.(".feature-checkbox");
       if (!cb) return;
       void this.toggleFavorite(cb.value, cb.checked);
-    });
-    this.on(this.container, "input", (e) => {
-      const el = e.target;
-      if (!el || el.id !== "catalog-search") return;
-      this.searchTerm = el.value;
-      const box = document.getElementById("checkboxes-container");
-      if (box) box.innerHTML = this.renderCatalog();
     });
     this.on(this.container, "click", async (e) => {
       const target = e.target;
@@ -7671,7 +7622,7 @@ var HomePage = class extends Feature {
 };
 
 // frontend/js/search.ts
-var normalizeText2 = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+var normalizeText = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 var MAX_RESULTADOS = 8;
 function initGlobalSearch() {
   const input = document.getElementById("global-search");
@@ -7687,13 +7638,13 @@ function initGlobalSearch() {
     input.setAttribute("aria-expanded", "true");
   };
   const filtrar = () => {
-    const term = normalizeText2(input.value.trim());
+    const term = normalizeText(input.value.trim());
     if (!term) {
       fechar();
       return [];
     }
     return catalogo.filter(
-      (f) => normalizeText2(f.title).includes(term) || normalizeText2(f.desc || "").includes(term) || normalizeText2(f.section).includes(term)
+      (f) => normalizeText(f.title).includes(term) || normalizeText(f.desc || "").includes(term) || normalizeText(f.section).includes(term)
     ).slice(0, MAX_RESULTADOS);
   };
   const render = () => {
