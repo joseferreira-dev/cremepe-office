@@ -123,15 +123,21 @@ export class SplitFeature extends Feature {
         });
 
         // Dividir
-        FileUtils.selectFile('split-file', [])
+        container.querySelector('#btn-split-file')!.addEventListener('click', () => {
+            FileUtils.selectFile('split-file', [])
+        });
         container.querySelector('#btn-split-dir')!.addEventListener('click', () => {
             FileUtils.selectDirectory('split-output-dir');
         });
         container.querySelector('#btn-split')!.addEventListener('click', () => this.splitFile());
 
         // Remontar
-        FileUtils.selectFile('merge-parts', [], { multiple: true, append: true, onSelect: () => { this.updatePartsList(); } })
-        FileUtils.selectSaveFile('merge-output', [])
+        container.querySelector('#btn-merge-parts')!.addEventListener('click', () => {
+            FileUtils.selectFile('merge-parts', [], {multiple: true, append: true, onSelect: () => { this.updatePartsList(); }})
+        });
+        container.querySelector('#btn-merge-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('merge-output', [])
+        });
         container.querySelector('#btn-merge')!.addEventListener('click', () => this.mergeParts());
     }
 

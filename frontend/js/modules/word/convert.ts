@@ -80,7 +80,9 @@ export class ConvertFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        FileUtils.selectFile('convert-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutputPath(); }})
+        container.querySelector('#btn-convert-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('convert-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutputPath(); }})
+        });
 
         container.querySelector('#btn-convert-output')!.addEventListener('click', () => {
             const format = (document.querySelector('input[name="convert-format"]:checked') as DomElement).value;

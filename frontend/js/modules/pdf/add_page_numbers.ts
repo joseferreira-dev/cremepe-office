@@ -154,9 +154,13 @@ export class PDFAddPageNumbersFeature extends Feature {
     }
 
     attachEvents() {
-        FileUtils.selectFile('pn-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
+        document.getElementById('btn-pn-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('pn-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
+        });
 
-        FileUtils.selectSaveFile('pn-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-pn-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('pn-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
         document.getElementById('btn-pn-apply')!.addEventListener('click', () => this.applyPageNumbers());
         document.getElementById('pn-input')!.addEventListener('change', () => this.suggestOutput());

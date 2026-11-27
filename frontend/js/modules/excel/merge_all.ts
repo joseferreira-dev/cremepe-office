@@ -83,7 +83,7 @@ export class ExcelMergeAllFeature extends Feature {
             FileUtils.selectDirectory('merge-source-dir');
         });
 
-                document.getElementById('btn-merge-dest')!.addEventListener('click', (e) => {
+        document.getElementById('btn-merge-dest')!.addEventListener('click', (e) => {
             e.stopPropagation();
             FileUtils.selectSaveFile('merge-dest-file', [{ name: 'Excel', extensions: ['xlsx'] }])
         });

@@ -108,9 +108,13 @@ export class PDFOcrFeature extends Feature {
     }
 
     attachEvents() {
-        FileUtils.selectFile('ocr-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
+        document.getElementById('btn-ocr-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('ocr-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
+        });
 
-        FileUtils.selectSaveFile('ocr-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-ocr-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('ocr-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
         document.getElementById('ocr-input')!
             .addEventListener('change', () => this.suggestOutput());

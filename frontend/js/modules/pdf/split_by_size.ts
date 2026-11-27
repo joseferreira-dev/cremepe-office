@@ -61,7 +61,9 @@ export class PDFSplitBySizeFeature extends Feature {
     }
 
     attachEvents() {
-        FileUtils.selectFile('split-size-input', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-split-size-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('split-size-input', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
         document.getElementById('btn-split-size-output')!.addEventListener('click', () => {
             FileUtils.selectDirectory('split-size-output');

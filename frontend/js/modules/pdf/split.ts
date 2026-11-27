@@ -135,7 +135,9 @@ export class PDFSplitFeature extends Feature {
     attachEvents() {
         this.pageInfo = attachPageInfoHint('split-pdf-input', 'split-info-hint');
 
-        FileUtils.selectFile('split-pdf-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.pageInfo.refresh(); }})
+        document.getElementById('btn-split-pdf-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('split-pdf-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.pageInfo.refresh(); }})
+        });
 
         document.getElementById('btn-split-pdf-output')!.addEventListener('click', () => {
             FileUtils.selectDirectory('split-pdf-output');

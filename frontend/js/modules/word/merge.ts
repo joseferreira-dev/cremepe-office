@@ -67,9 +67,13 @@ export class MergeFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        FileUtils.selectFile('merge-docx-list', [ { name: 'Word', extensions: ['docx', 'doc'] } ], {multiple: true, append: true, onSelect: () => { this.updateDocxList(); }})
+        container.querySelector('#btn-add-docx')!.addEventListener('click', () => {
+            FileUtils.selectFile('merge-docx-list', [ { name: 'Word', extensions: ['docx', 'doc'] } ], {multiple: true, append: true, onSelect: () => { this.updateDocxList(); }})
+        });
 
-        FileUtils.selectSaveFile('merge-output', [ { name: 'Word', extensions: ['docx'] } ])
+        container.querySelector('#btn-merge-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('merge-output', [ { name: 'Word', extensions: ['docx'] } ])
+        });
 
         container.querySelector('#btn-merge')!.addEventListener('click', () => this.mergeDocuments());
     }

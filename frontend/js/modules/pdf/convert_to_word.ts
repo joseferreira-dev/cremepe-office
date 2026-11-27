@@ -1,6 +1,6 @@
 import { API } from '../../api.js';
-import { FileUtils } from '../file/utils.js';
 import { Feature } from '../feature.js';
+import { FileUtils } from '../file/utils.js';
 
 export class PDFConvertToWordFeature extends Feature {
     direction!: string;

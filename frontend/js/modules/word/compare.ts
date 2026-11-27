@@ -61,9 +61,13 @@ export class DocCompareFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        FileUtils.selectFile('compare-doc1', [{ name: 'Word', extensions: ['docx', 'doc'] }])
+        container.querySelector('#btn-compare-doc1')!.addEventListener('click', () => {
+            FileUtils.selectFile('compare-doc1', [{ name: 'Word', extensions: ['docx', 'doc'] }])
+        });
 
-        FileUtils.selectFile('compare-doc2', [{ name: 'Word', extensions: ['docx', 'doc'] }])
+        container.querySelector('#btn-compare-doc2')!.addEventListener('click', () => {
+            FileUtils.selectFile('compare-doc2', [{ name: 'Word', extensions: ['docx', 'doc'] }])
+        });
 
         container.querySelector('#btn-compare')!.addEventListener('click', () => this.compareDocuments());
     }

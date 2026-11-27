@@ -75,7 +75,7 @@ export class ExcelSplitFeature extends Feature {
     }
 
     attachEvents() {
-                document.getElementById('btn-split-input')!.addEventListener('click', (e) => {
+        document.getElementById('btn-split-input')!.addEventListener('click', (e) => {
             e.stopPropagation();
             FileUtils.selectFile('split-input-file', [{ name: 'Excel', extensions: ['xlsx'] }])
         });

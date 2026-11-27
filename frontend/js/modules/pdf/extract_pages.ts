@@ -124,7 +124,9 @@ export class PDFExtractPagesFeature extends Feature {
     attachEvents() {
         this.pageInfo = attachPageInfoHint('extract-pdf-input', 'extract-info-hint');
 
-        FileUtils.selectFile('extract-pdf-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.pageInfo.refresh(); }})
+        document.getElementById('btn-extract-pdf-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('extract-pdf-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.pageInfo.refresh(); }})
+        });
 
         document.getElementById('btn-extract-pdf-output')!.addEventListener('click', () => {
             FileUtils.selectDirectory('extract-pdf-output');

@@ -76,7 +76,9 @@ export class PDFMergeFeature extends Feature {
     attachEvents() {
         document.getElementById('btn-pdf-merge-add')!.addEventListener('click', () => this.addPDFs());
         document.getElementById('btn-pdf-merge-clear')!.addEventListener('click', () => this.clearAll());
-        FileUtils.selectSaveFile('pdf-merge-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-pdf-merge-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('pdf-merge-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
         document.getElementById('btn-pdf-merge')!.addEventListener('click', () => this.mergePDFs());
         document.getElementById('btn-pdf-merge-preview')!.addEventListener('click', () => this.previewOrder());
 

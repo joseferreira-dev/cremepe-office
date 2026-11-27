@@ -164,19 +164,27 @@ export class ArchiveFeature extends Feature {
         });
 
         // Selecionar arquivos/pastas para compactar
-        FileUtils.selectFile('archive-sources', [], { multiple: true, append: true, onSelect: () => { this.updateSourceList(); } })
+        container.querySelector('#btn-add-files')!.addEventListener('click', () => {
+            FileUtils.selectFile('archive-sources', [], {multiple: true, append: true, onSelect: () => { this.updateSourceList(); }})
+        });
 
         container.querySelector('#btn-add-folder')!.addEventListener('click', () => {
-            FileUtils.selectDirectory('archive-sources', { append: true, onSelect: () => { this.updateSourceList(); } });
+            FileUtils.selectDirectory('archive-sources', {append: true, onSelect: () => { this.updateSourceList(); }})
         });
 
         // Selecionar destino
-        FileUtils.selectSaveFile('archive-output', [{ name: 'ZIP', extensions: ['zip'] }])
+        container.querySelector('#btn-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('archive-output', [{ name: 'ZIP', extensions: ['zip'] }])
+        });
 
         // Selecionar arquivo para extrair
-        FileUtils.selectFile('extract-archive', [{ name: 'Arquivos compactados', extensions: ['zip', '7z', 'rar', 'tar', 'gz', 'tgz'] }])
+        container.querySelector('#btn-extract-archive')!.addEventListener('click', () => {
+            FileUtils.selectFile('extract-archive', [{ name: 'Arquivos compactados', extensions: ['zip', '7z', 'rar', 'tar', 'gz', 'tgz'] }])
+        });
 
-        FileUtils.selectDirectory('extract-dir')
+        container.querySelector('#btn-extract-dir')!.addEventListener('click', () => {
+            FileUtils.selectDirectory('extract-dir')
+        });
 
         // Nível de compressão
         container.querySelector('#compression-level')!.addEventListener('input', (e: any) => {

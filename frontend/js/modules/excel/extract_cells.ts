@@ -86,7 +86,7 @@ export class ExcelExtractCellsFeature extends Feature {
             FileUtils.selectDirectory('extract-source-dir');
         });
 
-                document.getElementById('btn-extract-output')!.addEventListener('click', (e) => {
+        document.getElementById('btn-extract-output')!.addEventListener('click', (e) => {
             e.stopPropagation();
             FileUtils.selectSaveFile('extract-output-csv', [{ name: 'CSV', extensions: ['csv'] }])
         });

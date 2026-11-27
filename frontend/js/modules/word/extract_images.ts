@@ -65,7 +65,9 @@ export class ExtractImagesFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        FileUtils.selectFile('extract-input', [{ name: 'Word', extensions: ['docx', 'doc'] }])
+        container.querySelector('#btn-extract-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('extract-input', [{ name: 'Word', extensions: ['docx', 'doc'] }])
+        });
 
         container.querySelector('#btn-extract-output')!.addEventListener('click', () => {
             FileUtils.selectDirectory('extract-output');

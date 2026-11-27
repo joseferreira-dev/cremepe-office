@@ -169,13 +169,19 @@ export class WatermarkFeature extends Feature {
         });
 
         // Selecionar documento
-        FileUtils.selectFile('wm-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutput(); }})
+        container.querySelector('#btn-wm-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('wm-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutput(); }})
+        });
 
         // Selecionar imagem
-        FileUtils.selectFile('wm-image-path', [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif'] }])
+        container.querySelector('#btn-wm-image')!.addEventListener('click', () => {
+            FileUtils.selectFile('wm-image-path', [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'gif'] }])
+        });
 
         // Selecionar saída
-        FileUtils.selectSaveFile('wm-output', [{ name: 'Word', extensions: ['docx'] }])
+        container.querySelector('#btn-wm-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('wm-output', [{ name: 'Word', extensions: ['docx'] }])
+        });
 
         // Transparência
         container.querySelector('#wm-transparency')!.addEventListener('input', (e: any) => {

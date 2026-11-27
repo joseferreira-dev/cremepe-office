@@ -59,7 +59,9 @@ export class PDFValidateFeature extends Feature {
             ${this.logHTML()}
         `;
 
-        FileUtils.selectFile('validate-input', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-validate-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('validate-input', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
         document.getElementById('btn-validate')!.addEventListener('click', () => this.validatePDF());
         document.getElementById('btn-validate-repair')!.addEventListener('click', () => this.repairCores());

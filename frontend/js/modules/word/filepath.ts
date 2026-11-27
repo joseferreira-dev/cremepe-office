@@ -131,9 +131,13 @@ export class FilePathFeature extends Feature {
     }
 
     attachEvents(container: HTMLElement) {
-        FileUtils.selectFile('fp-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutput(); }})
+        container.querySelector('#btn-fp-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('fp-input', [{ name: 'Word', extensions: ['docx', 'doc'] }], {onSelect: () => { this.suggestOutput(); }})
+        });
 
-        FileUtils.selectSaveFile('fp-output', [{ name: 'Word', extensions: ['docx'] }])
+        container.querySelector('#btn-fp-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('fp-output', [{ name: 'Word', extensions: ['docx'] }])
+        });
 
         container.querySelector('#fp-transparency')!.addEventListener('input', (e: any) => {
             document.getElementById('fp-transparency-label')!.textContent = e.target.value + '%';

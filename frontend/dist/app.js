@@ -1443,17 +1443,25 @@ var ArchiveFeature = class extends Feature {
         document.getElementById("archive-extract-content").style.display = mode === "extract" ? "block" : "none";
       });
     });
-    FileUtils.selectFile("archive-sources", [], { multiple: true, append: true, onSelect: () => {
-      this.updateSourceList();
-    } });
+    container.querySelector("#btn-add-files").addEventListener("click", () => {
+      FileUtils.selectFile("archive-sources", [], { multiple: true, append: true, onSelect: () => {
+        this.updateSourceList();
+      } });
+    });
     container.querySelector("#btn-add-folder").addEventListener("click", () => {
       FileUtils.selectDirectory("archive-sources", { append: true, onSelect: () => {
         this.updateSourceList();
       } });
     });
-    FileUtils.selectSaveFile("archive-output", [{ name: "ZIP", extensions: ["zip"] }]);
-    FileUtils.selectFile("extract-archive", [{ name: "Arquivos compactados", extensions: ["zip", "7z", "rar", "tar", "gz", "tgz"] }]);
-    FileUtils.selectDirectory("extract-dir");
+    container.querySelector("#btn-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("archive-output", [{ name: "ZIP", extensions: ["zip"] }]);
+    });
+    container.querySelector("#btn-extract-archive").addEventListener("click", () => {
+      FileUtils.selectFile("extract-archive", [{ name: "Arquivos compactados", extensions: ["zip", "7z", "rar", "tar", "gz", "tgz"] }]);
+    });
+    container.querySelector("#btn-extract-dir").addEventListener("click", () => {
+      FileUtils.selectDirectory("extract-dir");
+    });
     container.querySelector("#compression-level").addEventListener("input", (e) => {
       document.getElementById("level-label").textContent = e.target.value;
     });
@@ -3141,15 +3149,21 @@ var SplitFeature = class extends Feature {
         document.getElementById("merge-content").style.display = mode === "merge" ? "block" : "none";
       });
     });
-    FileUtils.selectFile("split-file", []);
+    container.querySelector("#btn-split-file").addEventListener("click", () => {
+      FileUtils.selectFile("split-file", []);
+    });
     container.querySelector("#btn-split-dir").addEventListener("click", () => {
       FileUtils.selectDirectory("split-output-dir");
     });
     container.querySelector("#btn-split").addEventListener("click", () => this.splitFile());
-    FileUtils.selectFile("merge-parts", [], { multiple: true, append: true, onSelect: () => {
-      this.updatePartsList();
-    } });
-    FileUtils.selectSaveFile("merge-output", []);
+    container.querySelector("#btn-merge-parts").addEventListener("click", () => {
+      FileUtils.selectFile("merge-parts", [], { multiple: true, append: true, onSelect: () => {
+        this.updatePartsList();
+      } });
+    });
+    container.querySelector("#btn-merge-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("merge-output", []);
+    });
     container.querySelector("#btn-merge").addEventListener("click", () => this.mergeParts());
   }
   updatePartsList() {
@@ -3394,10 +3408,14 @@ var PDFAddPageNumbersFeature = class extends Feature {
     this.updatePreview();
   }
   attachEvents() {
-    FileUtils.selectFile("pn-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.suggestOutput();
-    } });
-    FileUtils.selectSaveFile("pn-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-pn-input").addEventListener("click", () => {
+      FileUtils.selectFile("pn-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.suggestOutput();
+      } });
+    });
+    document.getElementById("btn-pn-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("pn-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-pn-apply").addEventListener("click", () => this.applyPageNumbers());
     document.getElementById("pn-input").addEventListener("change", () => this.suggestOutput());
   }
@@ -3642,10 +3660,14 @@ var PDFCompressFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    FileUtils.selectFile("compress-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.suggestOutput();
-    } });
-    FileUtils.selectSaveFile("compress-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-compress-input").addEventListener("click", () => {
+      FileUtils.selectFile("compress-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.suggestOutput();
+      } });
+    });
+    document.getElementById("btn-compress-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("compress-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-compress").addEventListener("click", () => this.compressPDF());
     document.getElementById("compress-input").addEventListener("change", () => this.suggestOutput());
   }
@@ -3926,7 +3948,9 @@ var PDFConvertToImageFeature = class extends Feature {
       this.imagePaths = [];
       this.updateImageList();
     });
-    FileUtils.selectSaveFile("image-to-pdf-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-image-to-pdf-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("image-to-pdf-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-image-to-pdf-folder").addEventListener("click", () => {
       FileUtils.selectDirectory("image-to-pdf-folder");
     });
@@ -4435,9 +4459,11 @@ var PDFExtractPagesFeature = class extends Feature {
   }
   attachEvents() {
     this.pageInfo = attachPageInfoHint("extract-pdf-input", "extract-info-hint");
-    FileUtils.selectFile("extract-pdf-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.pageInfo.refresh();
-    } });
+    document.getElementById("btn-extract-pdf-input").addEventListener("click", () => {
+      FileUtils.selectFile("extract-pdf-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.pageInfo.refresh();
+      } });
+    });
     document.getElementById("btn-extract-pdf-output").addEventListener("click", () => {
       FileUtils.selectDirectory("extract-pdf-output");
     });
@@ -4586,7 +4612,9 @@ var PDFMergeFeature = class extends Feature {
   attachEvents() {
     document.getElementById("btn-pdf-merge-add").addEventListener("click", () => this.addPDFs());
     document.getElementById("btn-pdf-merge-clear").addEventListener("click", () => this.clearAll());
-    FileUtils.selectSaveFile("pdf-merge-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-pdf-merge-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("pdf-merge-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-pdf-merge").addEventListener("click", () => this.mergePDFs());
     document.getElementById("btn-pdf-merge-preview").addEventListener("click", () => this.previewOrder());
     const list = document.getElementById("pdf-merge-list");
@@ -4998,10 +5026,14 @@ var PDFOcrFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    FileUtils.selectFile("ocr-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.suggestOutput();
-    } });
-    FileUtils.selectSaveFile("ocr-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-ocr-input").addEventListener("click", () => {
+      FileUtils.selectFile("ocr-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.suggestOutput();
+      } });
+    });
+    document.getElementById("btn-ocr-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("ocr-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("ocr-input").addEventListener("change", () => this.suggestOutput());
     document.getElementById("btn-ocr-extrair").addEventListener("click", () => this.extrairTexto());
     document.getElementById("btn-ocr-pesquisavel").addEventListener("click", () => this.gerarPesquisavel());
@@ -5236,14 +5268,22 @@ var PDFProtectFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    FileUtils.selectFile("protect-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.suggestOutput("protect-input", "protect-output", "_protegido");
-    } });
-    FileUtils.selectSaveFile("protect-output", [{ name: "PDF", extensions: ["pdf"] }]);
-    FileUtils.selectFile("remove-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.suggestOutput("remove-input", "remove-output", "_desprotegido");
-    } });
-    FileUtils.selectSaveFile("remove-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-protect-input").addEventListener("click", () => {
+      FileUtils.selectFile("protect-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.suggestOutput("protect-input", "protect-output", "_protegido");
+      } });
+    });
+    document.getElementById("btn-protect-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("protect-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
+    document.getElementById("btn-remove-input").addEventListener("click", () => {
+      FileUtils.selectFile("remove-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.suggestOutput("remove-input", "remove-output", "_desprotegido");
+      } });
+    });
+    document.getElementById("btn-remove-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("remove-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-protect").addEventListener("click", () => this.protectPassword());
     document.getElementById("btn-remove").addEventListener("click", () => this.removePassword());
   }
@@ -5395,11 +5435,17 @@ var PDFRemovePagesFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    FileUtils.selectFile("remove-pages-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.suggestOutputs();
-    } });
-    FileUtils.selectSaveFile("remove-pages-output", [{ name: "PDF", extensions: ["pdf"] }]);
-    FileUtils.selectSaveFile("remove-pages-removed-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-remove-pages-input").addEventListener("click", () => {
+      FileUtils.selectFile("remove-pages-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.suggestOutputs();
+      } });
+    });
+    document.getElementById("btn-remove-pages-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("remove-pages-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
+    document.getElementById("btn-remove-pages-removed-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("remove-pages-removed-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-remove-pages-execute").addEventListener("click", () => this.executeRemove());
   }
   suggestOutputs() {
@@ -5516,11 +5562,15 @@ var PDFReorderFeature = class extends Feature {
   }
   attachEvents() {
     this.pageInfo = attachPageInfoHint("reorder-input", "reorder-info-hint");
-    FileUtils.selectFile("reorder-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.suggestOutput();
-      this.pageInfo.refresh();
-    } });
-    FileUtils.selectSaveFile("reorder-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-reorder-input").addEventListener("click", () => {
+      FileUtils.selectFile("reorder-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.suggestOutput();
+        this.pageInfo.refresh();
+      } });
+    });
+    document.getElementById("btn-reorder-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("reorder-output", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-reorder-execute").addEventListener("click", () => this.executeReorder());
   }
   suggestOutput() {
@@ -5702,9 +5752,11 @@ var PDFSplitFeature = class extends Feature {
   }
   attachEvents() {
     this.pageInfo = attachPageInfoHint("split-pdf-input", "split-info-hint");
-    FileUtils.selectFile("split-pdf-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
-      this.pageInfo.refresh();
-    } });
+    document.getElementById("btn-split-pdf-input").addEventListener("click", () => {
+      FileUtils.selectFile("split-pdf-input", [{ name: "PDF", extensions: ["pdf"] }], { onSelect: () => {
+        this.pageInfo.refresh();
+      } });
+    });
     document.getElementById("btn-split-pdf-output").addEventListener("click", () => {
       FileUtils.selectDirectory("split-pdf-output");
     });
@@ -5875,7 +5927,9 @@ var PDFSplitBySizeFeature = class extends Feature {
     this.attachEvents();
   }
   attachEvents() {
-    FileUtils.selectFile("split-size-input", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-split-size-input").addEventListener("click", () => {
+      FileUtils.selectFile("split-size-input", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-split-size-output").addEventListener("click", () => {
       FileUtils.selectDirectory("split-size-output");
     });
@@ -5974,7 +6028,9 @@ var PDFValidateFeature = class extends Feature {
 
             ${this.logHTML()}
         `;
-    FileUtils.selectFile("validate-input", [{ name: "PDF", extensions: ["pdf"] }]);
+    document.getElementById("btn-validate-input").addEventListener("click", () => {
+      FileUtils.selectFile("validate-input", [{ name: "PDF", extensions: ["pdf"] }]);
+    });
     document.getElementById("btn-validate").addEventListener("click", () => this.validatePDF());
     document.getElementById("btn-validate-repair").addEventListener("click", () => this.repairCores());
   }
@@ -6201,8 +6257,12 @@ var DocCompareFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    FileUtils.selectFile("compare-doc1", [{ name: "Word", extensions: ["docx", "doc"] }]);
-    FileUtils.selectFile("compare-doc2", [{ name: "Word", extensions: ["docx", "doc"] }]);
+    container.querySelector("#btn-compare-doc1").addEventListener("click", () => {
+      FileUtils.selectFile("compare-doc1", [{ name: "Word", extensions: ["docx", "doc"] }]);
+    });
+    container.querySelector("#btn-compare-doc2").addEventListener("click", () => {
+      FileUtils.selectFile("compare-doc2", [{ name: "Word", extensions: ["docx", "doc"] }]);
+    });
     container.querySelector("#btn-compare").addEventListener("click", () => this.compareDocuments());
   }
   async compareDocuments() {
@@ -6325,9 +6385,11 @@ var ConvertFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    FileUtils.selectFile("convert-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
-      this.suggestOutputPath();
-    } });
+    container.querySelector("#btn-convert-input").addEventListener("click", () => {
+      FileUtils.selectFile("convert-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
+        this.suggestOutputPath();
+      } });
+    });
     container.querySelector("#btn-convert-output").addEventListener("click", () => {
       const format = document.querySelector('input[name="convert-format"]:checked').value;
       FileUtils.selectSaveFile("convert-output", [{ name: format.toUpperCase(), extensions: [format] }]);
@@ -6436,7 +6498,9 @@ var ExtractImagesFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    FileUtils.selectFile("extract-input", [{ name: "Word", extensions: ["docx", "doc"] }]);
+    container.querySelector("#btn-extract-input").addEventListener("click", () => {
+      FileUtils.selectFile("extract-input", [{ name: "Word", extensions: ["docx", "doc"] }]);
+    });
     container.querySelector("#btn-extract-output").addEventListener("click", () => {
       FileUtils.selectDirectory("extract-output");
     });
@@ -6600,10 +6664,14 @@ var FilePathFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    FileUtils.selectFile("fp-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
-      this.suggestOutput();
-    } });
-    FileUtils.selectSaveFile("fp-output", [{ name: "Word", extensions: ["docx"] }]);
+    container.querySelector("#btn-fp-input").addEventListener("click", () => {
+      FileUtils.selectFile("fp-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
+        this.suggestOutput();
+      } });
+    });
+    container.querySelector("#btn-fp-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("fp-output", [{ name: "Word", extensions: ["docx"] }]);
+    });
     container.querySelector("#fp-transparency").addEventListener("input", (e) => {
       document.getElementById("fp-transparency-label").textContent = e.target.value + "%";
     });
@@ -6720,10 +6788,14 @@ var MergeFeature = class extends Feature {
     this.attachEvents(container);
   }
   attachEvents(container) {
-    FileUtils.selectFile("merge-docx-list", [{ name: "Word", extensions: ["docx", "doc"] }], { multiple: true, append: true, onSelect: () => {
-      this.updateDocxList();
-    } });
-    FileUtils.selectSaveFile("merge-output", [{ name: "Word", extensions: ["docx"] }]);
+    container.querySelector("#btn-add-docx").addEventListener("click", () => {
+      FileUtils.selectFile("merge-docx-list", [{ name: "Word", extensions: ["docx", "doc"] }], { multiple: true, append: true, onSelect: () => {
+        this.updateDocxList();
+      } });
+    });
+    container.querySelector("#btn-merge-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("merge-output", [{ name: "Word", extensions: ["docx"] }]);
+    });
     container.querySelector("#btn-merge").addEventListener("click", () => this.mergeDocuments());
   }
   updateDocxList() {
@@ -6924,11 +6996,17 @@ var WatermarkFeature = class extends Feature {
         document.getElementById("wm-image-group").style.display = isText ? "none" : "block";
       });
     });
-    FileUtils.selectFile("wm-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
-      this.suggestOutput();
-    } });
-    FileUtils.selectFile("wm-image-path", [{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "bmp", "gif"] }]);
-    FileUtils.selectSaveFile("wm-output", [{ name: "Word", extensions: ["docx"] }]);
+    container.querySelector("#btn-wm-input").addEventListener("click", () => {
+      FileUtils.selectFile("wm-input", [{ name: "Word", extensions: ["docx", "doc"] }], { onSelect: () => {
+        this.suggestOutput();
+      } });
+    });
+    container.querySelector("#btn-wm-image").addEventListener("click", () => {
+      FileUtils.selectFile("wm-image-path", [{ name: "Imagens", extensions: ["png", "jpg", "jpeg", "bmp", "gif"] }]);
+    });
+    container.querySelector("#btn-wm-output").addEventListener("click", () => {
+      FileUtils.selectSaveFile("wm-output", [{ name: "Word", extensions: ["docx"] }]);
+    });
     container.querySelector("#wm-transparency").addEventListener("input", (e) => {
       document.getElementById("wm-transparency-label").textContent = e.target.value + "%";
     });

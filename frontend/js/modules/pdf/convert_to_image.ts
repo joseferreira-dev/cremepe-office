@@ -222,7 +222,9 @@ export class PDFConvertToImageFeature extends Feature {
         // Imagem → PDF
         document.getElementById('btn-add-images')!.addEventListener('click', () => this.addImages());
         document.getElementById('btn-clear-images')!.addEventListener('click', () => { this.imagePaths = []; this.updateImageList(); });
-        FileUtils.selectSaveFile('image-to-pdf-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-image-to-pdf-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('image-to-pdf-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
         document.getElementById('btn-image-to-pdf-folder')!.addEventListener('click', () => {
             FileUtils.selectDirectory('image-to-pdf-folder');
         });

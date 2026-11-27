@@ -81,11 +81,17 @@ export class PDFRemovePagesFeature extends Feature {
     }
 
     attachEvents() {
-        FileUtils.selectFile('remove-pages-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutputs(); }})
+        document.getElementById('btn-remove-pages-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('remove-pages-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutputs(); }})
+        });
 
-        FileUtils.selectSaveFile('remove-pages-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-remove-pages-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('remove-pages-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
-        FileUtils.selectSaveFile('remove-pages-removed-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-remove-pages-removed-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('remove-pages-removed-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
         document.getElementById('btn-remove-pages-execute')!.addEventListener('click', () => this.executeRemove());
     }

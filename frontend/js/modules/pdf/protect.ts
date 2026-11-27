@@ -111,13 +111,21 @@ export class PDFProtectFeature extends Feature {
     }
 
     attachEvents() {
-        FileUtils.selectFile('protect-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput('protect-input', 'protect-output', '_protegido'); }})
+        document.getElementById('btn-protect-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('protect-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput('protect-input', 'protect-output', '_protegido'); }})
+        });
 
-        FileUtils.selectSaveFile('protect-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-protect-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('protect-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
-        FileUtils.selectFile('remove-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput('remove-input', 'remove-output', '_desprotegido'); }})
+        document.getElementById('btn-remove-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('remove-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput('remove-input', 'remove-output', '_desprotegido'); }})
+        });
 
-        FileUtils.selectSaveFile('remove-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-remove-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('remove-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
         document.getElementById('btn-protect')!.addEventListener('click', () => this.protectPassword());
         document.getElementById('btn-remove')!.addEventListener('click', () => this.removePassword());

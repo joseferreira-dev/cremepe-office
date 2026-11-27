@@ -62,9 +62,13 @@ export class PDFReorderFeature extends Feature {
     attachEvents() {
         this.pageInfo = attachPageInfoHint('reorder-input', 'reorder-info-hint');
 
-        FileUtils.selectFile('reorder-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); this.pageInfo.refresh(); }})
+        document.getElementById('btn-reorder-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('reorder-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); this.pageInfo.refresh(); }})
+        });
 
-        FileUtils.selectSaveFile('reorder-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-reorder-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('reorder-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
         document.getElementById('btn-reorder-execute')!.addEventListener('click', () => this.executeReorder());
     }

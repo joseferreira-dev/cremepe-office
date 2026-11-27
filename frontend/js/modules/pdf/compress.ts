@@ -113,9 +113,13 @@ export class PDFCompressFeature extends Feature {
     }
 
     attachEvents() {
-        FileUtils.selectFile('compress-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
+        document.getElementById('btn-compress-input')!.addEventListener('click', () => {
+            FileUtils.selectFile('compress-input', [{ name: 'PDF', extensions: ['pdf'] }], {onSelect: () => { this.suggestOutput(); }})
+        });
 
-        FileUtils.selectSaveFile('compress-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        document.getElementById('btn-compress-output')!.addEventListener('click', () => {
+            FileUtils.selectSaveFile('compress-output', [{ name: 'PDF', extensions: ['pdf'] }])
+        });
 
         document.getElementById('btn-compress')!.addEventListener('click', () => this.compressPDF());
         document.getElementById('compress-input')!.addEventListener('change', () => this.suggestOutput());
