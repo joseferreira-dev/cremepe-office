@@ -28,6 +28,7 @@ Descobertas medidas no ambiente (não supostas):
 import io
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import pymupdf
@@ -58,6 +59,28 @@ DPI_PADRAO = 300
 _tesseract_raiz = None
 
 
+def _embutido() -> list:
+    """Raízes do Tesseract embutido no app, em ordem de prioridade.
+
+    O instalador do CREMEPE copia `vendor/tesseract` para
+    `resources/tesseract` (extraResources do electron-builder) e em
+    desenvolvimento o mesmo diretório vive no repositório. Ter
+    prioridade sobre o do sistema garante `por+eng` e a mesma versão em
+    qualquer máquina — sem depender do que o usuário instalou.
+    `TESSERACT_HOME` sobrescreve tudo (escape hatch).
+    """
+    raizes = []
+    home = os.environ.get("TESSERACT_HOME", "").strip()
+    if home:
+        raizes.append(home)
+    if getattr(sys, "frozen", False):
+        # backend.exe (PyInstaller one-file) e tesseract/ ficam em resources/
+        raizes.append(os.path.join(os.path.dirname(sys.executable), "tesseract"))
+    # dev: <repo>/vendor/tesseract (backend/services/pdf_ocr.py -> parents[2])
+    raizes.append(str(Path(__file__).resolve().parents[2] / "vendor" / "tesseract"))
+    return raizes
+
+
 def configurar_tesseract() -> str:
     """Auto-descoberta do Tesseract (idempotente). Devolve a raiz.
 
@@ -70,20 +93,33 @@ def configurar_tesseract() -> str:
     if _tesseract_raiz:
         return _tesseract_raiz
 
-    exe = shutil.which("tesseract")
-    raiz = str(Path(exe).parent) if exe else None
+    nome = "tesseract.exe" if os.name == "nt" else "tesseract"
+    raiz = None
+
+    # 1. embutido no app (presente mesmo sem nada instalado no sistema)
+    for c in _embutido():
+        if os.path.isfile(os.path.join(c, nome)):
+            raiz = c
+            break
+
+    # 2. Tesseract do sistema (compat: quem instalou por conta própria
+    #    e está rodando o backend em desenvolvimento sem o bundle)
+    if raiz is None:
+        exe = shutil.which("tesseract")
+        raiz = str(Path(exe).parent) if exe else None
     if raiz is None:
         for c in _CANDIDATOS:
-            nome = "tesseract.exe" if os.name == "nt" else "tesseract"
             if os.path.isfile(os.path.join(c, nome)):
                 raiz = c
                 break
+
     if raiz is None:
         raise DependencyError(
-            "OCR indisponível: o Tesseract não foi encontrado neste "
-            "servidor. Instale com 'choco install tesseract' ou baixe o "
-            "instalador em github.com/UB-Mannheim/tesseract/wiki "
-            "(inclua os idiomas 'por' e 'eng').")
+            "OCR indisponível: o Tesseract não foi encontrado. No app "
+            "instalado a pasta 'tesseract' deveria vir junto (instalação "
+            "incompleta); em desenvolvimento rode 'npm run build:tesseract' "
+            "ou instale com 'choco install tesseract' / o instalador em "
+            "github.com/UB-Mannheim/tesseract/wiki (idiomas 'por' e 'eng').")
 
     # PyMuPDF: tessdata (idiomas) + PATH (binário)
     tessdata = os.path.join(raiz, "tessdata")

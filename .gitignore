@@ -27,6 +27,11 @@ yarn-error.log
 output/
 logs/
 
+# Tesseract embutido (gerado por scripts/build-tesseract.js;
+# as fontes ficam em .cache e tambem nao vao para o repo)
+/vendor/tesseract/
+/vendor/.cache/
+
 # Outros
 project_snapshot.txt
 compile.py

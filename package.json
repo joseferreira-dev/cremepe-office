@@ -15,8 +15,9 @@
         "watch:css": "tailwindcss -i frontend/css/input.css -o frontend/css/tailwind.css --watch",
         "check:classes": "python scripts/check_frontend_classes.py",
         "smoke": "node scripts/smoke_nav.js",
-        "predist": "npm run build:ts && npm run build:css",
-        "dist": "electron-builder"
+        "predist": "npm run build:ts && npm run build:css && npm run build:tesseract",
+        "dist": "electron-builder",
+        "build:tesseract": "node scripts/build-tesseract.js"
     },
     "build": {
         "appId": "br.org.cremepe.office",
@@ -32,6 +33,13 @@
             {
                 "from": "backend/dist/backend.exe",
                 "to": "backend.exe",
+                "filter": [
+                    "**/*"
+                ]
+            },
+            {
+                "from": "vendor/tesseract",
+                "to": "tesseract",
                 "filter": [
                     "**/*"
                 ]

@@ -160,13 +160,17 @@ diretório temporário. O nível pode ser alterado com `LOG_LEVEL` (padrão
 
 ## Gerar o instalador para Windows (distribuição)
 
-O instalador final (`.exe`) inclui o frontend Electron e o backend Python empacotado como um executável único. **Nenhuma dependência externa (Python ou Node.js) é necessária** no computador do usuário final.
+O instalador final (`.exe`) inclui o frontend Electron, o backend Python empacotado como um executável único **e o Tesseract-OCR com os idiomas `por` + `eng`** (a feature de OCR funciona sem nada instalado no computador do usuário). **Nenhuma dependência externa (Python, Node.js ou Tesseract) é necessária** no computador do usuário final.
+
+Única exceção: conversões que passam por **MS Word** (PDF/DOC e qualquer `.doc`) continuam exigindo o Word instalado — não é possível redistribuir.
 
 ### Pré‑requisitos para o build
 
 - Python 3.9+ com `pip`
 - Node.js 18+ com `npm`
 - Windows (para gerar o instalador NSIS)
+- **7‑Zip** (para extrair o Tesseract sem pedir elevação; `C:\Program Files\7-Zip\7z.exe` ou a variável `SEVEN_ZIP`)
+- Internet na **primeira** execução (baixa o Tesseract e os idiomas; depois usa o cache em `vendor/.cache`)
 
 ### Passo a passo
 
@@ -205,11 +209,11 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
    ```bash
    npm run dist
    ```
-   Esse comando usará o `electron-builder` para criar o instalador NSIS (Windows) na pasta `dist/`.
+   O `predist` roda automaticamente antes: compila o TypeScript, gera o CSS **e prepara o Tesseract** (`npm run build:tesseract` → baixa o binário oficial + idiomas `por`/`eng` para `vendor/tesseract/`, com SHA256 fixado; é preciso internet só na primeira vez — depois usa o cache). Em seguida o `electron-builder` cria o instalador NSIS (Windows) na pasta `dist/`.
 
 6. **Localize o instalador**:
    - O arquivo gerado será algo como `dist/CREMEPE Office Setup.exe`.
-   - Este instalador contém todo o aplicativo e o backend embutido. Ao ser executado, o backend será iniciado automaticamente em segundo plano.
+   - Este instalador contém todo o aplicativo, o backend embutido **e a pasta `resources/tesseract/`**. Ao ser executado, o backend será iniciado automaticamente em segundo plano.
 
 ### Personalização do build
 
@@ -221,6 +225,8 @@ O instalador final (`.exe`) inclui o frontend Electron e o backend Python empaco
 
 - **Erro ao compilar o backend com PyInstaller**: Algumas bibliotecas (como `pikepdf`, `cryptography`, `pywin32`) podem precisar de `--hidden-import` ou hooks. Se ocorrer erro, adicione os imports necessários manualmente ou instale os pacotes `pyinstaller-hooks-contrib`.
 - **O instalador não inicia o backend**: Verifique se o `backend.exe` foi copiado para `resources/` dentro do app instalado. O caminho usado em `frontend/main.ts` (`process.resourcesPath`) deve apontar para o local correto.
+- **OCR diz que o Tesseract não foi encontrado**: no app instalado a pasta `resources/tesseract/` deveria existir (instalação incompleta — refaça o build); em desenvolvimento rode `npm run build:tesseract`. Quem já tem o Tesseract instalado no sistema continua funcionando como alternativa.
+- **`build:tesseract` falha com "7-Zip nao encontrado"**: instale o 7‑Zip ou defina `SEVEN_ZIP` apontando para o `7z.exe`. (O instalador do Tesseract pediria elevação de administrador; extrair com 7‑Zip evita isso.)
 - **Porta 5000 em uso**: O backend usa a porta 5000 por padrão. Se houver conflito, altere a variável `PORT` no código ou no ambiente.
 
 ---
