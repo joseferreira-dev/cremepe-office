@@ -4,7 +4,7 @@ import { FileModule } from './modules/file/index.js';
 import { HomePage } from './modules/home.js';
 import { PDFModule } from './modules/pdf/index.js';
 import { WordModule } from './modules/word/index.js';
-import { Recents } from './recents.js';
+import { Contexto } from './contexto.js';
 import { initGlobalSearch } from './search.js';
 
 // pdf.js carrega como script clássico (vendor/pdf.min.js); o worker
@@ -33,8 +33,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Troca de tela: a barra de resultado pertence à tela anterior
         document.getElementById('result-bar')!.style.display = 'none';
 
-        // Rastreia a feature aberta para a seção "Recentes" da home
-        if (feature) void Recents.registrar(page, feature);
+        // Contexto da feature em uso (titola as atividades recentes);
+        // na Home não há operação — limpa para não titolar com a tela
+        // anterior. O domain.ts define o resto (render/selectFeature).
+        if (feature) Contexto.definir(page, feature);
+        else if (page === 'home') Contexto.limpar();
 
         document.querySelectorAll<HTMLElement>('.nav-btn').forEach(btn => btn.classList.remove('active'));
         const btn = document.querySelector(`.nav-btn[data-page="${page}"]`)!;

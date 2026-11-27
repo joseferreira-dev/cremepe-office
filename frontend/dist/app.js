@@ -1,3 +1,121 @@
+// frontend/js/contexto.ts
+var Contexto = {
+  page: "",
+  feature: "",
+  definir(page, feature) {
+    this.page = page;
+    this.feature = feature;
+  },
+  limpar() {
+    this.page = "";
+    this.feature = "";
+  }
+};
+
+// frontend/js/modules/meta.ts
+var HOME_META = {
+  // ARQUIVOS
+  "files/collect": { id: "collect", icon: "folder-input", title: "Coletar Arquivos", desc: "Re\xFAna arquivos de m\xFAltiplas pastas." },
+  "files/rename": { id: "rename", icon: "pencil", title: "Renomear em Lote", desc: "Renomeie v\xE1rios arquivos de uma vez." },
+  "files/duplicates": { id: "duplicates", icon: "copy", title: "Localizar Duplicatas", desc: "Encontre arquivos duplicados." },
+  "files/organize": { id: "organize", icon: "folder-tree", title: "Organizar por Extens\xE3o", desc: "Organize arquivos por tipo." },
+  "files/rename-by-content": { id: "rename-by-content", icon: "tags", title: "Renomear por Conte\xFAdo", desc: "Renomeie usando metadados." },
+  "files/attributes": { id: "attributes", icon: "sliders-horizontal", title: "Alterar Atributos", desc: "Modifique datas e permiss\xF5es." },
+  "files/report": { id: "report", icon: "list-tree", title: "Relat\xF3rio de Estrutura", desc: "Exporte \xE1rvore de diret\xF3rios." },
+  "files/compare": { id: "compare", icon: "arrow-left-right", title: "Comparar Pastas", desc: "Compare e sincronize pastas." },
+  "files/archive": { id: "archive", icon: "archive", title: "Compactar/Extrair", desc: "Crie ou extraia arquivos ZIP." },
+  "files/split": { id: "split-file", icon: "scissors", title: "Dividir/Remontar", desc: "Divida ou remonte arquivos grandes." },
+  // PDF
+  "pdf/merge": { id: "pdf-merge", icon: "file-text", title: "Combinar PDFs", desc: "Mescle v\xE1rios PDFs." },
+  "pdf/merge-by-size": { id: "pdf-merge-size", icon: "file-text", title: "Combinar por Tamanho", desc: "Agrupe PDFs por limite de tamanho." },
+  "pdf/split": { id: "pdf-split", icon: "scissors", title: "Dividir PDF", desc: "Divida em partes com intervalos." },
+  "pdf/split-by-size": { id: "pdf-split-size", icon: "ruler", title: "Dividir por Tamanho", desc: "Divida PDF por MB." },
+  "pdf/extract-pages": { id: "pdf-extract", icon: "file-text", title: "Extrair P\xE1ginas", desc: "Extraia p\xE1ginas espec\xEDficas." },
+  "pdf/remove-pages": { id: "pdf-remove", icon: "file-text", title: "Remover P\xE1ginas", desc: "Remova p\xE1ginas indesejadas." },
+  "pdf/reorder": { id: "pdf-reorder", icon: "files", title: "Reordenar P\xE1ginas", desc: "Altere a ordem das p\xE1ginas." },
+  "pdf/add-page-numbers": { id: "pdf-numbers", icon: "arrow-down-wide-narrow", title: "Numerar P\xE1ginas", desc: "Adicione numera\xE7\xE3o." },
+  "pdf/convert-to-word": { id: "pdf-to-word", icon: "file-output", title: "PDF \u2192 Word", desc: "Converta PDF para Word." },
+  "pdf/convert-to-image": { id: "pdf-image", icon: "image", title: "PDF \u2194 Imagem", desc: "Converta entre PDF e imagens." },
+  "pdf/compress": { id: "pdf-compress", icon: "minimize-2", title: "Comprimir PDF", desc: "Reduza o tamanho do PDF." },
+  "pdf/validate": { id: "pdf-validate", icon: "shield-check", title: "Validar PDF", desc: "Confira integridade e erros do arquivo." },
+  "pdf/ocr": { id: "pdf-ocr", icon: "scan-text", title: "OCR / Texto", desc: "Reconhe\xE7a texto em PDFs digitalizados." },
+  "pdf/protect": { id: "pdf-protect", icon: "lock", title: "Proteger/Desproteger", desc: "Adicione ou remova senha." },
+  // WORD
+  "word/merge": { id: "word-merge", icon: "file-pen", title: "Juntar Documentos", desc: "Combine v\xE1rios Word." },
+  "word/convert": { id: "word-convert", icon: "arrow-left-right", title: "Converter Word", desc: "Converta para HTML, TXT, PDF, etc." },
+  "word/compare": { id: "word-compare", icon: "files", title: "Comparar Docs", desc: "Compare dois documentos." },
+  "word/extract-images": { id: "word-images", icon: "image", title: "Extrair Imagens", desc: "Extraia imagens do documento." },
+  "word/watermark": { id: "word-watermark", icon: "droplet", title: "Marca d'\xC1gua", desc: "Insira texto ou imagem." },
+  "word/filepath": { id: "word-filepath", icon: "file", title: "Caminho do Arquivo", desc: "Insira caminho no documento." },
+  // EXCEL
+  "excel/convert": { id: "excel-convert", icon: "file-spreadsheet", title: "Convers\xE3o em Lote", desc: "Converta planilhas em lote." },
+  "excel/merge-all": { id: "excel-merge", icon: "table", title: "Combinar Planilhas", desc: "Consolide v\xE1rias planilhas." },
+  "excel/extract-cells": { id: "excel-extract", icon: "grid-2x2", title: "Extrair C\xE9lulas", desc: "Extraia c\xE9lulas espec\xEDficas." },
+  "excel/split": { id: "excel-split", icon: "separator-vertical", title: "Dividir por Coluna", desc: "Divida pela coluna chave." },
+  "excel/split-sheets": { id: "excel-sheets", icon: "files", title: "Extrair Abas", desc: "Separe abas em arquivos." }
+};
+function cardId(page, featureId) {
+  return HOME_META[`${page}/${featureId}`]?.id || `${page}-${featureId}`;
+}
+var SECTION_BY_PAGE = {
+  files: "Arquivos",
+  pdf: "PDF",
+  word: "Word",
+  excel: "Excel"
+};
+
+// frontend/js/activities.ts
+var CHAVE = "atividades";
+var MAX = 12;
+var Atividades = {
+  /**
+   * Registra uma operação com o contexto atual. Silencioso em erro
+   * (nunca deve derrubar a operação que acabou de rodar).
+   *
+   * A mesma ação repetida no topo só atualiza o horário — rodar
+   * Comprimir cinco vezes seguidas não ocupa a lista inteira.
+   */
+  async registrar(resumo, ok) {
+    const { page, feature } = Contexto;
+    if (!page || !feature || !window.electronAPI?.storeSet) return;
+    try {
+      const lista = await Atividades.listar();
+      const nova = { page, feature, quando: Date.now(), resumo, ok };
+      const head = lista[0];
+      const repetida = !!head && head.page === page && head.feature === feature && head.resumo === resumo && head.ok === ok;
+      const novos = repetida ? [nova, ...lista.slice(1)] : [nova, ...lista];
+      await window.electronAPI.storeSet(CHAVE, novos.slice(0, MAX));
+    } catch (e) {
+      console.warn("Erro ao registrar atividade:", e);
+    }
+  },
+  /** Lista (mais recente primeiro). Entradas inválidas são descartadas. */
+  async listar() {
+    if (!window.electronAPI?.storeGet) return [];
+    try {
+      const v = await window.electronAPI.storeGet(CHAVE);
+      if (!Array.isArray(v)) return [];
+      return v.filter((a) => a && a.page && a.feature && typeof a.resumo === "string");
+    } catch {
+      return [];
+    }
+  },
+  /** Título da atividade (meta da Home; degrada para "Operação"). */
+  titulo(a) {
+    return HOME_META[`${a.page}/${a.feature}`]?.title || "Opera\xE7\xE3o";
+  },
+  /** Tempo relativo em português: "agora", "há3 min", "há2 h", "há4 d". */
+  quando(a) {
+    const s = Math.max(0, Math.round((Date.now() - a.quando) / 1e3));
+    if (s < 60) return "agora";
+    const min = Math.round(s / 60);
+    if (min < 60) return `h\xE1${min} min`;
+    const h = Math.round(min / 60);
+    if (h < 24) return `h\xE1${h} h`;
+    return `h\xE1${Math.round(h / 24)} d`;
+  }
+};
+
 // frontend/js/api.ts
 var API_BASE = "http://127.0.0.1:5000/api";
 var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -58,6 +176,21 @@ function mostrarResultado(data) {
   }
   bar.style.display = "block";
 }
+function resumoDaOperacao(data) {
+  const d = data;
+  const caminho = d?.output_path;
+  if (typeof caminho === "string" && caminho) {
+    const base = caminho.split(/[\\/]/).pop();
+    return base ? `Gerou ${base}` : "Arquivo gerado";
+  }
+  return "Conclu\xEDdo";
+}
+function devoRegistrar(endpoint) {
+  if (/^\/health$|^\/jobs\//.test(endpoint)) return false;
+  if (/preview$/.test(endpoint)) return false;
+  if (/^\/pdf\/info$|^\/files\/list$|^\/excel\/read$/.test(endpoint)) return false;
+  return true;
+}
 async function apiRequest(endpoint, method = "GET", body = null) {
   const url = `${API_BASE}${endpoint}`;
   const options = { method, headers: { "Content-Type": "application/json" } };
@@ -71,6 +204,9 @@ async function apiRequest(endpoint, method = "GET", body = null) {
       try {
         const resultado = await pollJob(data.job_id);
         mostrarResultado(resultado);
+        if (devoRegistrar(endpoint)) {
+          void Atividades.registrar(resumoDaOperacao(resultado), true);
+        }
         return resultado;
       } finally {
         activeJobId = null;
@@ -78,9 +214,16 @@ async function apiRequest(endpoint, method = "GET", body = null) {
     }
     assertSuccessEnvelope(data);
     mostrarResultado(data);
+    if (devoRegistrar(endpoint)) {
+      void Atividades.registrar(resumoDaOperacao(data), true);
+    }
     return data;
   } catch (error) {
     console.error("API Error:", error);
+    if (devoRegistrar(endpoint)) {
+      const msg = error instanceof Error ? error.message : String(error);
+      void Atividades.registrar(msg, false);
+    }
     throw error;
   }
 }
@@ -156,64 +299,12 @@ var API = {
   health: () => apiRequest("/health")
 };
 
-// frontend/js/modules/meta.ts
-var HOME_META = {
-  // ARQUIVOS
-  "files/collect": { id: "collect", icon: "folder-input", title: "Coletar Arquivos", desc: "Re\xFAna arquivos de m\xFAltiplas pastas." },
-  "files/rename": { id: "rename", icon: "pencil", title: "Renomear em Lote", desc: "Renomeie v\xE1rios arquivos de uma vez." },
-  "files/duplicates": { id: "duplicates", icon: "copy", title: "Localizar Duplicatas", desc: "Encontre arquivos duplicados." },
-  "files/organize": { id: "organize", icon: "folder-tree", title: "Organizar por Extens\xE3o", desc: "Organize arquivos por tipo." },
-  "files/rename-by-content": { id: "rename-by-content", icon: "tags", title: "Renomear por Conte\xFAdo", desc: "Renomeie usando metadados." },
-  "files/attributes": { id: "attributes", icon: "sliders-horizontal", title: "Alterar Atributos", desc: "Modifique datas e permiss\xF5es." },
-  "files/report": { id: "report", icon: "list-tree", title: "Relat\xF3rio de Estrutura", desc: "Exporte \xE1rvore de diret\xF3rios." },
-  "files/compare": { id: "compare", icon: "arrow-left-right", title: "Comparar Pastas", desc: "Compare e sincronize pastas." },
-  "files/archive": { id: "archive", icon: "archive", title: "Compactar/Extrair", desc: "Crie ou extraia arquivos ZIP." },
-  "files/split": { id: "split-file", icon: "scissors", title: "Dividir/Remontar", desc: "Divida ou remonte arquivos grandes." },
-  // PDF
-  "pdf/merge": { id: "pdf-merge", icon: "file-text", title: "Combinar PDFs", desc: "Mescle v\xE1rios PDFs." },
-  "pdf/merge-by-size": { id: "pdf-merge-size", icon: "file-text", title: "Combinar por Tamanho", desc: "Agrupe PDFs por limite de tamanho." },
-  "pdf/split": { id: "pdf-split", icon: "scissors", title: "Dividir PDF", desc: "Divida em partes com intervalos." },
-  "pdf/split-by-size": { id: "pdf-split-size", icon: "ruler", title: "Dividir por Tamanho", desc: "Divida PDF por MB." },
-  "pdf/extract-pages": { id: "pdf-extract", icon: "file-text", title: "Extrair P\xE1ginas", desc: "Extraia p\xE1ginas espec\xEDficas." },
-  "pdf/remove-pages": { id: "pdf-remove", icon: "file-text", title: "Remover P\xE1ginas", desc: "Remova p\xE1ginas indesejadas." },
-  "pdf/reorder": { id: "pdf-reorder", icon: "files", title: "Reordenar P\xE1ginas", desc: "Altere a ordem das p\xE1ginas." },
-  "pdf/add-page-numbers": { id: "pdf-numbers", icon: "arrow-down-wide-narrow", title: "Numerar P\xE1ginas", desc: "Adicione numera\xE7\xE3o." },
-  "pdf/convert-to-word": { id: "pdf-to-word", icon: "file-output", title: "PDF \u2192 Word", desc: "Converta PDF para Word." },
-  "pdf/convert-to-image": { id: "pdf-image", icon: "image", title: "PDF \u2194 Imagem", desc: "Converta entre PDF e imagens." },
-  "pdf/compress": { id: "pdf-compress", icon: "minimize-2", title: "Comprimir PDF", desc: "Reduza o tamanho do PDF." },
-  "pdf/validate": { id: "pdf-validate", icon: "shield-check", title: "Validar PDF", desc: "Confira integridade e erros do arquivo." },
-  "pdf/ocr": { id: "pdf-ocr", icon: "scan-text", title: "OCR / Texto", desc: "Reconhe\xE7a texto em PDFs digitalizados." },
-  "pdf/protect": { id: "pdf-protect", icon: "lock", title: "Proteger/Desproteger", desc: "Adicione ou remova senha." },
-  // WORD
-  "word/merge": { id: "word-merge", icon: "file-pen", title: "Juntar Documentos", desc: "Combine v\xE1rios Word." },
-  "word/convert": { id: "word-convert", icon: "arrow-left-right", title: "Converter Word", desc: "Converta para HTML, TXT, PDF, etc." },
-  "word/compare": { id: "word-compare", icon: "files", title: "Comparar Docs", desc: "Compare dois documentos." },
-  "word/extract-images": { id: "word-images", icon: "image", title: "Extrair Imagens", desc: "Extraia imagens do documento." },
-  "word/watermark": { id: "word-watermark", icon: "droplet", title: "Marca d'\xC1gua", desc: "Insira texto ou imagem." },
-  "word/filepath": { id: "word-filepath", icon: "file", title: "Caminho do Arquivo", desc: "Insira caminho no documento." },
-  // EXCEL
-  "excel/convert": { id: "excel-convert", icon: "file-spreadsheet", title: "Convers\xE3o em Lote", desc: "Converta planilhas em lote." },
-  "excel/merge-all": { id: "excel-merge", icon: "table", title: "Combinar Planilhas", desc: "Consolide v\xE1rias planilhas." },
-  "excel/extract-cells": { id: "excel-extract", icon: "grid-2x2", title: "Extrair C\xE9lulas", desc: "Extraia c\xE9lulas espec\xEDficas." },
-  "excel/split": { id: "excel-split", icon: "separator-vertical", title: "Dividir por Coluna", desc: "Divida pela coluna chave." },
-  "excel/split-sheets": { id: "excel-sheets", icon: "files", title: "Extrair Abas", desc: "Separe abas em arquivos." }
-};
-function cardId(page, featureId) {
-  return HOME_META[`${page}/${featureId}`]?.id || `${page}-${featureId}`;
-}
-var SECTION_BY_PAGE = {
-  files: "Arquivos",
-  pdf: "PDF",
-  word: "Word",
-  excel: "Excel"
-};
-
 // frontend/js/favorites.ts
-var CHAVE = "quickAccessCards";
+var CHAVE2 = "quickAccessCards";
 async function ler() {
   if (!window.electronAPI?.storeGet) return null;
   try {
-    const v = await window.electronAPI.storeGet(CHAVE);
+    const v = await window.electronAPI.storeGet(CHAVE2);
     return Array.isArray(v) ? v : null;
   } catch (e) {
     console.warn("Erro ao ler favoritos:", e);
@@ -223,7 +314,7 @@ async function ler() {
 async function salvar(cards) {
   if (!window.electronAPI?.storeSet) return;
   try {
-    await window.electronAPI.storeSet(CHAVE, cards);
+    await window.electronAPI.storeSet(CHAVE2, cards);
   } catch (e) {
     console.warn("Erro ao salvar favoritos:", e);
   }
@@ -265,43 +356,6 @@ var Favs = {
   }
 };
 
-// frontend/js/recents.ts
-var CHAVE2 = "recentFeatures";
-var MAX = 8;
-var Recents = {
-  /**
-   * Registra o uso de uma feature: mais recente primeiro, sem
-   * duplicatas, limitado a MAX. Chamado no navigateTo (home) e no
-   * selectFeature (menu dos módulos) — silencioso em erro para não
-   * interromper a navegação.
-   */
-  async registrar(page, feature) {
-    if (!page || !feature || !window.electronAPI?.storeGet) return;
-    try {
-      const stored = await window.electronAPI.storeGet(CHAVE2);
-      const lista = Array.isArray(stored) ? stored : [];
-      const nova = [
-        { page, feature },
-        ...lista.filter((r) => !(r.page === page && r.feature === feature))
-      ].slice(0, MAX);
-      await window.electronAPI.storeSet(CHAVE2, nova);
-    } catch (e) {
-      console.warn("Erro ao registrar recente:", e);
-    }
-  },
-  /** Pares brutos {page, feature} (o consumidor hidrata o meta). */
-  async listar() {
-    if (!window.electronAPI?.storeGet) return [];
-    try {
-      const stored = await window.electronAPI.storeGet(CHAVE2);
-      if (!Array.isArray(stored) || stored.length === 0) return [];
-      return stored.filter((r) => r && r.page && r.feature);
-    } catch {
-      return [];
-    }
-  }
-};
-
 // frontend/js/modules/domain.ts
 var DomainModule = class {
   container;
@@ -323,6 +377,7 @@ var DomainModule = class {
     this._active = null;
   }
   render() {
+    Contexto.definir(this.page, this.currentFeature);
     this.container.innerHTML = `
             <div class="page active module-${this.page}">
                 <div class="mb-7 flex items-center gap-4">
@@ -387,7 +442,7 @@ var DomainModule = class {
   }
   selectFeature(featureId) {
     this.currentFeature = featureId;
-    void Recents.registrar(this.page, featureId);
+    Contexto.definir(this.page, featureId);
     this.container.querySelectorAll(".feature-list li").forEach((li) => {
       li.classList.toggle("active", li.dataset.feature === featureId);
     });
@@ -7407,45 +7462,44 @@ var HomePage = class extends Feature {
   // ====== RENDER ======
   async render() {
     this.cards = await this.getCards();
-    const recentes = await this.renderRecents();
+    const atividades = await this.renderAtividades();
     this.container.innerHTML = `
             <div class="page active module-home">
                 <h2 class="mb-4 text-lg font-semibold text-zinc-900">Acesso R\xE1pido</h2>
 
                 <div id="quick-access-container" class="mb-8">${this.renderFavorites()}</div>
 
-                ${recentes}
+                ${atividades}
             </div>
         `;
     this.initDragDrop();
   }
   /**
-   * Seção "Recentes": features abertas nas últimas visitas, como
-   * chips clicáveis. Oculta quando não há histórico (1ª execução).
+   * Seção "Atividades Recentes": o que foi FEITO em cada operação
+   * (resumo) e se houve erro, mais recente primeiro. Oculta quando
+   * ainda não há operações (1ª execução).
    */
-  async renderRecents() {
-    const pares = await Recents.listar();
-    if (pares.length === 0) return "";
-    const byKey = new Map(
-      this.availableFeatures.map((f) => [`${f.page}/${f.feature}`, f])
-    );
-    const feats = pares.map((r) => byKey.get(`${r.page}/${r.feature}`)).filter(Boolean).slice(0, 8);
-    if (feats.length === 0) return "";
+  async renderAtividades() {
+    const lista = await Atividades.listar();
+    if (lista.length === 0) return "";
     return `
             <div>
                 <div class="mb-3">
                     <h2 class="text-lg font-semibold text-zinc-900">Atividades Recentes</h2>
-                    <p class="text-sm text-zinc-500">\xDAltimas funcionalidades que voc\xEA abriu</p>
+                    <p class="text-sm text-zinc-500">\xDAltimas opera\xE7\xF5es executadas</p>
                 </div>
-                <div class="flex flex-wrap gap-2" id="recent-chips">
-                    ${feats.map((f) => `
-                        <button type="button" class="recent-chip"
-                                data-page="${f.page}" data-feature="${f.feature}">
-                            <i data-lucide="${f.icon}"></i>
-                            <span>${escapeHtml(f.title)}</span>
-                        </button>
+                <ul class="atividade-lista" id="atividades-lista">
+                    ${lista.map((a) => `
+                        <li class="atividade-item" data-page="${a.page}" data-feature="${a.feature}">
+                            <span class="atividade-status ${a.ok ? "ok" : "erro"}">
+                                <i data-lucide="${a.ok ? "circle-check" : "circle-x"}"></i>
+                            </span>
+                            <span class="atividade-titulo">${escapeHtml(Atividades.titulo(a))}</span>
+                            <span class="atividade-resumo${a.ok ? "" : " erro"}">${escapeHtml(a.resumo)}</span>
+                            <span class="atividade-quando">${Atividades.quando(a)}</span>
+                        </li>
                     `).join("")}
-                </div>
+                </ul>
             </div>
         `;
   }
@@ -7469,7 +7523,7 @@ var HomePage = class extends Feature {
             <div class="col-span-6 md:col-span-3 quick-card" draggable="true" data-id="${card.id}">
                 <div class="card h-full" data-page="${card.page}" data-feature="${card.feature}">
                     <button class="star-btn" data-id="${card.id}"
-                            title="Remover dos favoritos"
+                            title="Favoritado \u2014 clique para desmarcar"
                             aria-label="Remover ${escapeHtml(card.title)} dos favoritos">
                         <i data-lucide="star"></i>
                     </button>
@@ -7501,7 +7555,7 @@ var HomePage = class extends Feature {
   setupEventListeners() {
     this.on(this.container, "click", async (e) => {
       const target = e.target;
-      const recente = target.closest?.(".recent-chip");
+      const recente = target.closest?.(".atividade-item");
       if (recente) {
         window.navigateTo(recente.dataset.page, recente.dataset.feature);
         return;
@@ -7698,7 +7752,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentModuleInstance = null;
   window.navigateTo = (page, feature = null) => {
     document.getElementById("result-bar").style.display = "none";
-    if (feature) void Recents.registrar(page, feature);
+    if (feature) Contexto.definir(page, feature);
+    else if (page === "home") Contexto.limpar();
     document.querySelectorAll(".nav-btn").forEach((btn2) => btn2.classList.remove("active"));
     const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
     if (btn) btn.classList.add("active");

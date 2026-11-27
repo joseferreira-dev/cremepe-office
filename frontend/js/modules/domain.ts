@@ -32,7 +32,7 @@
  */
 import type { Feature } from './feature.js';
 import { Favs } from '../favorites.js';
-import { Recents } from '../recents.js';
+import { Contexto } from '../contexto.js';
 import { cardId } from './meta.js';
 
 /** Declaração de uma feature no menu lateral de um módulo. */
@@ -72,6 +72,10 @@ export class DomainModule {
     }
 
     render(): void {
+        // Contexto da feature em uso: o api.ts usa para titolar a
+        // atividade registrada quando uma operação termina.
+        Contexto.definir(this.page, this.currentFeature);
+
         this.container.innerHTML = `
             <div class="page active module-${this.page}">
                 <div class="mb-7 flex items-center gap-4">
@@ -145,8 +149,7 @@ export class DomainModule {
 
     selectFeature(featureId: string): void {
         this.currentFeature = featureId;
-        // Rastreia para a seção "Recentes" da home (silencioso em erro)
-        void Recents.registrar(this.page, featureId);
+        Contexto.definir(this.page, featureId);
         this.container.querySelectorAll<HTMLElement>('.feature-list li').forEach(li => {
             li.classList.toggle('active', li.dataset.feature === featureId);
         });

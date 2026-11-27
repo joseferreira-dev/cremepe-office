@@ -297,21 +297,38 @@
         @apply px-3 py-2.5 text-sm text-zinc-500;
     }
 
-    /* ====== Recentes na home (chips clicáveis) ====== */
-    .recent-chip {
-        @apply inline-flex cursor-pointer items-center gap-2 rounded-full border border-zinc-200
-               bg-white px-3 py-1.5 text-sm text-zinc-600 transition-all duration-150;
+    /* ====== Atividades recentes na home (resumo + status de erro) ====== */
+    .atividade-lista {
+        @apply flex flex-col gap-1;
     }
-    .recent-chip:hover {
-        @apply border-brand-300 bg-brand-50 text-brand-700 shadow-xs;
+    .atividade-item {
+        @apply flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm
+               transition hover:bg-zinc-50;
     }
-    .recent-chip i,
-    .recent-chip .lucide {
-        @apply h-4 w-4 text-zinc-400;
+    .atividade-status {
+        @apply flex shrink-0 items-center;
     }
-    .recent-chip:hover i,
-    .recent-chip:hover .lucide {
-        @apply text-brand-600;
+    .atividade-status.ok {
+        @apply text-emerald-500;
+    }
+    .atividade-status.erro {
+        @apply text-rose-500;
+    }
+    .atividade-status i,
+    .atividade-status .lucide {
+        @apply h-4 w-4;
+    }
+    .atividade-titulo {
+        @apply shrink-0 font-medium text-zinc-800;
+    }
+    .atividade-resumo {
+        @apply min-w-0 grow truncate text-zinc-500;
+    }
+    .atividade-resumo.erro {
+        @apply text-rose-600;
+    }
+    .atividade-quando {
+        @apply shrink-0 text-xs text-zinc-400;
     }
 
     #backend-status {
@@ -418,15 +435,13 @@
         @apply h-5 w-5;
     }
     /* ===== Home: seleção de favoritos ===== */
-    /* Estrela no canto do card: remove dos favoritos em1 clique
-       (sem entrar em modo de edição). Discreta mas sempre visível —
-       opacity0 até hover esconderia a ação de quem nunca passa o
-       mouse; vai a100% no hover/foco. */
+    /* Estrela no canto do card: MARCADA (âmbar, cheia) — o card está
+       nos favoritos; clicar DESMARCA e remove dos atalhos. Visível o
+       tempo todo para comunicar o estado, não só no hover. */
     .star-btn {
         @apply absolute right-2 top-2 z-10 flex h-7 w-7 items-center
-               justify-center rounded-full text-zinc-300 opacity-40
-               transition hover:bg-amber-50 hover:text-amber-500
-               hover:opacity-100 focus-visible:opacity-100;
+               justify-center rounded-full text-amber-500 transition
+               hover:bg-amber-50 hover:text-amber-600;
     }
     .star-btn .lucide {
         @apply h-4 w-4 fill-current;

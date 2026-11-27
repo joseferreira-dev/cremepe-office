@@ -3,7 +3,7 @@ import { ExcelModule } from './excel/index.js';
 import { FileModule } from './file/index.js';
 import { PDFModule } from './pdf/index.js';
 import { WordModule } from './word/index.js';
-import { Recents } from '../recents.js';
+import { Atividades } from '../activities.js';
 
 import { HOME_META } from './meta.js';
 
@@ -145,7 +145,7 @@ export class HomePage extends Feature {
     // ====== RENDER ======
     async render() {
         this.cards = await this.getCards();
-        const recentes = await this.renderRecents();
+        const atividades = await this.renderAtividades();
 
         this.container.innerHTML = `
             <div class="page active module-home">
@@ -153,7 +153,7 @@ export class HomePage extends Feature {
 
                 <div id="quick-access-container" class="mb-8">${this.renderFavorites()}</div>
 
-                ${recentes}
+                ${atividades}
             </div>
         `;
 
@@ -161,34 +161,31 @@ export class HomePage extends Feature {
     }
 
     /**
-     * Seção "Recentes": features abertas nas últimas visitas, como
-     * chips clicáveis. Oculta quando não há histórico (1ª execução).
+     * Seção "Atividades Recentes": o que foi FEITO em cada operação
+     * (resumo) e se houve erro, mais recente primeiro. Oculta quando
+     * ainda não há operações (1ª execução).
      */
-    async renderRecents(): Promise<string> {
-        const pares = await Recents.listar();
-        if (pares.length === 0) return '';
-        const byKey = new Map(
-            this.availableFeatures.map((f: any) => [`${f.page}/${f.feature}`, f]));
-        const feats = pares
-            .map((r) => byKey.get(`${r.page}/${r.feature}`))
-            .filter(Boolean)
-            .slice(0, 8);
-        if (feats.length === 0) return '';
+    async renderAtividades(): Promise<string> {
+        const lista = await Atividades.listar();
+        if (lista.length === 0) return '';
         return `
             <div>
                 <div class="mb-3">
                     <h2 class="text-lg font-semibold text-zinc-900">Atividades Recentes</h2>
-                    <p class="text-sm text-zinc-500">Últimas funcionalidades que você abriu</p>
+                    <p class="text-sm text-zinc-500">Últimas operações executadas</p>
                 </div>
-                <div class="flex flex-wrap gap-2" id="recent-chips">
-                    ${feats.map((f: any) => `
-                        <button type="button" class="recent-chip"
-                                data-page="${f.page}" data-feature="${f.feature}">
-                            <i data-lucide="${f.icon}"></i>
-                            <span>${escapeHtml(f.title)}</span>
-                        </button>
+                <ul class="atividade-lista" id="atividades-lista">
+                    ${lista.map((a) => `
+                        <li class="atividade-item" data-page="${a.page}" data-feature="${a.feature}">
+                            <span class="atividade-status ${a.ok ? 'ok' : 'erro'}">
+                                <i data-lucide="${a.ok ? 'circle-check' : 'circle-x'}"></i>
+                            </span>
+                            <span class="atividade-titulo">${escapeHtml(Atividades.titulo(a))}</span>
+                            <span class="atividade-resumo${a.ok ? '' : ' erro'}">${escapeHtml(a.resumo)}</span>
+                            <span class="atividade-quando">${Atividades.quando(a)}</span>
+                        </li>
                     `).join('')}
-                </div>
+                </ul>
             </div>
         `;
     }
@@ -214,7 +211,7 @@ export class HomePage extends Feature {
             <div class="col-span-6 md:col-span-3 quick-card" draggable="true" data-id="${card.id}">
                 <div class="card h-full" data-page="${card.page}" data-feature="${card.feature}">
                     <button class="star-btn" data-id="${card.id}"
-                            title="Remover dos favoritos"
+                            title="Favoritado — clique para desmarcar"
                             aria-label="Remover ${escapeHtml(card.title)} dos favoritos">
                         <i data-lucide="star"></i>
                     </button>
@@ -253,8 +250,8 @@ export class HomePage extends Feature {
         this.on(this.container, 'click', async (e) => {
             const target = e.target as HTMLElement;
 
-            // 1. Chip de recente: navega direto para a feature
-            const recente = target.closest?.('.recent-chip') as HTMLElement | null;
+            // 1. Item de atividade recente: navega para a feature
+            const recente = target.closest?.('.atividade-item') as HTMLElement | null;
             if (recente) {
                 window.navigateTo(recente.dataset.page!, recente.dataset.feature!);
                 return;

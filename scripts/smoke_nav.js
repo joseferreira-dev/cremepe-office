@@ -600,18 +600,41 @@ function cleanup() {
             console.log('busca-global: Enter navega e limpa o campo OK');
         }
 
-        // Recent chip: ao voltar para a home, a feature aberta aparece
+        // ===== Atividades recentes: resumo do que foi feito + erro =====
+        // (a) dispara uma operação que FALHA (entrada inexistente) para
+        //     provar que o erro é registrado na lista. O compress trata
+        //     o erro com this.log (sem alert), então o renderer não
+        //     bloqueia.
+        await evaluate("window.navigateTo('pdf', 'compress')");
+        await sleep(500);
+        await evaluate(`(() => {
+            document.getElementById('compress-input').value = ${JSON.stringify('C:\\nao-existe\\arquivo-inexistente.pdf')};
+            document.getElementById('compress-output').value = ${JSON.stringify(OUT_PDF)};
+        })()`);
+        await evaluate("document.getElementById('btn-compress').click()");
+        await sleep(2500); // fetch falha + grava a atividade no store
+
+        // (b) a home lista as atividades com título, resumo e status
         await evaluate("window.navigateTo('home')");
         await sleep(900);
-        const recentes = await evaluate(`(() => {
-            const chips = document.querySelectorAll('#recent-chips .recent-chip');
-            const primeiro = chips[0]?.querySelector('span')?.textContent?.trim() || '';
-            return { n: chips.length, primeiro };
+        const atv = await evaluate(`(() => {
+            const itens = document.querySelectorAll('#atividades-lista .atividade-item');
+            const oks = document.querySelectorAll('#atividades-lista .atividade-status.ok');
+            const erros = document.querySelectorAll('#atividades-lista .atividade-status.erro');
+            const primeiro = itens[0] || {};
+            return {
+                n: itens.length,
+                oks: oks.length,
+                erros: erros.length,
+                titulo: primeiro.querySelector?.('.atividade-titulo')?.textContent?.trim() || '',
+                resumo: primeiro.querySelector?.('.atividade-resumo')?.textContent?.trim() || '',
+                quando: primeiro.querySelector?.('.atividade-quando')?.textContent?.trim() || '',
+            };
         })()`);
-        if (recentes.n < 1) {
-            exceptions.push('recentes: nenhum chip apos abrir uma feature');
+        if (atv.n < 2 || atv.erros < 1 || !atv.titulo || !atv.resumo || !atv.quando) {
+            exceptions.push(`atividades: ${JSON.stringify(atv)} (esperado >=2 itens, >=1 erro, titulo/resumo/quando preenchidos)`);
         } else {
-            console.log(`recentes: ${recentes.n} chip(s), primeiro "${recentes.primeiro}" OK`);
+            console.log(`atividades: ${atv.n} (${atv.oks} ok, ${atv.erros} erro) | "${atv.titulo}: ${atv.resumo}" ${atv.quando} OK`);
         }
 
         console.log(`features percorridas: ${featuresVisited}`);
@@ -640,6 +663,10 @@ function cleanup() {
             /Security Warning/i,
             /favicon/i,
             /Executing inline script violates/i, // sonda de enforcement acima
+            // console.error do api.ts quando uma operação FALHA — o
+            // teste acima dispara uma falha de propósito (entrada
+            // inexistente) para provar que o erro vira atividade.
+            /API Error:/,
         ];
         [...new Set(consoleErrors)]
             .filter((t) => !CONSOLE_ALLOW.some((re) => re.test(t)))

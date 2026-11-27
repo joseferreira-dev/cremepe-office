@@ -1,5 +1,7 @@
 const API_BASE = 'http://127.0.0.1:5000/api';
 
+import { Atividades } from './activities.js';
+
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -96,6 +98,34 @@ function mostrarResultado(data: unknown): void {
     bar.style.display = 'block';
 }
 
+/**
+ * Resumo da operação para as "Atividades Recentes" da Home.
+ * O que a API devolve varia por feature, então: arquivo gerado → o
+ * nome do arquivo; sem arquivo → "Concluído" (o título da atividade já
+ * diz QUAL operação foi). Erros usam a própria mensagem.
+ */
+function resumoDaOperacao(data: unknown): string {
+    const d = data as { output_path?: unknown } | null;
+    const caminho = d?.output_path;
+    if (typeof caminho === 'string' && caminho) {
+        const base = caminho.split(/[\\/]/).pop();
+        return base ? `Gerou ${base}` : 'Arquivo gerado';
+    }
+    return 'Concluído';
+}
+
+/**
+ * Operações que NÃO viram atividade recente: leituras/preview que
+ * rodam a cada visita de tela (inundariam a lista) e o polling de
+ * saúde (a cada5s).
+ */
+function devoRegistrar(endpoint: string): boolean {
+    if (/^\/health$|^\/jobs\//.test(endpoint)) return false;
+    if (/preview$/.test(endpoint)) return false;
+    if (/^\/pdf\/info$|^\/files\/list$|^\/excel\/read$/.test(endpoint)) return false;
+    return true;
+}
+
 async function apiRequest(endpoint: string, method = 'GET', body: unknown = null): Promise<any> {
     const url = `${API_BASE}${endpoint}`;
     const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
@@ -110,6 +140,9 @@ async function apiRequest(endpoint: string, method = 'GET', body: unknown = null
             try {
                 const resultado = await pollJob(data.job_id);
                 mostrarResultado(resultado);
+                if (devoRegistrar(endpoint)) {
+                    void Atividades.registrar(resumoDaOperacao(resultado), true);
+                }
                 return resultado;
             } finally {
                 activeJobId = null;
@@ -117,8 +150,18 @@ async function apiRequest(endpoint: string, method = 'GET', body: unknown = null
         }
         assertSuccessEnvelope(data);
         mostrarResultado(data);
+        if (devoRegistrar(endpoint)) {
+            void Atividades.registrar(resumoDaOperacao(data), true);
+        }
         return data;
-    } catch (error) { console.error('API Error:', error); throw error; }
+    } catch (error) {
+        console.error('API Error:', error);
+        if (devoRegistrar(endpoint)) {
+            const msg = error instanceof Error ? error.message : String(error);
+            void Atividades.registrar(msg, false);
+        }
+        throw error;
+    }
 }
 
 type Params = Record<string, unknown>;
