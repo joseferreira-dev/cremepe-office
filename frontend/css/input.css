@@ -399,10 +399,6 @@
     }
 
     /* ---- Home ---- */
-    .hero {
-        @apply rounded-3xl bg-gradient-to-br from-brand-600 via-brand-700 to-teal-700 p-8 text-white
-               shadow-xl shadow-brand-600/20;
-    }
     .quick-card {
         @apply transition duration-200;
     }

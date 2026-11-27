@@ -148,11 +148,11 @@ function cleanup() {
             pending.clear();
         };
 
-        const send = (method, params = {}) => new Promise((resolve, reject) => {
+        const send = (method, params = {}, timeoutMs = 30000) => new Promise((resolve, reject) => {
             const id = ++msgId;
             const timer = setTimeout(() => {
-                if (pending.delete(id)) reject(new Error(`timeout de 10s em ${method}`));
-            }, 10000);
+                if (pending.delete(id)) reject(new Error(`timeout de ${timeoutMs / 1000}s em ${method}`));
+            }, timeoutMs);
             pending.set(id, {
                 resolve: (v) => { clearTimeout(timer); resolve(v); },
                 reject: (e) => { clearTimeout(timer); reject(e); },

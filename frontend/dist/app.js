@@ -7431,25 +7431,16 @@ var HomePage = class extends Feature {
     const recentes = await this.renderRecents();
     this.container.innerHTML = `
             <div class="page active module-home">
-                <div class="hero mb-7">
-                    <p class="text-xs font-semibold tracking-widest text-white/60 uppercase">CREMEPE Office</p>
-                    <h1 class="mt-2 text-3xl font-semibold tracking-tight">Painel Inicial</h1>
-                    <p class="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">
-                        Atalhos das suas funcionalidades. Toque na <span class="font-semibold text-white">estrela</span>
-                        ao lado de cada funcionalidade nos menu dos dom\xEDnios e ela aparece aqui.
-                    </p>
-                </div>
-
-                ${recentes}
-
                 <div class="mb-4">
                     <h2 class="text-lg font-semibold text-zinc-900">Acesso R\xE1pido</h2>
                     <p class="text-sm text-zinc-500" id="favorites-count">${this.cards.length} de ${this.total} atalhos</p>
                 </div>
 
-                <div class="mb-4 flex flex-wrap gap-2" id="domain-chips">${this.renderDomainChips()}</div>
+                <div class="mb-5 flex flex-wrap gap-2" id="domain-chips">${this.renderDomainChips()}</div>
 
-                <div id="quick-access-container">${this.renderFavorites()}</div>
+                <div id="quick-access-container" class="mb-8">${this.renderFavorites()}</div>
+
+                ${recentes}
             </div>
         `;
     this.initDragDrop();
@@ -7480,8 +7471,11 @@ var HomePage = class extends Feature {
     const feats = pares.map((r) => byKey.get(`${r.page}/${r.feature}`)).filter(Boolean).slice(0, 8);
     if (feats.length === 0) return "";
     return `
-            <div class="mb-6">
-                <h2 class="mb-2 text-xs font-semibold tracking-widest text-zinc-400 uppercase">Recentes</h2>
+            <div>
+                <div class="mb-3">
+                    <h2 class="text-lg font-semibold text-zinc-900">Atividades Recentes</h2>
+                    <p class="text-sm text-zinc-500">\xDAltimas funcionalidades que voc\xEA abriu</p>
+                </div>
                 <div class="flex flex-wrap gap-2" id="recent-chips">
                     ${feats.map((f) => `
                         <button type="button" class="recent-chip"
@@ -7501,7 +7495,7 @@ var HomePage = class extends Feature {
                 <div class="rounded-xl border border-dashed border-zinc-300 py-10 text-center">
                     <i data-lucide="grid-3x3" class="text-4xl text-zinc-300"></i>
                     <p class="mt-4 text-sm text-zinc-500">Nenhum atalho favoritado. Toque na estrela
-                        ao lado de uma funcionalidade nos menu dos dom\xEDnios para ela aparecer aqui.</p>
+                        ao lado de uma funcionalidade nos menus dos dom\xEDnios para ela aparecer aqui.</p>
                 </div>
             `;
     }
