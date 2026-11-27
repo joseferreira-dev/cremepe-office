@@ -378,6 +378,22 @@
     .module-sidebar h3 {
         @apply px-5 pt-5 pb-1 text-xs font-bold tracking-wider text-zinc-400 uppercase;
     }
+    /* Páginas de domínio em página extensa: a página ocupa exatamente a
+       altura disponível e SÓ #feature-content rola — o cabeçalho e o
+       menu de funcionalidades ficam fixos.
+       O height é em vh (não %) para não depender da cadeia de alturas
+       #content > #page-container > .page; -3.5rem compensa o p-7 do
+       #content (1.75rem em cima e embaixo). */
+    .pagina-fixa {
+        @apply flex flex-col;
+        height: calc(100vh - 3.5rem);
+    }
+    .pagina-corpo {
+        @apply flex min-h-0 flex-1 gap-6;
+    }
+    #feature-content {
+        @apply min-h-0 overflow-y-auto;
+    }
     .feature-list {
         @apply flex flex-col gap-0.5 px-3 pb-4;
     }
@@ -415,7 +431,25 @@
         stroke-width: 2;
     }
 
+    /* ---- Barra de resultado (arquivo gerado) ---- */
+    /* Flutuante no canto inferior direito, como um toast: fica visível
+       mesmo com a página rolando e não empurra o conteúdo. */
+    #result-bar {
+        @apply fixed bottom-4 right-4 z-50 max-w-md shadow-lg;
+    }
+
     /* ---- Home ---- */
+    /* Estado vazio da grade de favoritos. O <i> vira <svg> inline e
+       herdava a linha de base do texto (o .lucide traz
+       vertical-align:-.15em) — o ícone ficava desalinhado verticalmente
+       em relação à caixa e ao texto. Bloco + mx-auto + margin resolve. */
+    .estado-vazio {
+        @apply rounded-xl border border-dashed border-zinc-300 px-6 py-10 text-center;
+    }
+    .estado-vazio-icone {
+        @apply mx-auto mb-4 block text-4xl text-zinc-300;
+    }
+
     .quick-card {
         @apply transition duration-200;
     }

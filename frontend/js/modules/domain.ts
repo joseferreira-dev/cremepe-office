@@ -77,7 +77,7 @@ export class DomainModule {
         Contexto.definir(this.page, this.currentFeature);
 
         this.container.innerHTML = `
-            <div class="page active module-${this.page}">
+            <div class="page active pagina-fixa module-${this.page}">
                 <div class="mb-7 flex items-center gap-4">
                     <div class="icon-chip"><i data-lucide="${this.icon}"></i></div>
                     <div>
@@ -85,7 +85,7 @@ export class DomainModule {
                         <p class="module-subtitle">${this.features.length} funcionalidades</p>
                     </div>
                 </div>
-                <div class="flex gap-6">
+                <div class="pagina-corpo">
                     <div class="module-sidebar">
                         <h3>Funcionalidades</h3>
                         <ul class="feature-list">

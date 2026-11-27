@@ -379,7 +379,7 @@ var DomainModule = class {
   render() {
     Contexto.definir(this.page, this.currentFeature);
     this.container.innerHTML = `
-            <div class="page active module-${this.page}">
+            <div class="page active pagina-fixa module-${this.page}">
                 <div class="mb-7 flex items-center gap-4">
                     <div class="icon-chip"><i data-lucide="${this.icon}"></i></div>
                     <div>
@@ -387,7 +387,7 @@ var DomainModule = class {
                         <p class="module-subtitle">${this.features.length} funcionalidades</p>
                     </div>
                 </div>
-                <div class="flex gap-6">
+                <div class="pagina-corpo">
                     <div class="module-sidebar">
                         <h3>Funcionalidades</h3>
                         <ul class="feature-list">
@@ -7507,9 +7507,9 @@ var HomePage = class extends Feature {
   renderFavorites() {
     if (this.cards.length === 0) {
       return `
-                <div class="rounded-xl border border-dashed border-zinc-300 py-10 text-center">
-                    <i data-lucide="grid-3x3" class="text-4xl text-zinc-300"></i>
-                    <p class="mt-4 text-sm text-zinc-500">Nenhum atalho favoritado. Toque na estrela
+                <div class="estado-vazio">
+                    <i data-lucide="grid-3x3" class="estado-vazio-icone"></i>
+                    <p class="text-sm text-zinc-500">Nenhum atalho favoritado. Toque na estrela
                         ao lado de uma funcionalidade nos menus dos dom\xEDnios para ela aparecer aqui.</p>
                 </div>
             `;

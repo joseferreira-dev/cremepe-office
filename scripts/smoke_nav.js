@@ -109,10 +109,17 @@ function cleanup() {
 
         const ws = new WebSocket(target.webSocketDebuggerUrl);
         await new Promise((res, rej) => {
-            const t = setTimeout(() => rej(new Error('ws nao abriu em 10s')), 10000);
+            const t = setTimeout(() => rej(new Error('ws nao abriu em 30s')), 30000);
             ws.onopen = () => { clearTimeout(t); res(); };
             ws.onerror = () => { clearTimeout(t); rej(new Error('ws falhou')); };
         });
+
+        // Fase de arranque: logo apos um `build:ts`, o Defender/cache
+        // le o bundle recem-escrito e o renderer demora para responder
+        // ao Runtime.evaluate (observado:3 travamentos seguidos, todos
+        // no1o smoke apos build; os seguintes passavam).90s cobre a
+        // leitura fria; depois disso tudo e rapido e volta a30s.
+        let timeoutMs = 90000;
 
         let msgId = 0;
         const pending = new Map();
@@ -148,11 +155,11 @@ function cleanup() {
             pending.clear();
         };
 
-        const send = (method, params = {}, timeoutMs = 30000) => new Promise((resolve, reject) => {
+        const send = (method, params = {}, tmo = timeoutMs) => new Promise((resolve, reject) => {
             const id = ++msgId;
             const timer = setTimeout(() => {
-                if (pending.delete(id)) reject(new Error(`timeout de ${timeoutMs / 1000}s em ${method}`));
-            }, timeoutMs);
+                if (pending.delete(id)) reject(new Error(`timeout de ${tmo / 1000}s em ${method}`));
+            }, tmo);
             pending.set(id, {
                 resolve: (v) => { clearTimeout(timer); resolve(v); },
                 reject: (e) => { clearTimeout(timer); reject(e); },
@@ -194,6 +201,8 @@ function cleanup() {
             if (ready) break;
             await sleep(500);
         }
+        // página pronta: arranque acabou, volta ao timeout normal
+        timeoutMs = 30000;
 
         // Indicador de saúde do backend (classes CSS, não estilos inline)
         await sleep(1500);
@@ -543,6 +552,17 @@ function cleanup() {
             }
             await shot('result-bar.png');
 
+            // Posição flutuante: fora do fluxo, canto inferior direito
+            const posBar = await evaluate(`(() => {
+                const cs = getComputedStyle(document.getElementById('result-bar'));
+                return { position: cs.position, bottom: cs.bottom, right: cs.right };
+            })()`);
+            if (posBar.position !== 'fixed' || posBar.bottom === 'auto' || posBar.right === 'auto') {
+                exceptions.push(`result-bar: posicionamento ${JSON.stringify(posBar)} (esperado fixed + bottom/right)`);
+            } else {
+                console.log('result-bar: flutuante no canto inferior direito OK');
+            }
+
             // Fechar esconde; navegar de tela tambem
             await evaluate("document.getElementById('result-close').click()");
             await sleep(200);
@@ -635,6 +655,47 @@ function cleanup() {
             exceptions.push(`atividades: ${JSON.stringify(atv)} (esperado >=2 itens, >=1 erro, titulo/resumo/quando preenchidos)`);
         } else {
             console.log(`atividades: ${atv.n} (${atv.oks} ok, ${atv.erros} erro) | "${atv.titulo}: ${atv.resumo}" ${atv.quando} OK`);
+        }
+
+        // ===== Página de domínio: menu fixo, só o formulário rola =====
+        await evaluate("window.navigateTo('pdf')");
+        await sleep(500);
+        const fixa = await evaluate(`(() => {
+            const p = document.querySelector('.pagina-fixa');
+            const fc = document.getElementById('feature-content');
+            if (!p || !fc) return { tem: false };
+            return {
+                tem: true,
+                altura: getComputedStyle(p).height,
+                overflow: getComputedStyle(fc).overflowY,
+            };
+        })()`);
+        if (!fixa.tem || fixa.overflow !== 'auto' || !/px$/.test(fixa.altura)) {
+            exceptions.push(`pagina-fixa: ${JSON.stringify(fixa)} (esperado height em px + overflow-y auto)`);
+        } else {
+            console.log(`pagina-fixa: altura ${fixa.altura}, so o formulario rola OK`);
+        }
+
+        // ===== Estado vazio: ícone em bloco e centralizado na caixa =====
+        await evaluate("window.electronAPI.storeSet('quickAccessCards', [])");
+        await evaluate("window.navigateTo('home')");
+        await sleep(700);
+        const vazio = await evaluate(`(() => {
+            const box = document.querySelector('.estado-vazio');
+            const ic = document.querySelector('.estado-vazio-icone');
+            if (!box || !ic) return { tem: false };
+            const b = box.getBoundingClientRect();
+            const i = ic.getBoundingClientRect();
+            return {
+                tem: true,
+                display: getComputedStyle(ic).display,
+                desvio: Math.abs((i.left + i.width / 2) - (b.left + b.width / 2)),
+            };
+        })()`);
+        if (!vazio.tem || vazio.display !== 'block' || vazio.desvio > 2) {
+            exceptions.push(`estado-vazio: ${JSON.stringify(vazio)} (esperado display block e icone centrado)`);
+        } else {
+            console.log('estado-vazio: icone em bloco e centralizado OK');
         }
 
         console.log(`features percorridas: ${featuresVisited}`);

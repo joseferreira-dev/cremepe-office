@@ -194,9 +194,9 @@ export class HomePage extends Feature {
     renderFavorites() {
         if (this.cards.length === 0) {
             return `
-                <div class="rounded-xl border border-dashed border-zinc-300 py-10 text-center">
-                    <i data-lucide="grid-3x3" class="text-4xl text-zinc-300"></i>
-                    <p class="mt-4 text-sm text-zinc-500">Nenhum atalho favoritado. Toque na estrela
+                <div class="estado-vazio">
+                    <i data-lucide="grid-3x3" class="estado-vazio-icone"></i>
+                    <p class="text-sm text-zinc-500">Nenhum atalho favoritado. Toque na estrela
                         ao lado de uma funcionalidade nos menus dos domínios para ela aparecer aqui.</p>
                 </div>
             `;
