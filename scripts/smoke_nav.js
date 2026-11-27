@@ -226,6 +226,18 @@ function cleanup() {
             console.log('vendor: 0 recursos externos (tudo local) OK');
         }
 
+        // Logo do sidebar: asset local precisa carregar de verdade
+        // (um SVG quebrado/ausente deixaria o topo da sidebar vazio).
+        const logo = await evaluate(`(() => {
+            const img = document.getElementById('sidebar-logo');
+            return { src: img?.getAttribute('src') || '', w: img?.naturalWidth || 0 };
+        })()`);
+        if (!logo.src || logo.w < 100) {
+            exceptions.push(`logo: src="${logo.src}" largura=${logo.w} (esperado logo.svg com largura >=100)`);
+        } else {
+            console.log(`logo: ${logo.src} carregado (${logo.w}px) OK`);
+        }
+
         // pdf.js sob CSP: getDocument real (script + worker locais)
         try {
             const pdfCheck = await evaluate(`(async () => {
@@ -273,6 +285,11 @@ function cleanup() {
 
         // Home: cards de atalhos — o catálogo de checkboxes foi
         // removido; a favoritação agora é pela estrela da lista do domínio.
+        // Zera a chave ANTES: garante o caminho de seeding da1a execução
+        // mesmo que a limpeza do profile isolado (rmSync) falhe — sem
+        // isso um resquício da run anterior faria o teste de8 cards
+        // quebrar de forma intermitente.
+        await evaluate("window.electronAPI.storeSet('quickAccessCards', null)");
         await evaluate("window.navigateTo('home')");
         await sleep(500);
 
@@ -677,6 +694,12 @@ function cleanup() {
         }
 
         // ===== Estado vazio: ícone em bloco e centralizado na caixa =====
+        // Guarda o valor anterior e RESTAURA depois: se a limpeza
+        // (rmSync do profile isolado) falhar numa próxima execução, um
+        // quickAccessCards [] faria o getCards() pular o seeding e o
+        // teste "8 atalhos padrao" quebraria.
+        const guardaCards = await evaluate(
+            "window.electronAPI.storeGet('quickAccessCards').then(v => JSON.stringify(v))");
         await evaluate("window.electronAPI.storeSet('quickAccessCards', [])");
         await evaluate("window.navigateTo('home')");
         await sleep(700);
@@ -696,6 +719,11 @@ function cleanup() {
             exceptions.push(`estado-vazio: ${JSON.stringify(vazio)} (esperado display block e icone centrado)`);
         } else {
             console.log('estado-vazio: icone em bloco e centralizado OK');
+        }
+        if (guardaCards && guardaCards !== 'undefined') {
+            await evaluate(
+                `window.electronAPI.storeSet('quickAccessCards', ${guardaCards})`);
+            console.log('estado-vazio: store de favoritos restaurado OK');
         }
 
         console.log(`features percorridas: ${featuresVisited}`);
