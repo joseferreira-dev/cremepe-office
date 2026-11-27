@@ -31,7 +31,9 @@
  *     com o módulo o recebem pelo construtor.
  */
 import type { Feature } from './feature.js';
+import { Favs } from '../favorites.js';
 import { Recents } from '../recents.js';
+import { cardId } from './meta.js';
 
 /** Declaração de uma feature no menu lateral de um módulo. */
 export interface FeatureDef {
@@ -83,7 +85,17 @@ export class DomainModule {
                     <div class="module-sidebar">
                         <h3>Funcionalidades</h3>
                         <ul class="feature-list">
-                            ${this.features.map(f => `<li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}"><i data-lucide="${f.icon || 'circle'}"></i><span>${f.label}</span></li>`).join('')}
+                            ${this.features.map(f => `
+                                <li data-feature="${f.id}" class="${f.id === this.currentFeature ? 'active' : ''}">
+                                    <i data-lucide="${f.icon || 'circle'}"></i>
+                                    <span class="grow">${f.label}</span>
+                                    <button type="button" class="feature-star" data-feature="${f.id}"
+                                            aria-pressed="false"
+                                            title="Favoritar (aparece na Home)"
+                                            aria-label="Favoritar ${f.label}">
+                                        <i data-lucide="star"></i>
+                                    </button>
+                                </li>`).join('')}
                         </ul>
                     </div>
                     <div class="min-w-0 grow" id="feature-content"></div>
@@ -95,7 +107,40 @@ export class DomainModule {
             item.addEventListener('click', () => this.selectFeature(item.dataset.feature!));
         });
 
+        // Estrela: alterna o favorito SEM navegar para a feature
+        this.container.querySelectorAll<HTMLButtonElement>('.feature-star').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const featureId = btn.dataset.feature!;
+                const def = this.features.find(f => f.id === featureId);
+                const ativo = await Favs.alternar(this.page, featureId, {
+                    label: def?.label, icon: def?.icon,
+                });
+                this.marcarEstrela(btn, ativo);
+            });
+        });
+
+        // O store é assíncrono: as estrelas nascem vazias e são
+        // preenchidas logo em seguida (mesmo padrão da Home).
+        void this.sincronizarEstrelas();
+
         this.renderCurrentFeature();
+    }
+
+    /** Aplica o estado visual de uma estrela (preenchida/vazia). */
+    private marcarEstrela(btn: HTMLButtonElement, ativo: boolean): void {
+        btn.classList.toggle('starred', ativo);
+        btn.setAttribute('aria-pressed', String(ativo));
+        btn.title = ativo ? 'Remover dos atalhos da Home' : 'Favoritar (aparece na Home)';
+    }
+
+    /** Sincroniza as estrelas com os favoritos gravados no store. */
+    private async sincronizarEstrelas(): Promise<void> {
+        const favs = await Favs.ids();
+        this.container.querySelectorAll<HTMLButtonElement>('.feature-star').forEach(btn => {
+            const featureId = btn.dataset.feature!;
+            this.marcarEstrela(btn, favs.has(cardId(this.page, featureId)));
+        });
     }
 
     selectFeature(featureId: string): void {

@@ -435,6 +435,23 @@
     .star-btn .lucide {
         @apply h-4 w-4 fill-current;
     }
+    /* Estrela na lista de funcionalidades de cada domínio: é ela que
+       favorita para a Home (no lugar do antigo catálogo de checkboxes).
+       Despreenchida = não favoritado; preenchida = favoritado. */
+    .feature-star {
+        @apply flex h-6 w-6 shrink-0 cursor-pointer items-center
+               justify-center rounded-full text-zinc-300 transition
+               hover:bg-amber-50 hover:text-amber-500;
+    }
+    .feature-star .lucide {
+        @apply h-3.5 w-3.5;
+    }
+    .feature-star.starred {
+        @apply text-amber-500;
+    }
+    .feature-star.starred .lucide {
+        @apply fill-current;
+    }
     /* Chips de filtro por domínio (acima da grade de favoritos) */
     .domain-chip {
         @apply rounded-full border border-zinc-200 bg-white px-3 py-1.5
@@ -443,9 +460,6 @@
     }
     .domain-chip.active {
         @apply border-brand-500 bg-brand-50 font-semibold text-brand-700;
-    }
-    .selected-count {
-        @apply text-sm text-zinc-500;
     }
     /* chips de ícone por seção (cards da home) */
     .chip-arquivos { @apply bg-amber-50 text-amber-600; }
@@ -463,9 +477,6 @@
     .badge-word { @apply bg-sky-100 text-sky-700; }
     .badge-excel { @apply bg-emerald-100 text-emerald-700; }
 
-    #edit-area {
-        @apply rounded-2xl border border-dashed border-brand-400 bg-brand-50/50 p-5;
-    }
     .remove-card-btn {
         @apply text-xs;
     }

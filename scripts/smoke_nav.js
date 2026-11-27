@@ -262,7 +262,8 @@ function cleanup() {
             console.log(`pagina ${page}: ${featureIds.length} features OK`);
         }
 
-        // Home: catálogo de atalhos (edit mode) deve ter35 opções
+        // Home: cards de atalhos — o catálogo de checkboxes foi
+        // removido; a favoritação agora é pela estrela da lista do domínio.
         await evaluate("window.navigateTo('home')");
         await sleep(500);
 
@@ -280,16 +281,6 @@ function cleanup() {
         // DOM, não os pixels. home-edit.png/home-catalog.png saem
         // corretos porque um click anterior forçou a composição.
         await shot('home.png');
-
-        await evaluate("document.getElementById('toggle-edit-mode').click()");
-        await waitFor("document.querySelectorAll('.feature-checkbox').length === 35");
-        const checkboxCount = await evaluate("document.querySelectorAll('.feature-checkbox').length");
-        if (checkboxCount !== 35) {
-            exceptions.push(`home: ${checkboxCount} checkboxes (esperado 35)`);
-        } else {
-            console.log('home: 35 checkboxes de atalho OK');
-        }
-        await shot('home-edit.png');
 
         // Store legado (icones bi-* de versoes antigas): getCards deve
         // re-sincronizar com o catálogo atual e descartar ids obsoletos.
@@ -316,69 +307,110 @@ function cleanup() {
             console.log('store legado: re-sincronizado (2 cards, icones lucide, id obsoleto removido) OK');
         }
 
-        // 1º clique em botão com ÍCONE (alvo = svg do Lucide, não o botão)
-        await evaluate("window.navigateTo('home')");
-        await shot('home-toggle.png');  // frame forcado -> rAF do Lucide
-        const toggleIcon = await waitFor("!!document.querySelector('#toggle-edit-mode svg')");
-        if (!toggleIcon) {
-            exceptions.push('toggle-edit-mode: svg do Lucide nao apareceu em 5s');
+        // ===== Catálogo removido =====
+        // O "Adicionar atalhos" com checkboxes sumiu; agora se favorita
+        // pela estrela da lista de cada domínio.
+        const semCatalogo = await evaluate(`(() => ({
+            editArea: !!document.getElementById('edit-area'),
+            toggle: !!document.getElementById('toggle-edit-mode'),
+            checkboxes: document.querySelectorAll('.feature-checkbox').length,
+            busca: !!document.getElementById('catalog-search'),
+        }))()`);
+        if (semCatalogo.editArea || semCatalogo.toggle || semCatalogo.checkboxes || semCatalogo.busca) {
+            exceptions.push(`home: catalogo ainda presente ${JSON.stringify(semCatalogo)}`);
         } else {
-            await evaluate(`(() => {
-                const svg = document.querySelector('#toggle-edit-mode svg');
-                svg.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            })()`);
-            const editToggled = await waitFor(
-                "document.getElementById('edit-area')?.style.display === 'block'"
-            );
-            if (!editToggled) {
-                exceptions.push('toggle-edit-mode: clique no icone nao alternou a edicao');
+            console.log('home: catalogo de checkboxes removido OK');
+        }
+
+        // cards após o teste de store legado (base dos asserts seguintes)
+        const cardsBase = await evaluate("document.querySelectorAll('.quick-card').length");
+
+        // ===== Favoritar pela estrela da lista do domínio =====
+        await evaluate("window.navigateTo('pdf')");
+        await waitFor("document.querySelectorAll('.feature-star').length === 14");
+        await sleep(400); // preenchimento das estrelas é assíncrono (storeGet)
+        const lista = await evaluate(`(() => ({
+            li: document.querySelectorAll('.feature-list li').length,
+            estrelas: document.querySelectorAll('.feature-star').length,
+            marcadas: document.querySelectorAll('.feature-star.starred').length,
+            semBusca: !document.getElementById('feature-search'),
+        }))()`);
+        // marcadas=1 porque o teste de store legado gravou pdf-merge
+        if (lista.li !== 14 || lista.estrelas !== 14 || lista.marcadas !== 1 || !lista.semBusca) {
+            exceptions.push(`pdf: li=${lista.li} estrelas=${lista.estrelas} marcadas=${lista.marcadas} busca=${!lista.semBusca} (esperado 14/14/1/sem busca)`);
+        } else {
+            console.log('pdf: 14 estrelas na lista,1 favoritada OK');
+        }
+        await shot('pdf-estrelas.png');
+
+        // (1) clicar numa estrela desfavoritada: marca e NÃO navega
+        const clicado = await evaluate(`(() => {
+            const b = Array.from(document.querySelectorAll('.feature-star'))
+                .find(x => !x.classList.contains('starred'));
+            if (b) b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            return b ? b.dataset.feature : null;
+        })()`);
+        if (!clicado) {
+            exceptions.push('estrela: nenhuma estrela desfavoritada para clicar');
+        } else {
+            const marcou = await waitFor(
+                `document.querySelectorAll('.feature-star.starred').length === ${lista.marcadas + 1}`);
+            if (!marcou) {
+                const n = await evaluate("document.querySelectorAll('.feature-star.starred').length");
+                exceptions.push(`estrela: ${n} marcadas (esperado ${lista.marcadas + 1})`);
             } else {
-                console.log('icone: toggle-edit-mode responde no 1o clique OK');
+                console.log('estrela: clicar favorita na lista do dominio OK');
             }
         }
+        if (!(await evaluate("!!document.querySelector('.module-pdf')"))) {
+            exceptions.push('estrela: clicar na estrela navegou para fora do PDF');
+        }
 
-        // ===== Home: seleção de favoritos (comportamento novo) =====
-        // Aplicação IMEDIATA (sem botão "Aplicar"), estrela, filtro por
-        // domínio e busca no catálogo — nenhum desses existia antes.
+        // (2) o card aparece na Home
         await evaluate("window.navigateTo('home')");
-        await sleep(400);
-        // o teste anterior abriu o catálogo numa instância nova; garante
-        if (!(await evaluate("document.getElementById('edit-area')?.style.display === 'block'"))) {
-            await evaluate("document.getElementById('toggle-edit-mode').click()");
-            await waitFor("document.getElementById('edit-area')?.style.display === 'block'");
-        }
-        await waitFor("document.querySelectorAll('.feature-checkbox').length === 35");
-
-        // (1) marcar um checkbox NÃO marcado -> card aparece na hora
-        const nAntes = await evaluate("document.querySelectorAll('.quick-card').length");
-        await evaluate(`(() => {
-            const cb = Array.from(document.querySelectorAll('.feature-checkbox')).find(c => !c.checked);
-            if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
-            return !!cb;
-        })()`);
-        const aplicou = await waitFor(`document.querySelectorAll('.quick-card').length === ${nAntes + 1}`);
-        const nDepois = await evaluate("document.querySelectorAll('.quick-card').length");
-        if (!aplicou || nDepois !== nAntes + 1) {
-            exceptions.push(`home: aplicacao imediata -> ${nDepois} cards (esperado ${nAntes + 1})`);
+        await sleep(500);
+        const cardsHome = await evaluate("document.querySelectorAll('.quick-card').length");
+        if (cardsHome !== cardsBase + 1) {
+            exceptions.push(`home: ${cardsHome} cards apos favoritar (esperado ${cardsBase + 1})`);
         } else {
-            console.log('home: aplicacao imediata (sem botao Aplicar) OK');
+            console.log('home: card aparece apos favoritar pela estrela OK');
         }
 
-        // (2) estrela remove o favorito em1 clique (sem modo de edição)
-        await evaluate(`(() => {
-            const s = document.querySelector('.star-btn');
+        // (3) estrela DO CARD RECIÉM-FAVORITADO remove em1 clique —
+        //     precisa mirar nele: o primeiro .star-btn da grade é outro
+        //     card (os favoritos são antigos) e o teste falharia alvo
+        //     errado.
+        const removeuClicado = await evaluate(`(() => {
+            const card = Array.from(document.querySelectorAll('.quick-card .card'))
+                .find(c => c.dataset.feature === ${JSON.stringify(clicado)});
+            const s = card && card.querySelector('.star-btn');
             if (s) s.dispatchEvent(new MouseEvent('click', { bubbles: true }));
             return !!s;
         })()`);
-        const estrelou = await waitFor(`document.querySelectorAll('.quick-card').length === ${nAntes}`);
-        if (!estrelou) {
+        if (!removeuClicado) {
+            exceptions.push(`estrela: card de "${clicado}" nao encontrado na home`);
+        }
+        const removeu = await waitFor(`document.querySelectorAll('.quick-card').length === ${cardsBase}`);
+        if (!removeu) {
             const n = await evaluate("document.querySelectorAll('.quick-card').length");
-            exceptions.push(`home: estrela -> ${n} cards (esperado ${nAntes})`);
+            exceptions.push(`home: estrela do card -> ${n} (esperado ${cardsBase})`);
         } else {
-            console.log('home: estrela remove favorito em 1 clique OK');
+            console.log('home: estrela do card remove favorito em 1 clique OK');
         }
 
-        // (3) filtro por domínio isola os cards do domínio escolhido
+        // (4) a lista do domínio reflete o desfavoritado (sincronismo)
+        await evaluate("window.navigateTo('pdf')");
+        await waitFor(`document.querySelectorAll('.feature-star.starred').length === ${lista.marcadas}`);
+        const resync = await evaluate("document.querySelectorAll('.feature-star.starred').length");
+        if (resync !== lista.marcadas) {
+            exceptions.push(`estrela: ${resync} marcadas apos remover da home (esperado ${lista.marcadas})`);
+        } else {
+            console.log('estrela: lista do dominio sincroniza com a home OK');
+        }
+
+        // (5) filtro por domínio isola os cards do domínio escolhido
+        await evaluate("window.navigateTo('home')");
+        await sleep(400);
         await evaluate(`(() => {
             const c = Array.from(document.querySelectorAll('.domain-chip')).find(x => x.dataset.section === 'PDF');
             if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -403,19 +435,6 @@ function cleanup() {
             return !!c;
         })()`);
         await sleep(300);
-
-        // (4) busca local do catálogo REMOVIDA — só a global permanece:
-        // o catálogo renderiza os35 checkboxes sem filtro algum e o
-        // input #catalog-search não existe mais.
-        const busca = await evaluate(`(() => ({
-            temInput: !!document.getElementById('catalog-search'),
-            n: document.querySelectorAll('.feature-checkbox').length,
-        }))()`);
-        if (busca.temInput || busca.n !== 35) {
-            exceptions.push(`home: busca local presente=${busca.temInput} (esperado false), ${busca.n} checkboxes (esperado 35)`);
-        } else {
-            console.log('home: busca local removida, catalogo com 35 OK');
-        }
         await shot('home-catalog.png');
 
         // X de remover origem (Coletar Arquivos):1 add ->2 rows -> clique no svg
