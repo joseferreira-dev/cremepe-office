@@ -7306,7 +7306,6 @@ var MODULE_CATALOG = [
   { page: "word", section: "Word", module: WordModule },
   { page: "excel", section: "Excel", module: ExcelModule }
 ];
-var SECTIONS = ["Arquivos", "PDF", "Word", "Excel"];
 var DEFAULT_SHORTCUT_IDS = [
   "collect",
   "rename",
@@ -7338,14 +7337,11 @@ var HomePage = class extends Feature {
   cards;
   container;
   draggedId;
-  domainFilter;
-  // '' = todos os domínios
   storageKey;
   constructor(container) {
     super("home");
     this.container = container;
     this.storageKey = "quickAccessCards";
-    this.domainFilter = "";
     this.draggedId = null;
     this.cards = [];
     this.availableFeatures = buildAvailableFeatures();
@@ -7386,17 +7382,6 @@ var HomePage = class extends Feature {
     return false;
   }
   // ====== SELEÇÃO ======
-  get total() {
-    return this.availableFeatures.length;
-  }
-  /** Cards visíveis após o filtro de domínio. */
-  get visibleCards() {
-    return this.domainFilter ? this.cards.filter((c) => c.section === this.domainFilter) : this.cards;
-  }
-  countBySection(section) {
-    if (!section) return this.cards.length;
-    return this.cards.filter((c) => c.section === section).length;
-  }
   /** Adiciona/remove um favorito e persiste (aplicação imediata). */
   async toggleFavorite(id, add) {
     const existe = this.cards.some((c) => c.id === id);
@@ -7411,18 +7396,12 @@ var HomePage = class extends Feature {
     this.refreshFavorites();
   }
   /**
-   * Atualiza SÓ a zona de favoritos (grade, chips e contadores), sem
-   * re-renderizar a página inteira.
+   * Atualiza SÓ a zona de favoritos (a grade), sem re-renderizar a
+   * página inteira.
    */
   refreshFavorites() {
-    const set = (id, html) => {
-      const el = document.getElementById(id);
-      if (el) el.innerHTML = html;
-    };
-    set("quick-access-container", this.renderFavorites());
-    set("domain-chips", this.renderDomainChips());
-    const fc = document.getElementById("favorites-count");
-    if (fc) fc.textContent = `${this.cards.length} de ${this.total} atalhos`;
+    const el = document.getElementById("quick-access-container");
+    if (el) el.innerHTML = this.renderFavorites();
     this.initDragDrop();
   }
   // ====== RENDER ======
@@ -7431,12 +7410,7 @@ var HomePage = class extends Feature {
     const recentes = await this.renderRecents();
     this.container.innerHTML = `
             <div class="page active module-home">
-                <div class="mb-4">
-                    <h2 class="text-lg font-semibold text-zinc-900">Acesso R\xE1pido</h2>
-                    <p class="text-sm text-zinc-500" id="favorites-count">${this.cards.length} de ${this.total} atalhos</p>
-                </div>
-
-                <div class="mb-5 flex flex-wrap gap-2" id="domain-chips">${this.renderDomainChips()}</div>
+                <h2 class="mb-4 text-lg font-semibold text-zinc-900">Acesso R\xE1pido</h2>
 
                 <div id="quick-access-container" class="mb-8">${this.renderFavorites()}</div>
 
@@ -7444,19 +7418,6 @@ var HomePage = class extends Feature {
             </div>
         `;
     this.initDragDrop();
-  }
-  /** Chips de filtro por domínio (com contagem por domínio). */
-  renderDomainChips() {
-    const chips = [
-      { label: "Todos", section: "" },
-      ...SECTIONS.map((s) => ({ label: s, section: s }))
-    ];
-    return chips.map((c) => `
-            <button class="domain-chip${this.domainFilter === c.section ? " active" : ""}"
-                    data-section="${c.section}">
-                ${c.label} <span class="text-xs opacity-70">(${this.countBySection(c.section)})</span>
-            </button>
-        `).join("");
   }
   /**
    * Seção "Recentes": features abertas nas últimas visitas, como
@@ -7499,17 +7460,7 @@ var HomePage = class extends Feature {
                 </div>
             `;
     }
-    const cards = this.visibleCards;
-    if (cards.length === 0) {
-      return `
-                <div class="rounded-xl border border-dashed border-zinc-300 py-8 text-center">
-                    <i data-lucide="folder-search" class="text-3xl text-zinc-300"></i>
-                    <p class="mt-3 text-sm text-zinc-500">Nenhum atalho em
-                        "${escapeHtml(this.domainFilter)}".</p>
-                </div>
-            `;
-    }
-    return `<div class="grid grid-cols-12 gap-4" id="quick-access-grid">${this.renderCardItems(cards)}</div>`;
+    return `<div class="grid grid-cols-12 gap-4" id="quick-access-grid">${this.renderCardItems(this.cards)}</div>`;
   }
   renderCardItems(cards) {
     return cards.map((card) => {
@@ -7568,12 +7519,6 @@ var HomePage = class extends Feature {
       }
       if (target.closest(".quick-card .card") && !target.closest(".btn-open-card") && !target.closest(".star-btn")) {
         this.abrirCard(target);
-        return;
-      }
-      const chip = target.closest?.(".domain-chip");
-      if (chip) {
-        this.domainFilter = chip.dataset.section || "";
-        this.refreshFavorites();
         return;
       }
     });

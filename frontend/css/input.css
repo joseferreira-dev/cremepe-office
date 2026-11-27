@@ -448,15 +448,6 @@
     .feature-star.starred .lucide {
         @apply fill-current;
     }
-    /* Chips de filtro por domínio (acima da grade de favoritos) */
-    .domain-chip {
-        @apply rounded-full border border-zinc-200 bg-white px-3 py-1.5
-               text-sm text-zinc-600 transition hover:border-brand-400
-               hover:text-brand-700;
-    }
-    .domain-chip.active {
-        @apply border-brand-500 bg-brand-50 font-semibold text-brand-700;
-    }
     /* chips de ícone por seção (cards da home) */
     .chip-arquivos { @apply bg-amber-50 text-amber-600; }
     .chip-pdf { @apply bg-rose-50 text-rose-600; }

@@ -408,33 +408,19 @@ function cleanup() {
             console.log('estrela: lista do dominio sincroniza com a home OK');
         }
 
-        // (5) filtro por domínio isola os cards do domínio escolhido
+        // (5) contagem e chips de categoria REMOVIDOS do Acesso Rápido
         await evaluate("window.navigateTo('home')");
         await sleep(400);
-        await evaluate(`(() => {
-            const c = Array.from(document.querySelectorAll('.domain-chip')).find(x => x.dataset.section === 'PDF');
-            if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            return !!c;
-        })()`);
-        await sleep(300);
-        const filtro = await evaluate(`(() => {
-            const cards = Array.from(document.querySelectorAll('.quick-card'));
-            const secoes = [...new Set(cards.map(c => c.querySelector('.badge')?.textContent))];
-            const ativo = document.querySelector('.domain-chip.active');
-            return { n: cards.length, secoes, ativo: ativo ? ativo.dataset.section : null };
-        })()`);
-        if (filtro.ativo !== 'PDF' || filtro.secoes.some(s => s !== 'PDF')) {
-            exceptions.push(`home: filtro PDF -> ${JSON.stringify(filtro)}`);
+        const semContagem = await evaluate(`(() => ({
+            count: !!document.getElementById('favorites-count'),
+            chips: document.querySelectorAll('.domain-chip').length,
+            titulo: (document.querySelector('#page-container h2')?.textContent || '').trim(),
+        }))()`);
+        if (semContagem.count || semContagem.chips > 0 || semContagem.titulo !== 'Acesso Rápido') {
+            exceptions.push(`home: contagem/chips/titulo inesperados ${JSON.stringify(semContagem)}`);
         } else {
-            console.log(`home: filtro por dominio isola ${filtro.n} card(s) PDF OK`);
+            console.log('home: Acesso Rápido sem contagem e sem chips de categoria OK');
         }
-        // volta para "Todos"
-        await evaluate(`(() => {
-            const c = Array.from(document.querySelectorAll('.domain-chip')).find(x => x.dataset.section === '');
-            if (c) c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            return !!c;
-        })()`);
-        await sleep(300);
         await shot('home-catalog.png');
 
         // X de remover origem (Coletar Arquivos):1 add ->2 rows -> clique no svg

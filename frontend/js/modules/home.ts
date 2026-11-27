@@ -15,7 +15,7 @@ const SECTION_STYLE: Record<string, { chip: string; badge: string; btn: string }
     'Excel': { chip: 'chip-excel', badge: 'badge-excel', btn: 'btn-excel' },
 };
 
-// Ordem das seções na edição de atalhos + módulos consumidos
+// Módulos consumidos pelo catálogo (fonte única de ids/navegação)
 const MODULE_CATALOG = [
     { page: 'files', section: 'Arquivos', module: FileModule },
     { page: 'pdf', section: 'PDF', module: PDFModule },
@@ -23,11 +23,8 @@ const MODULE_CATALOG = [
     { page: 'excel', section: 'Excel', module: ExcelModule },
 ];
 
-const SECTIONS = ['Arquivos', 'PDF', 'Word', 'Excel'];
-
 // Atalhos semeados na primeira execução (store sem a chave). Uma vez
-// gravados, passam a valer as escolhas do usuário — inclusive o
-// "Limpar", que não é ressemear.
+// gravados, passam a valer as escolhas do usuário.
 const DEFAULT_SHORTCUT_IDS = [
     'collect', 'rename', 'duplicates',
     'pdf-merge', 'pdf-split', 'pdf-compress',
@@ -60,14 +57,12 @@ export class HomePage extends Feature {
     cards!: any[];
     container!: HTMLElement;
     draggedId!: any;
-    domainFilter!: string; // '' = todos os domínios
     storageKey!: string;
 
     constructor(container: HTMLElement) {
         super('home');
         this.container = container;
         this.storageKey = 'quickAccessCards';
-        this.domainFilter = '';
         this.draggedId = null;
         this.cards = [];
 
@@ -123,22 +118,6 @@ export class HomePage extends Feature {
     }
 
     // ====== SELEÇÃO ======
-    get total() {
-        return this.availableFeatures.length;
-    }
-
-    /** Cards visíveis após o filtro de domínio. */
-    get visibleCards() {
-        return this.domainFilter
-            ? this.cards.filter((c: any) => c.section === this.domainFilter)
-            : this.cards;
-    }
-
-    countBySection(section: string) {
-        if (!section) return this.cards.length;
-        return this.cards.filter((c: any) => c.section === section).length;
-    }
-
     /** Adiciona/remove um favorito e persiste (aplicação imediata). */
     private async toggleFavorite(id: string, add: boolean) {
         const existe = this.cards.some((c: any) => c.id === id);
@@ -154,20 +133,12 @@ export class HomePage extends Feature {
     }
 
     /**
-     * Atualiza SÓ a zona de favoritos (grade, chips e contadores), sem
-     * re-renderizar a página inteira.
+     * Atualiza SÓ a zona de favoritos (a grade), sem re-renderizar a
+     * página inteira.
      */
     private refreshFavorites() {
-        const set = (id: string, html: string) => {
-            const el = document.getElementById(id);
-            if (el) el.innerHTML = html;
-        };
-        set('quick-access-container', this.renderFavorites());
-        set('domain-chips', this.renderDomainChips());
-
-        const fc = document.getElementById('favorites-count');
-        if (fc) fc.textContent = `${this.cards.length} de ${this.total} atalhos`;
-
+        const el = document.getElementById('quick-access-container');
+        if (el) el.innerHTML = this.renderFavorites();
         this.initDragDrop();
     }
 
@@ -178,12 +149,7 @@ export class HomePage extends Feature {
 
         this.container.innerHTML = `
             <div class="page active module-home">
-                <div class="mb-4">
-                    <h2 class="text-lg font-semibold text-zinc-900">Acesso Rápido</h2>
-                    <p class="text-sm text-zinc-500" id="favorites-count">${this.cards.length} de ${this.total} atalhos</p>
-                </div>
-
-                <div class="mb-5 flex flex-wrap gap-2" id="domain-chips">${this.renderDomainChips()}</div>
+                <h2 class="mb-4 text-lg font-semibold text-zinc-900">Acesso Rápido</h2>
 
                 <div id="quick-access-container" class="mb-8">${this.renderFavorites()}</div>
 
@@ -192,18 +158,6 @@ export class HomePage extends Feature {
         `;
 
         this.initDragDrop();
-    }
-
-    /** Chips de filtro por domínio (com contagem por domínio). */
-    renderDomainChips() {
-        const chips = [{ label: 'Todos', section: '' },
-            ...SECTIONS.map((s) => ({ label: s, section: s }))];
-        return chips.map((c) => `
-            <button class="domain-chip${this.domainFilter === c.section ? ' active' : ''}"
-                    data-section="${c.section}">
-                ${c.label} <span class="text-xs opacity-70">(${this.countBySection(c.section)})</span>
-            </button>
-        `).join('');
     }
 
     /**
@@ -250,17 +204,7 @@ export class HomePage extends Feature {
                 </div>
             `;
         }
-        const cards = this.visibleCards;
-        if (cards.length === 0) {
-            return `
-                <div class="rounded-xl border border-dashed border-zinc-300 py-8 text-center">
-                    <i data-lucide="folder-search" class="text-3xl text-zinc-300"></i>
-                    <p class="mt-3 text-sm text-zinc-500">Nenhum atalho em
-                        "${escapeHtml(this.domainFilter)}".</p>
-                </div>
-            `;
-        }
-        return `<div class="grid grid-cols-12 gap-4" id="quick-access-grid">${this.renderCardItems(cards)}</div>`;
+        return `<div class="grid grid-cols-12 gap-4" id="quick-access-grid">${this.renderCardItems(this.cards)}</div>`;
     }
 
     renderCardItems(cards: any) {
@@ -337,14 +281,6 @@ export class HomePage extends Feature {
                 !target.closest('.btn-open-card') &&
                 !target.closest('.star-btn')) {
                 this.abrirCard(target);
-                return;
-            }
-
-            // 5. Filtro por domínio
-            const chip = target.closest?.('.domain-chip') as HTMLElement | null;
-            if (chip) {
-                this.domainFilter = chip.dataset.section || '';
-                this.refreshFavorites();
                 return;
             }
         });
